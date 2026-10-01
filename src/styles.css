@@ -534,3 +534,37 @@ body.touch .hud .popups { transform: scale(.6); transform-origin: top right; top
   body.touch .card p { display: none; }
   body.touch .cards { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
 }
+
+/* ---------- celular: tudo mais compacto (v3.1) ---------- */
+.hud .hotbar .hs u { position: absolute; left: 0; right: 0; bottom: 2px; text-align: center; text-decoration: none; font-size: 9px; color: #cfe; text-shadow: 0 1px 2px #000; pointer-events: none; }
+.hud .hotbar .hs img, .hud .hotbar .hs svg { margin-bottom: 8px; }
+body.touch .hud .layer { width: 168px; padding: 4px 7px; border-radius: 8px; }
+body.touch .ly-code { font-size: 8.5px; } body.touch .ly-top b { font-size: 11.5px; }
+body.touch .ly-bar { height: 11px; margin: 3px 0 2px; } body.touch .ly-bar span { font-size: 9px; line-height: 10px; right: 5px; }
+body.touch .ly-sub { font-size: 8.5px; }
+body.touch .descend { font-size: 10px; padding: 5px; }
+body.touch .hud .menu-btn { height: 38px; padding: 0 10px; font-size: 12px; gap: 5px; border-radius: 8px; }
+body.touch .hud .menu-btn span { font-size: 17px; }
+body.touch .hud .meta { width: min(250px, 34vw); padding: 4px 8px; border-radius: 8px; }
+body.touch .hud .meta .mt { font-size: 8.5px; } body.touch .hud .meta .mx { font-size: 10.5px; line-height: 1.2; }
+body.touch .hud .meta.tut { border-width: 1.5px; }
+body.touch .tutskip { font-size: 9px; }
+body.touch .hud .vitals { top: 60px; width: 112px; padding: 3px 5px; border-radius: 8px; }
+body.touch .hud .vitals .vb { margin: 1px 0; gap: 3px; }
+body.touch .hud .vitals .vb .bar { height: 8px; } body.touch .hud .vitals .vb em { font-size: 7.5px; line-height: 8px; right: 3px; } body.touch .hud .vitals .vb span { font-size: 9px; width: 11px; }
+body.touch .hzchip { font-size: 9px; padding: 2px 4px; }
+body.touch .hud .res .ri { padding: 1px 5px 1px 2px; } body.touch .hud .res .ri img { width: 15px; height: 15px; } body.touch .hud .res .ri b { font-size: 10px; } body.touch .hud .res .ri em { font-size: 8px; bottom: -11px; }
+body.touch .hud .mm { top: 34px; padding: 3px; } body.touch .hud .mm canvas { width: 96px; height: 68px; } body.touch .hud .mm .mmcap { font-size: 8px; }
+body.touch .hud .hotbar { transform: translateX(-50%) scale(.62); bottom: 4px; }
+body.touch .hud .build-controls { bottom: 46px; gap: 5px; }
+body.touch .hud .build-controls button { min-width: 72px; height: 34px; font-size: 11px; border-radius: 8px; }
+body.touch .hud .build-hint { bottom: 86px; font-size: 9.5px; padding: 3px 8px; }
+body.touch .hud .dialog { top: 48px; transform: translateX(-50%) scale(.68) !important; }
+body.touch .hud .toasts { top: 112px; width: 180px; } body.touch .hud .toasts .toast { font-size: 9.5px; padding: 3px 6px; }
+#mobile .mobile-actions { gap: 8px; }
+#mobile .mobile-actions button { width: 50px; height: 50px; font-size: 18px; }
+#mobile .mobile-actions button small { font-size: 7px; }
+#mobile .stick .base { width: 96px !important; height: 96px !important; margin: -48px 0 0 -48px !important; }
+#mobile .stick .knob { width: 42px !important; height: 42px !important; margin: -21px 0 0 -21px !important; }
+body.touch .sectortitle .n { font-size: 20px; } body.touch .sectortitle .c { font-size: 10px; }
+body.touch .banner .t { font-size: 15px; } body.touch .banner .s { font-size: 10px; }

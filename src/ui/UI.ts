@@ -234,14 +234,18 @@ export class UI {
       this.el.hz.innerHTML = `${hazIcon(dk)} ${HAZARD_NAMES[dk]} ${Math.round(lv)}% <small>${lv > prot ? `traje ${prot}% · DANO` : 'protegido'}</small>`;
     } else this.el.hz.style.display = 'none';
     // hotbar
+    const LBL: Record<string, string> = { drill: 'Perfurar', scanner: 'Scanner', explosivo: 'Explosivo', sinalizador: 'Luz', kit_reparo: 'Reparo', medkit: 'Curar', plataforma_kit: 'Plataforma' };
     this.el.hotbar.innerHTML = g.hotbar.map((s, i) => {
+      // no celular a barra mostra só ferramentas e consumíveis; construções ficam no MENU
+      if (g.input.touch && (!s || s.type === 'build')) return '';
       if (!s) return `<div class="hs" data-slot="${i}"><em>${(i + 1) % 10}</em></div>`;
       let img = '', cnt = '';
       if (s.type === 'tool') img = s.key === 'drill' ? toolIcon('drill') : toolIcon('scanner');
       else if (s.type === 'item') { img = `<img src="${g.sprites.itemUrl(s.key)}">`; cnt = `<b>${fmtShort(g.pack.count(s.key))}</b>`; }
       else { const d = MACHINE[s.key]; img = `<img src="${g.sprites.machineUrl(d)}">`; cnt = g.canBuildKey(s.key) ? '' : '<b class="lock">🔒</b>'; }
       const title = s.type === 'tool' ? (s.key === 'drill' ? g.mining.drill.name : 'Scanner') : s.type === 'item' ? ITEM[s.key]?.name : MACHINE[s.key]?.name;
-      return `<div class="hs ${i === g.selected ? 'sel' : ''}" data-slot="${i}" title="${esc(title ?? '')}">${img}${cnt}<em>${(i + 1) % 10}</em></div>`;
+      const lbl = LBL[s.key] ?? (s.type === 'build' ? (MACHINE[s.key]?.name.split(' ')[0] ?? '') : '');
+      return `<div class="hs ${i === g.selected ? 'sel' : ''}" data-slot="${i}" title="${esc(title ?? '')}">${img}${cnt}<em>${g.input.touch ? '' : (i + 1) % 10}</em><u>${esc(lbl)}</u></div>`;
     }).join('');
     // meta atual (tutorial, camada ou final)
     this.updateMeta();

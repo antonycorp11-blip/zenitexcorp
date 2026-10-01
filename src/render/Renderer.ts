@@ -54,7 +54,7 @@ export class Renderer {
     // ---- terreno ----
     const c0x = Math.floor(L / CHUNK_PX), c1x = Math.floor(R / CHUNK_PX);
     const c0y = Math.floor(T / CHUNK_PX), c1y = Math.floor((B + 40) / CHUNK_PX);
-    let budget = 3;
+    let budget = g.input.touch ? 1 : 3;
     const sec = g.world.sectorAtPx(g.player.x, g.player.y) || 1;
     const sd = SECTORS[sec - 1];
     // prioriza o chunk do jogador

@@ -395,8 +395,8 @@ export class Game {
     if (placed || turned) { this.audio.click(); this.toast(`${placed} esteira(s) instalada(s)${turned ? `, ${turned} girada(s)` : ''}`, '#9cff8a'); }
     if (blocked) this.toast(`${blocked} trecho(s) obstruído(s) foram pulados`, '#ffd04a');
     if (poor) { this.toast('Recursos acabaram no meio da linha', '#ff8a3a'); this.audio.error(); }
-    // continua no modo esteira, começando do fim da linha
-    this.build.anchor = null;
+    // linha instalada: volta ao perfurador (ficar preso no modo construção parecia travamento)
+    if (placed || turned) this.exitBuild(); else this.build.anchor = null;
   }
 
   confirmBuild() { if (this.build.active && !this.build.deconstruct && !this.ui.modalOpen()) this.buildAction(); }
