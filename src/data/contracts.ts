@@ -15,6 +15,6 @@ export const CONTRACT_TEMPLATES: ContractTemplate[] = [
   { kind: 'craft', title: 'Encomenda: {item}', baseReward: 1.8, minutes: 30, flavor: ['"Fabricação local reduz custos de frete. E aumenta os seus."'] },
   { kind: 'rare', title: 'Espécime Raro: {item}', baseReward: 3.5, minutes: 45, flavor: ['"Robôs não sabem extrair isso. Você sabe? Prove."', '"Colecionadores pagam bem por variantes raras. Você recebe parte disso. Uma parte."'] },
   { kind: 'ruin', title: 'Levantamento Arqueológico', baseReward: 2.5, minutes: 50, flavor: ['"O departamento de Patrimônio quer saber o que vai ser demolido antes de demolir. Burocracia."'] },
-  { kind: 'rate', title: 'Meta de Produção Setorial', baseReward: 3, minutes: 40, flavor: ['"Aumente a taxa de extração. Por quê? Porque gráficos devem subir."'] },
+  { kind: 'rate', title: 'Meta de Produção', baseReward: 3, minutes: 40, flavor: ['"Aumente a taxa de extração. Por quê? Porque gráficos devem subir."'] },
   { kind: 'explore', title: 'Mapeamento de Caverna', baseReward: 1.2, minutes: 30, flavor: ['"Mapeie a área. Ou, como dizemos no marketing, \'descubra oportunidades\'."'] },
 ];

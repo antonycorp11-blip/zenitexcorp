@@ -10,7 +10,7 @@ import type { Game } from '../Game';
 /** A saga de automação de cada setor: 9 fases. */
 export const PHASES = [
   'Reconhecimento', 'Infraestrutura', 'Extração Experimental', 'Estabilização', 'Logística',
-  'Quota Corporativa', 'Calibração Manual', 'Certificação', 'Automação Setorial',
+  'Quota Corporativa', 'Calibração Manual', 'Certificação', 'Automação da Camada',
 ];
 
 export interface Objective { text: string; cur: number; max: number; done: boolean; }
@@ -54,7 +54,7 @@ export class SectorSystem {
     const o = (text: string, cur: number, max: number): Objective => ({ text, cur: Math.min(cur, max), max, done: cur >= max });
     switch (st.phase) {
       case 0: return [
-        o(`Explorar ${Math.round(0.1 * 100)}% do setor`, Math.floor(g.world.exploredFrac(sec) * 1000) / 10, 10),
+        o(`Explorar 2% da camada`, Math.floor(g.world.exploredFrac(sec) * 1000) / 10, 2),
         o('Escanear depósitos minerais', st.counters.scans ?? 0, 3),
       ];
       case 1: return [
@@ -66,7 +66,7 @@ export class SectorSystem {
         o('Instalar perfuradora', M.countBehavior('drill', sec), 1),
         o('Instalar esteiras', M.countBehavior('belt', sec), 5),
         o('Produzir minério via perfuradora (kg)', this.since(sec, 'drillOut'), 200),
-        o('Ativar um robô no setor', g.robots.list.filter(r => r.sector === sec).length, 1),
+        o('Construir uma estação de drone', M.countBehavior('dronepad', sec), 1),
       ];
       case 3: return sd.stabilize.map(x => o(`Instalar ${MACHINE[x.machine].name}`, M.count(x.machine, sec), x.count));
       case 4: return [o('Transferir carga ao Estoque Central (kg)', this.since(sec, 'linked'), sd.logisticsKg)];
@@ -77,7 +77,6 @@ export class SectorSystem {
         const bad = ms.filter(m => m.broken || m.cond < 50 || m.overheat).length;
         return [
           o('Nenhuma máquina abaixo de 50% de condição', bad === 0 ? 1 : 0, 1),
-          o('Energia do setor ≥ 100%', this.rt[sec].ratio >= 0.999 ? 1 : 0, 1),
           o('Formulário de auditoria Z-77 (Centro de Comando)', st.auditPassed ? 1 : 0, 1),
         ];
       }
@@ -115,7 +114,7 @@ export class SectorSystem {
     st.shipBase = { ...g.machines.shipped };
     const reward = Math.round(150 * Math.pow(1.9, s - 1) * (1 + finished * 0.35));
     g.stock.credits += reward;
-    g.ui.banner(`${sectorById(s).code} — ${PHASES[finished]} concluída`, `+${fmtInt(reward)} créditos · Próxima: ${PHASES[st.phase] ?? 'Setor automatizado'}`);
+    g.ui.banner(`${sectorById(s).code} — ${PHASES[finished]} concluída`, `+${fmtInt(reward)} créditos · Próxima: ${PHASES[st.phase] ?? 'Camada automatizada'}`);
     g.audio.success();
     if (finished === 5) g.say('quota_done');
     if (st.phase === 8) { g.say('certified'); g.bus.emit('sector_certified', s); }

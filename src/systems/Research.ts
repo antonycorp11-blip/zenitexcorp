@@ -34,7 +34,7 @@ export class Research {
   blocked(r: ResearchDef): string | null {
     if (this.done.has(r.key)) return 'Concluída';
     for (const q of r.req) if (!this.done.has(q)) return `Requer: ${RESEARCH_BY_KEY[q]?.name ?? q}`;
-    if (r.certified && !this.g.sectors.certified(r.certified)) return `Requer Setor ${String(r.certified).padStart(2, '0')} certificado`;
+    if (r.certified && !this.g.sectors.certified(r.certified)) return `Requer Camada ${r.certified} certificada`;
     if (r.lore && this.g.lore.unlocked.size < r.lore) return `Requer ${r.lore} registros no Arquivo (${this.g.lore.unlocked.size})`;
     return null;
   }
@@ -42,14 +42,17 @@ export class Research {
   start(key: string): string | null {
     const r = RESEARCH_BY_KEY[key];
     if (!r) return 'Inexistente';
-    if (this.active) return 'Já existe uma pesquisa em andamento';
     const b = this.blocked(r); if (b) return b;
     const c = this.cost(r);
     if (this.g.stock.credits < c.credits) return 'Créditos insuficientes';
     if (!this.g.stock.has(c.items, this.g.pack.items)) return 'Materiais insuficientes';
     this.g.stock.credits -= c.credits;
     this.g.stock.pay(c.items, this.g.pack.items);
-    this.active = { key, t: 0 };
+    // desbloqueio imediato: sem estação e sem fila de pesquisa
+    this.done.add(r.key);
+    this.effCache = null;
+    this.g.stats.research++;
+    this.g.bus.emit('research_done', r);
     return null;
   }
 

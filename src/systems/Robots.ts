@@ -205,7 +205,7 @@ export class Robots {
 
   private deliver(r: Robot): boolean {
     const st = this.nearest(r, m => (m.def.behavior === 'storage' || m.def.behavior === 'link' || m.def.behavior === 'command') && m.sector === r.sector && !m.broken, 80);
-    if (!st) { r.state = 'Sem armazém no setor'; return false; }
+    if (!st) { r.state = 'Sem armazém na base'; return false; }
     if (this.near(r, st)) {
       for (const k of Object.keys(r.cargo)) {
         if (!this.g.machines.accept(st, k, r.cargo[k])) { r.state = 'Armazém cheio'; return false; }

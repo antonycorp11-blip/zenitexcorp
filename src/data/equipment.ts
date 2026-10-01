@@ -16,7 +16,7 @@ export const SCANNERS: ScannerLevel[] = [
   { name: 'Scanner Básico', radius: 14, desc: 'Detecta material próximo.', cost: {} },
   { name: 'Scanner de Densidade', radius: 22, desc: 'Indica densidade e quantidade estimada dos depósitos.', cost: { celula_lumenita: 8, placa_ferronox: 8 }, research: 'refino' },
   { name: 'Scanner de Composição', radius: 32, desc: 'Mostra a composição provável, inclusive variantes raras e artefatos.', cost: { sensor: 2, chip_nexolita: 6 } },
-  { name: 'Scanner Orbital', radius: 44, desc: 'Marca no mapa as regiões promissoras de todo o setor.', cost: { sensor: 6, circuito: 2, nucleo_sinaptico: 2 }, research: 'logistica_orbital' },
+  { name: 'Scanner Orbital', radius: 44, desc: 'Marca no mapa as regiões promissoras de toda a camada.', cost: { sensor: 6, circuito: 2, nucleo_sinaptico: 2 }, research: 'logistica_orbital' },
 ];
 
 export interface PackLevel { name: string; weight: number; contencao: number; frio: number; magnetico: number; cost: Record<string, number>; }

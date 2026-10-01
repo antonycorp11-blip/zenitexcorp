@@ -25,6 +25,18 @@ antes de chamar o Wrangler.
 
 Modo de teste: `http://localhost:5280/?dev` (atalhos F2–F8) e `?dev&auto=new` (pula título e abertura).
 
+## Como o jogo funciona (versão em camadas)
+
+- O planeta tem **7 camadas** (Terra → Pedra → Basalto → Cristalina → Manto → Núcleo Externo → Núcleo).
+  Cada camada é um mapa inteiro; as de baixo são menores, porém mais duras.
+- A **barra da camada** (canto superior esquerdo) é a meta: tudo que você, as perfuradoras, os drones e os
+  Complexos mineram enche a barra. Em 100% aparece **▼ DESCER**: a base é empacotada com 100% de reembolso
+  e você recomeça no poço central da camada de baixo. O planeta encolhe.
+- **Um só menu** (botão MENU / Tab) com 5 abas: Construir · Melhorias · Mochila · Missões · Mapa.
+- **Melhorias** é a árvore única (perfurador, traje e tecnologias); desbloqueio instantâneo, sem estação de pesquisa.
+- Sem rede de energia. Robôs são construções: Construir → Drones.
+- O cartão de **META** (topo) diz a próxima coisa a fazer; o tutorial fala por ele e um anel destaca o botão certo.
+
 ## Controles
 
 | PC | Ação |
@@ -34,7 +46,7 @@ Modo de teste: `http://localhost:5280/?dev` (atalhos F2–F8) e `?dev&auto=new` 
 | Botão direito / F | pulso de scanner · cancelar construção |
 | 1–0 | barra rápida (ferramentas, consumíveis, construções fixadas) |
 | E (segurar) | interagir, reparar, catalogar, resgatar |
-| Tab · B · U · K · G · Y · J · L · M | inventário/fabricação · construção · melhorias · pesquisa · setores · robôs · contratos · arquivo · mapa |
+| Tab · B · U · I · J · M | menu (última aba) · construir · melhorias · mochila · missões · mapa |
 | R · X · Q | girar · desmontar · sair do modo construção |
 | Construção | selecione a peça, mova a prévia com o mouse e clique em CONFIRMAR (ou Enter) |
 | Esteiras | clique no início e arraste até o fim (faz curva em L); CONFIRMAR instala a linha inteira |

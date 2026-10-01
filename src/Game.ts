@@ -126,7 +126,7 @@ export class Game {
   setupNew() {
     this.setupBase();
     this.stock.add('ferronox', 20, false); this.stock.add('lumenita', 10, false);
-    this.stock.credits = 120;
+    this.stock.credits = 300;
     this.pack.add('sinalizador', 3); this.pack.add('kit_reparo', 1);
     this.world.reveal(this.player.x, this.player.y, 14);
     for (let i = 0; i < 3; i++) { const c = this.contracts.generate(); if (c) this.contracts.available.push(c); }
@@ -158,7 +158,7 @@ export class Game {
     const b = this.bus;
     b.on('mass_milestone', (i: number) => { this.say('mass_' + i); if (i >= 6) this.ui.banner('MARCO PLANETÁRIO', `${['0,00001', '0,0001', '0,001', '0,01', '0,1', '1', '5', '10', '25', '50', '75', '90', '99'][i]}% da massa planetária extraída`); });
     b.on('enter_sector', (s: number) => { this.say('enter_' + s, 300); this.ui.sectorTitle(s); });
-    b.on('sector_discovered', (s: number) => this.toast(`Novo setor descoberto: ${SECTORS[s - 1].name}`, SECTORS[s - 1].accent));
+    b.on('sector_discovered', (s: number) => this.toast(`Nova camada: ${SECTORS[s - 1].name}`, SECTORS[s - 1].accent));
     b.on('machine_broken', (m: Machine) => { this.say('machine_broken', 45); this.scanner.addMarker(...this.machines.centerPx(m), `${m.def.name} quebrada`, '#ff4a3a', 'broken'); });
     b.on('overheat', () => this.say('overheat', 60));
     b.on('drill_exhausted', (m: Machine) => { this.say('drill_exhausted', 60); this.toast(`${m.def.name}: faixa limpa, agora perfurando em profundidade (rende menos).`, '#ffd04a'); });
@@ -280,7 +280,8 @@ export class Game {
     if (ui.modalOpen()) { this.hover = null; this.hold = null; return; }
     for (let i = 0; i < 10; i++) if (inp.pressed(String((i + 1) % 10))) this.selectSlot(i);
     if (inp.wheel && inp.down('Control')) this.selectSlot((this.selected + (inp.wheel > 0 ? 1 : 9)) % 10);
-    if (inp.pressed('Tab')) ui.open('inventory');
+    if (inp.pressed('Tab')) ui.open(ui.panels.lastTab);
+    if (inp.pressed('i')) ui.open('inventory');
     if (inp.pressed('m')) ui.open('map');
     if (inp.pressed('b')) ui.open('build');
     if (inp.pressed('k')) ui.open('research');

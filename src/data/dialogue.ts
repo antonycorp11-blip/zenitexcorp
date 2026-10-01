@@ -24,7 +24,7 @@ export const INTRO: Line[] = [
 
 export const POOLS: Record<string, Pool> = {
   // Início / tutorial
-  t_start: [['zena', 'Você possui: perfurador básico, scanner e uma pequena mochila. É mais do que a maioria dos planetas tem contra você.'], ['zena', 'Primeira tarefa: remova 50 kg de material. Mantenha o botão principal sobre uma parede.']],
+  t_start: [['zena', 'Você possui: perfurador básico, scanner e uma pequena mochila. É mais do que a maioria dos planetas tem contra você.']],
   t_first_deliver: [['zena', 'Excelente começo. Nesse ritmo, terminaremos em aproximadamente 438 anos. Recomendo melhorias.']],
   t_build_workshop: [['br7', 'Recomendo construir uma Oficina. Segundo o manual, ferramentas são 73% mais eficientes quando existem.']],
   t_build_drill: [['rocha', 'Primeira perfuradora? Aponta pra parede, liga numa esteira e reza. É assim que se faz desde sempre.']],
@@ -55,18 +55,13 @@ export const POOLS: Record<string, Pool> = {
   mass_12: [['zena', '99%. Resta apenas o núcleo e grandes fragmentos. A extração automática foi suspensa. A partir daqui, é com você.']],
 
   // Setores
-  enter_1: [['zena', 'Setor 01 — Planalto de Khelos. Terreno estável. Ideal para começar a destruição de forma responsável.']],
-  enter_2: [['rocha', 'Bosque Verdânio. Essas raízes aí... às vezes eu juro que elas se mexem quando a gente não tá olhando.'], ['zena', 'Contaminação biológica leve detectada. Recomendo máscara. Recomendo também não pensar muito sobre isso.']],
+  enter_1: [['zena', 'Camada 1 — Crosta de Terra. A maior e mais macia camada do planeta. Ideal para começar a destruição de forma responsável.']],
+  enter_2: [['sera', 'Camada de Pedra... e ruínas. Isso é uma CIDADE. Alguém viveu aqui embaixo.'], ['zenitex', 'Encontramos evidências de uma civilização avançada. O departamento jurídico confirma que "avançada" não significa "atualmente proprietária".']],
   enter_3: [['rocha', 'A empresa chamou isso aqui de "ambiente de baixo risco". Tem lava no teto.'], ['br7', 'Temperatura ambiente: 140 °C. Segundo o manual, isto é "morno".']],
-  enter_4: [['zena', 'Abismo Crysalis. Temperatura: -95 °C. A Zenitex lembra que hipotermia não é motivo para atraso.'], ['rocha', 'Cuidado com os abismos. Já perdi três robôs e um estagiário aqui. O estagiário voltou. Os robôs não.']],
-  enter_5: [['rocha', 'Claro... "local de baixo risco", né? Só falta chamarem esse caldo ácido de chá da tarde corporativo.'], ['zena', 'Pântano Nexolítico. Toxicidade elevada. A Zenitex classifica como "spa mineral com desafios".']],
-  enter_6: [['sera', 'Ruínas de Var-Ka... Isso é uma CIDADE. Alguém viveu aqui. Muita gente viveu aqui.'], ['zenitex', 'Encontramos evidências de uma civilização avançada. O departamento jurídico confirma que "avançada" não significa "atualmente proprietária".']],
-  enter_7: [['zena', 'Mar Subterrâneo. Afogamento não está coberto pelo seu plano de saúde. Nadar também não.'], ['rocha', 'Um mar. Embaixo da terra. Alienígena. E eu aqui querendo férias na praia.']],
-  enter_8: [['br7', 'Gravidade irregular detectada. Objetos podem cair para cima. Recomendo segurar os parafusos.'], ['rocha', 'Aqui as pedras flutuam e a gente também quase. Liga o estabilizador, senão você acaba virando satélite.']],
-  enter_9: [['sera', 'Os cristais aqui... crescem de volta. O planeta está reagindo ao que fazemos.'], ['zena', 'Recurso renovável identificado. A diretoria pediu para avisar que está emocionada.']],
-  enter_10: [['varren', 'Cinturão do Núcleo. Aqui só complexos industriais sobrevivem. Como no mercado financeiro.'], ['br7', 'Pressão ambiente: absurda. Densidade da rocha: ofensiva. Moral da equipe: dentro dos parâmetros.']],
-  enter_11: [['sera', 'A Cidade Profunda... Arquivos, templos, estátuas. Eu poderia passar a vida aqui. Eles vão querer que a gente derrube tudo, não vão?'], ['zena', 'Volume excepcional de pedra ancestral. Valor estimado: alto. Valor histórico: consulte o departamento responsável (desativado em 2211).']],
-  enter_12: [['zena', 'Coração Planetário. Concentração máxima de valor. Por favor, mantenha a calma e a produtividade.'], ['sera', 'Estamos no centro de tudo. Está quente. E pulsando. Como um coração de verdade.']],
+  enter_4: [['zena', 'Camada Cristalina. Temperatura: -95 °C. A Zenitex lembra que hipotermia não é motivo para atraso.'], ['rocha', 'Cuidado com os abismos. Já perdi três robôs e um estagiário aqui. O estagiário voltou.']],
+  enter_5: [['sera', 'O Manto... os cristais crescem de volta. O planeta está reagindo ao que fazemos.'], ['br7', 'Gravidade irregular detectada. Objetos podem cair para cima. Recomendo segurar os parafusos.']],
+  enter_6: [['sera', 'O Núcleo Externo guarda a Cidade Profunda. Arquivos, templos, estátuas. Eles vão querer que a gente derrube tudo, não vão?'], ['zena', 'Volume excepcional de pedra ancestral. Valor histórico: consulte o departamento responsável (desativado em 2211).']],
+  enter_7: [['zena', 'Núcleo planetário. Concentração máxima de valor. Por favor, mantenha a calma e a produtividade.'], ['sera', 'Estamos no centro de tudo. Está quente. E pulsando. Como um coração de verdade.']],
   hazard_warn: [['br7', 'Perigo ambiental acima da proteção do traje. Recomendo sair daqui ou morrer. Prefiro a primeira opção, mas não decido por você.'], ['zena', 'Seus sinais vitais estão caindo. A Zenitex se importa com você até o final do contrato.']],
   low_health: [['rocha', 'Ei! Sai daí! Vida em vermelho não é estratégia!']],
   death: [['zena', 'Colaborador recuperado e reconstituído na base. O custo foi descontado da sua participação nos lucros.'], ['rocha', 'Bem-vindo de volta. Sua carga ficou lá. Igual a minha dignidade, da primeira vez.'], ['br7', 'Óbito registrado. Ressurreição registrada. Segundo o manual, os dois se cancelam.']],
@@ -75,14 +70,14 @@ export const POOLS: Record<string, Pool> = {
   build_first: [['br7', 'Primeira estrutura registrada. Ela já está se desgastando. É o ciclo natural das coisas.']],
   drill_exhausted: [['br7', 'Faixa à frente da perfuradora limpa. Ela segue perfurando em profundidade, rendendo menos. Gire-a para outra parede ou mude de veio para render mais.'], ['rocha', 'A broca comeu tudo na frente e agora tá cavando pra baixo. Funciona, mas rende pouco. Bota ela de cara num veio novo.']],
   machine_broken: [['br7', 'Falha crítica em máquina. Robôs de reparo não estão autorizados a lidar com falhas críticas. Ninguém está. Exceto você.'], ['zena', 'Uma máquina parou. Cada minuto parado custa créditos. Seus créditos, inclusive.']],
-  overheat: [['br7', 'Superaquecimento detectado. Temperatura do setor acima da tolerância das máquinas. Recomendo refrigeração ou fé.'], ['rocha', 'Tá tudo fervendo aqui. Você ligou reator demais sem refrigerar. Clássico.']],
+  overheat: [['br7', 'Superaquecimento detectado. Temperatura acima da tolerância das máquinas. Recomendo refrigeração ou fé.'], ['rocha', 'Tá tudo fervendo aqui. Você ligou reator demais sem refrigerar. Clássico.']],
   low_power: [['br7', 'Demanda energética acima da geração. As máquinas estão operando em modo "triste". Construa geradores.'], ['zena', 'Energia insuficiente no setor. A Zenitex sugere gerar mais energia ou consumir menos ambição. Recomendamos a primeira.']],
-  storage_full: [['br7', 'Buffer do setor cheio. Produção parada. Gargalo identificado: armazenamento ou elevador.'], ['zena', 'Armazéns cheios. Que problema maravilhoso de se ter. Resolva-o mesmo assim.']],
+  storage_full: [['br7', 'Armazéns da base cheios. Produção parada. Gargalo identificado: armazenamento ou elevador.'], ['zena', 'Armazéns cheios. Que problema maravilhoso de se ter. Resolva-o mesmo assim.']],
   link_bottleneck: [['br7', 'O elevador não dá conta. Vazão logística insuficiente. Automatize o problema antigo, crie um problema maior: é o ciclo.']],
   belt_jam: [['rocha', 'Esteira entupida. Algum item que ninguém aceita tá travando a linha. Coloca um separador ou um armazém no final.']],
   calibrated: [['br7', 'Calibração concluída. Precisão: aceitável. Segundo o manual, "aceitável" é o maior elogio possível.'], ['zena', 'Excelente calibração. Eficiência restaurada. Seus dedos foram registrados como ativo corporativo.']],
   repaired: [['br7', 'Reparo concluído. Esta máquina voltará a quebrar em um momento estatisticamente inconveniente.'], ['rocha', 'Consertou? Boa. Dá um tapinha nela que dá sorte. Não tem base científica nenhuma, mas funciona.']],
-  complex_built: [['varren', 'Um Complexo de Extração Profunda! AGORA estamos falando a minha língua. A língua dos gráficos subindo.'], ['zena', 'Extração setorial iniciada. O setor não está "resolvido". Ele só aprendeu a te dar trabalho em escala maior.']],
+  complex_built: [['varren', 'Um Complexo de Extração! AGORA estamos falando a minha língua. A língua dos gráficos subindo.'], ['zena', 'Extração setorial iniciada. O setor não está "resolvido". Ele só aprendeu a te dar trabalho em escala maior.']],
   complex_drift: [['br7', 'Calibração do complexo derivou. Eficiência caindo. Robôs não estão qualificados para isto. Você também não, mas tem acesso.']],
 
   // Robôs
@@ -96,8 +91,8 @@ export const POOLS: Record<string, Pool> = {
 
   // Contratos e quotas
   contract_done: [['varren', 'Contrato concluído! Os acionistas acenaram com a cabeça. É o máximo de emoção que eles demonstram.'], ['zena', 'Contrato cumprido. Créditos depositados. A satisfação do cliente foi medida em 3 de 5 estrelas, o que é ótimo para nós.']],
-  quota_done: [['varren', 'Cota setorial atingida! Agora vamos aumentar a cota, como manda a tradição.']],
-  certified: [['zenitex', 'Auditoria concluída. Setor certificado. Extração Profunda autorizada. "Menos planetas. Mais lucro."'], ['br7', 'Certificação aprovada. O setor agora pode ser automatizado. "Automatizado" não significa "resolvido". Eu verifiquei o dicionário.']],
+  quota_done: [['varren', 'Cota da camada atingida! Agora vamos aumentar a cota, como manda a tradição.']],
+  certified: [['zenitex', 'Auditoria concluída. Camada certificada. Complexos de Extração autorizados. "Menos planetas. Mais lucro."'], ['br7', 'Certificação aprovada. O setor agora pode ser automatizado. "Automatizado" não significa "resolvido". Eu verifiquei o dicionário.']],
   research_done: [['zena', 'Pesquisa concluída. A ciência avança. O planeta, proporcionalmente, recua.'], ['br7', 'Nova tecnologia disponível. Ela criará novos problemas. Estou ansioso para catalogá-los.']],
 
   // Eventos

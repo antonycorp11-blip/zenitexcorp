@@ -46,8 +46,8 @@ export class UI {
     this.mini = new Minigames(g, this);
     this.cine = new Cinematics(g, this);
     this.tutorial = new Tutorial(g, this.el.hud);
-    // botões laterais
-    this.root.querySelectorAll<HTMLElement>('[data-open]').forEach(b => b.addEventListener('click', () => { g.audio.click(); this.open(b.dataset.open as PanelId); }));
+    this.el.menuBtn.addEventListener('click', () => { g.audio.click(); this.open(this.panels.lastTab); });
+    this.el.descendBtn.addEventListener('click', () => this.descendPrompt());
     // hotbar
     this.el.hotbar.addEventListener('click', e => {
       const s = (e.target as HTMLElement).closest<HTMLElement>('[data-slot]');
@@ -57,7 +57,8 @@ export class UI {
     this.root.addEventListener('mouseover', e => { g.input.uiCapture = (e.target as HTMLElement) !== this.root && !!(e.target as HTMLElement).closest('.ui-block'); });
     this.root.addEventListener('mouseout', () => { g.input.uiCapture = false; });
     this.minimap.addEventListener('click', () => this.open('map'));
-    this.el.objective.addEventListener('click', () => this.open('sectors'));
+    this.el.meta.addEventListener('click', e => { if (!this.tutorial.tap(e.target as HTMLElement)) this.open('missions'); });
+    this.el.layerCard.addEventListener('click', e => { if (!(e.target as HTMLElement).closest('.descend')) this.open('missions'); });
     this.el.buildControls.querySelectorAll<HTMLButtonElement>('[data-build-action]').forEach(button => {
       button.addEventListener('click', () => {
         const action = button.dataset.buildAction;
@@ -68,29 +69,35 @@ export class UI {
     });
   }
 
+  descendPrompt() {
+    const g = this.g;
+    {
+      if (!g.canDescend()) return;
+      this.mini.choice('DESCER PARA A PRÓXIMA CAMADA?', `Sua base inteira é empacotada e <b>100% do custo volta ao estoque</b>. Você reaparece no poço central da <b>${esc(SECTORS[g.planet.layer].name)}</b>: menor, porém mais dura. Estoque, melhorias e registros vão com você.`,
+        [{ label: 'Ainda não', cls: 'ghost', fn: () => {} }, { label: '▼ DESCER', cls: 'orange', fn: () => g.descend() }]);
+    }
+  }
+
   private template() {
-    const sideBtns: [PanelId, string, string][] = [
-      ['inventory', '▤', 'Inventário (Tab)'], ['build', '⚒', 'Construção (B)'], ['upgrades', '✚', 'Melhorias (U)'], ['research', '⚗', 'Pesquisa (K)'],
-      ['sectors', '◈', 'Setores (G)'], ['robots', '⚙', 'Robôs (Y)'], ['contracts', '☰', 'Contratos (J)'], ['archive', '📖', 'Arquivo de Khelos (L)'], ['map', '⌖', 'Mapa (M)'],
-    ];
     return `
     <div class="hud" data-id="hud">
-      <div class="ui-block panel mass" data-id="massBox">
-        <div class="row"><span class="ttl">MASSA PLANETÁRIA EXTRAÍDA</span><span class="big" data-id="massPct">0,0000000%</span></div>
-        <div class="bar"><i data-id="massBar"></i></div>
-        <div class="row sub"><span data-id="massT">0 / 2.860.000.000 t</span><span data-id="massRate" class="rate"></span></div>
-        <div class="remain" data-id="massRemain">MASSA PLANETÁRIA RESTANTE: 100,000000%</div>
+      <div class="ui-block hcard layer" data-id="layerCard">
+        <div class="ly-top"><span class="ly-code" data-id="lyCode"></span><b data-id="lyName"></b></div>
+        <div class="ly-bar"><i data-id="lyBar"></i><span data-id="lyPct"></span></div>
+        <div class="ly-sub"><span data-id="lyPlanet"></span><span data-id="lyRate" class="rate"></span></div>
+        <button class="descend" data-id="descendBtn">▼ DESCER PARA A PRÓXIMA CAMADA</button>
       </div>
-      <div class="ui-block panel depth" data-id="depthBox"><div class="ttl" data-id="depthTtl">PROFUNDIDADE</div><div class="big2" data-id="depth">0 m</div><div class="sname" data-id="sname"></div></div>
-      <div class="ui-block panel quote" data-id="quote"></div>
-      <div class="side ui-block">${sideBtns.map(([id, ic, t]) => `<button class="sbtn" data-open="${id}" title="${t}"><span>${ic}</span><b class="badge" data-id="badge_${id}"></b></button>`).join('')}</div>
-      <div class="ui-block panel res" data-id="res"></div>
-      <div class="ui-block panel mm"><canvas data-id="minimap" width="240" height="170"></canvas><div class="mmcap"><span data-id="mmName"></span><span class="scale">50 m</span></div></div>
-      <div class="ui-block panel vitals"><div class="vb hp"><span>❤</span><div class="bar"><i data-id="hpBar"></i><em data-id="hpTxt"></em></div></div><div class="vb en"><span>⚡</span><div class="bar"><i data-id="enBar"></i><em data-id="enTxt"></em></div></div><div class="vb pack"><span title="Mochila">▣</span><div class="bar"><i data-id="packBar"></i><em data-id="packTxt"></em></div></div></div>
-      <div class="ui-block panel env" data-id="env"></div>
+      <button class="ui-block menu-btn" data-id="menuBtn" title="Menu (Tab)"><span>☰</span><b>MENU</b><i class="badge" data-id="menuBadge"></i></button>
+      <div class="ui-block hcard meta" data-id="meta"><div class="mt" data-id="metaTitle"></div><div class="mx" data-id="metaText"></div><div class="mb"><i data-id="metaBar"></i></div></div>
+      <div class="ui-block res" data-id="res"></div>
+      <div class="ui-block hcard mm"><canvas data-id="minimap" width="240" height="170"></canvas><div class="mmcap"><span data-id="mmName"></span><span>MAPA ›</span></div></div>
+      <div class="ui-block hcard vitals">
+        <div class="vb hp"><span>❤</span><div class="bar"><i data-id="hpBar"></i><em data-id="hpTxt"></em></div></div>
+        <div class="vb en"><span>⚡</span><div class="bar"><i data-id="enBar"></i><em data-id="enTxt"></em></div></div>
+        <div class="vb pack"><span title="Mochila">▣</span><div class="bar"><i data-id="packBar"></i><em data-id="packTxt"></em></div></div>
+        <div class="hzchip" data-id="hz"></div>
+      </div>
       <div class="ui-block hotbar" data-id="hotbar"></div>
-      <div class="ui-block panel objective" data-id="objective"></div>
-      <div class="ui-block panel corp" data-id="corp"></div>
       <div class="dialog" data-id="dialog"></div>
       <div class="hold" data-id="hold"><div class="lbl"></div><div class="bar"><i></i></div></div>
       <div class="toasts" data-id="toasts"></div>
@@ -98,7 +105,7 @@ export class UI {
       <div class="flashname" data-id="flashname"></div>
       <div class="sectortitle" data-id="sectortitle"></div>
       <div class="build-hint" data-id="buildHint"></div>
-      <div class="build-controls ui-block" data-id="buildControls"><button data-build-action="cancel">CANCELAR</button><button data-build-action="rotate">GIRAR</button><button class="confirm" data-build-action="confirm">CONFIRMAR</button></div>
+      <div class="build-controls ui-block" data-id="buildControls"><button data-build-action="cancel">✕ CANCELAR</button><button data-build-action="rotate">↻ GIRAR</button><button class="confirm" data-build-action="confirm">✔ CONFIRMAR</button></div>
       <div class="popups" data-id="popups"></div>
       <div class="saved" data-id="saved">✔ salvo</div>
       <div class="vignette" data-id="vignette"></div>
@@ -150,7 +157,7 @@ export class UI {
     e.innerHTML = `<div class="c">${sd.code}</div><div class="n" style="color:${sd.accent}">${esc(sd.name)}</div>`;
     e.classList.remove('show'); void e.offsetWidth; e.classList.add('show');
   }
-  flashMass() { this.el.massBox.classList.remove('pulse'); void this.el.massBox.offsetWidth; this.el.massBox.classList.add('pulse'); }
+  flashMass() { this.el.layerCard.classList.remove('pulse'); void this.el.layerCard.offsetWidth; this.el.layerCard.classList.add('pulse'); }
   hurtFlash() { this.el.vignette.classList.remove('hit'); void this.el.vignette.offsetWidth; this.el.vignette.classList.add('hit'); }
   deathFlash(cause: string) { this.banner('COLABORADOR RECONSTITUÍDO', `Causa: ${cause}. Custo descontado da participação nos lucros.`); }
   savedIndicator() { const s = this.el.saved; s.classList.remove('show'); void s.offsetWidth; s.classList.add('show'); }
@@ -191,56 +198,41 @@ export class UI {
     if (this.hudT > 0) return;
     this.hudT = 0.15;
     const p = g.player;
-    // massa
-    const f = g.planet.fraction();
-    this.el.massPct.textContent = PCT(f);
-    (this.el.massBar as HTMLElement).style.width = Math.max(0.4, f * 100) + '%';
-    this.el.massT.textContent = `${fmtInt(g.planet.extracted())} / ${fmtInt(g.planet.total)} t`;
-    const rate = g.planet.rate();
-    this.el.massRate.textContent = rate > 0.01 ? `+${rate >= 1 ? fmtShort(rate) + ' t' : fmtInt(rate * 1000) + ' kg'}/min` : '';
-    this.el.massRemain.textContent = `MASSA PLANETÁRIA RESTANTE: ${((1 - f) * 100).toFixed(f < 0.01 ? 6 : 4).replace('.', ',')}%`;
-    // profundidade e setor
-    const sec = g.world.sectorAtPx(p.x, p.y) || 1;
-    const sd = SECTORS[sec - 1];
-    const cx = WORLD_PX / 2;
-    const r = Math.hypot(p.x - cx, p.y - cx) / WORLD_PX;
-    const depth = Math.max(0, (0.43 - r) / 0.43 * 3200);
-    const nearBase = g.machines.list.some(m => m.def.behavior === 'command' && Math.hypot((m.tx + 1.5) * TILE - p.x, (m.ty + 1.5) * TILE - p.y) < 160);
-    this.el.depthTtl.textContent = nearBase ? `BASE — ${sd.code.toUpperCase()}` : 'PROFUNDIDADE';
-    this.el.depth.textContent = depth < 15 ? 'Superfície' : `${fmtInt(depth)} m`;
-    this.el.sname.textContent = sd.name;
-    this.el.sname.style.color = sd.accent;
-    // citação / perigo
+    // camada atual
+    const L = g.planet.def, lf = g.planet.layerFraction();
+    this.el.lyCode.textContent = `${L.code.toUpperCase()}/${SECTORS.length}`;
+    this.el.lyName.textContent = L.name;
+    this.el.layerCard.style.setProperty('--acc', L.accent);
+    (this.el.lyBar as HTMLElement).style.width = Math.max(0.6, lf * 100) + '%';
+    this.el.lyPct.textContent = (lf * 100).toFixed(lf < 0.01 ? 2 : 1).replace('.', ',') + '%';
+    this.el.lyPlanet.textContent = `Planeta: ${PCT(g.planet.fraction())} extraído`;
+    const ru = g.planet.rateUnits();
+    this.el.lyRate.textContent = ru > 0.05 ? `+${(ru / L.target * 100).toFixed(ru / L.target < 0.001 ? 3 : 2).replace('.', ',')}%/min` : '';
+    this.el.descendBtn.style.display = g.canDescend() ? 'block' : 'none';
+    // recursos: os 4 mais abundantes + créditos
+    const tops = TOP_BAR_ITEMS.filter(k => g.stock.count(k) >= 1).sort((a, b) => g.stock.count(b) - g.stock.count(a)).slice(0, 4);
+    if (!tops.length) tops.push('ferronox', 'lumenita');
+    this.el.res.innerHTML = tops.map(k => {
+      const rt = g.stock.rate(k);
+      return `<div class="ri" title="${ITEM[k].name}"><img src="${g.sprites.itemUrl(k)}"><b>${fmtShort(g.stock.count(k))}</b>${rt > 1 ? `<em>+${fmtShort(rt)}</em>` : ''}</div>`;
+    }).join('') + `<div class="ri cr" title="Créditos"><span class="cico">◆</span><b>${fmtShort(g.stock.credits)}</b></div>`;
+    // vitais
+    (this.el.hpBar as HTMLElement).style.width = (p.hp / p.maxHp) * 100 + '%';
+    this.el.hpTxt.textContent = `${Math.ceil(p.hp)}`;
+    (this.el.enBar as HTMLElement).style.width = (p.energy / p.maxEnergy) * 100 + '%';
+    this.el.enTxt.textContent = `${Math.floor(p.energy)}`;
+    const load = g.pack.weight(), capacity = g.pack.maxWeight();
+    (this.el.packBar as HTMLElement).style.width = Math.min(100, load / capacity * 100) + '%';
+    this.el.packTxt.textContent = `${fmtInt(load)}/${fmtInt(capacity)} kg`;
+    // perigo ambiental: só aparece quando existe
     const dk = g.hazards.dominantKey();
     const lv = dk ? g.hazards.levels[dk] ?? 0 : 0;
     if (dk && lv > 3) {
       const prot = p.protection(dk);
-      const col = lv > prot ? '#ff5a3a' : '#9cff5a';
-      const segs = Array.from({ length: 10 }, (_, i) => `<i style="background:${i < Math.round(lv / 10) ? col : '#1d2a33'}"></i>`).join('');
-      this.el.quote.innerHTML = `<div class="hz"><span class="hzi">${hazIcon(dk)}</span><div><div class="hzt">${HAZARD_NAMES[dk].toUpperCase()} <b style="color:${col}">${Math.round(lv)}%</b></div><div class="segs">${segs}</div><div class="hzs">Proteção do traje: ${prot}% ${lv > prot ? '· <b style="color:#ff6a4a">DANO</b>' : ''}</div></div></div>`;
-    } else {
-      this.sloganT -= 0.15;
-      if (this.sloganT <= 0) { this.sloganT = 14; this.sloganI = (this.sloganI + 1) % SLOGANS.length; }
-      this.el.quote.innerHTML = `<div class="slogan"><span class="logo">⬢</span><div>${esc(SLOGANS[this.sloganI])}<i>— Corporação Zenitex™</i></div></div>`;
-    }
-    // recursos
-    this.el.res.innerHTML = TOP_BAR_ITEMS.filter((k, i) => i < 5 || g.stock.count(k) > 0).map(k => {
-      const rt = g.stock.rate(k);
-      return `<div class="ri"><img src="${g.sprites.itemUrl(k)}"><div><span>${ITEM[k].name}</span><b>${fmtShort(g.stock.count(k))}</b>${rt > 1 ? `<em>(+${fmtShort(rt)}/min)</em>` : ''}</div></div>`;
-    }).join('') + `<div class="ri cr"><span class="cico">◆</span><div><span>Créditos</span><b>${fmtShort(g.stock.credits)}</b></div></div>`;
-    // vitais
-    (this.el.hpBar as HTMLElement).style.width = (p.hp / p.maxHp) * 100 + '%';
-    this.el.hpTxt.textContent = `${Math.ceil(p.hp)}/${p.maxHp}`;
-    (this.el.enBar as HTMLElement).style.width = (p.energy / p.maxEnergy) * 100 + '%';
-    this.el.enTxt.textContent = `${Math.floor(p.energy)}/${p.maxEnergy}`;
-    const load = g.pack.weight(), capacity = g.pack.maxWeight();
-    (this.el.packBar as HTMLElement).style.width = Math.min(100, load / capacity * 100) + '%';
-    this.el.packTxt.textContent = `${fmtInt(load)}/${fmtInt(capacity)} kg`;
-    // ambiente
-    const t = g.hazards.tempC;
-    const tox = g.hazards.levels.toxico ?? 0;
-    this.el.env.innerHTML = `<div class="ev"><span class="evi">🌡</span><div><small>TEMP. AMBIENTE</small><b style="color:${t > 60 || t < -20 ? '#ff7a4a' : '#ffd07a'}">${Math.round(t)} °C</b></div></div>
-      <div class="ev"><span class="evi">${dk && dk !== 'toxico' ? hazIcon(dk) : '☣'}</span><div><small>${dk && dk !== 'toxico' ? HAZARD_NAMES[dk].toUpperCase() : 'TOXICIDADE'}</small><b style="color:${(dk ? lv : tox) > 40 ? '#ff7a4a' : '#9cff5a'}">${dk && dk !== 'toxico' ? Math.round(lv) + '%' : tox > 0 ? Math.round(tox) + '%' : 'Baixa'}</b></div></div>`;
+      this.el.hz.style.display = 'flex';
+      this.el.hz.className = 'hzchip' + (lv > prot ? ' bad' : '');
+      this.el.hz.innerHTML = `${hazIcon(dk)} ${HAZARD_NAMES[dk]} ${Math.round(lv)}% <small>${lv > prot ? `traje ${prot}% · DANO` : 'protegido'}</small>`;
+    } else this.el.hz.style.display = 'none';
     // hotbar
     this.el.hotbar.innerHTML = g.hotbar.map((s, i) => {
       if (!s) return `<div class="hs" data-slot="${i}"><em>${(i + 1) % 10}</em></div>`;
@@ -251,14 +243,10 @@ export class UI {
       const title = s.type === 'tool' ? (s.key === 'drill' ? g.mining.drill.name : 'Scanner') : s.type === 'item' ? ITEM[s.key]?.name : MACHINE[s.key]?.name;
       return `<div class="hs ${i === g.selected ? 'sel' : ''}" data-slot="${i}" title="${esc(title ?? '')}">${img}${cnt}<em>${(i + 1) % 10}</em></div>`;
     }).join('');
-    // objetivo
-    this.updateObjective();
-    // badges
-    this.badge('contracts', g.contracts.available.length ? String(g.contracts.available.length) : '');
-    this.badge('research', g.research.active ? '…' : '');
-    const bad = g.machines.list.filter(m => m.broken || m.overheat || m.buried > 0).length + g.robots.list.filter(r => r.stuck || r.broken).length;
-    this.badge('sectors', bad ? '!' : '');
-    this.badge('archive', g.lore.unlocked.size ? String(g.lore.unlocked.size) : '');
+    // meta atual (tutorial, camada ou final)
+    this.updateMeta();
+    const bad = g.machines.list.filter(m => m.broken || m.buried > 0).length + g.robots.list.filter(r => r.stuck || r.broken).length;
+    const mb = this.el.menuBadge; mb.textContent = bad ? '!' : ''; mb.style.display = bad ? 'block' : 'none';
     // dica de construção
     const b = g.build;
     this.el.buildHint.style.display = b.active ? 'block' : 'none';
@@ -283,48 +271,44 @@ export class UI {
           : `${esc(def.name)} · mova o mouse para posicionar · confirme para construir · custo: ${costStr(g, def.cost)}${reason ? `<small>${esc(reason)}</small>` : ''}`;
       }
     }
-    // corp
-    const ev = g.events.log[0];
-    this.el.corp.style.display = !g.input.touch && ev && g.time - ev.t < 6 ? 'flex' : 'none';
-    if (ev) this.el.corp.innerHTML = `<span class="logo">⬢</span><div><small>TELEMETRIA ZENITEX</small>${esc(ev.text)}</div>`;
     this.drawMinimap();
     this.panels.refresh();
   }
 
-  private badge(id: string, v: string) { const b = this.el['badge_' + id]; if (b) { b.textContent = v; b.style.display = v ? 'block' : 'none'; } }
 
-  private updateObjective() {
+  /** Cartão de META: uma única coisa a fazer agora. */
+  private updateMeta() {
     const g = this.g;
-    const tut = g.tutorialObjectives();
-    let html = '';
+    let title = '', text = '', prog = -1;
+    const tut = this.tutorial.current();
     if (g.flags.finalReady) {
       const st = g.final.stabilizers;
-      html = `<div class="oh">⚠ OBJETIVO FINAL</div>` + (
-        !g.machines.count('cortador_planetario') ? `<div class="oi">□ Construir o Cortador Planetário no Coração</div>` :
-        !g.flags.finalSeq ? `<div class="oi">□ Iniciar a desmontagem final no Cortador [E]</div>` :
-        st.map((s, i) => `<div class="oi ${s.done ? 'ok' : ''}">${s.done ? '■' : '□'} Estabilizador ${i + 1}</div>`).join('') + (g.flags.finalArmed ? `<div class="oi">□ Disparar o Cortador Planetário</div>` : ''));
+      title = '⚠ OPERAÇÃO FINAL';
+      text = !g.machines.count('cortador_planetario') ? 'Construa o Cortador Planetário no Núcleo.'
+        : !g.flags.finalSeq ? 'Abra o Cortador Planetário [E] e inicie a desmontagem final.'
+        : !g.flags.finalArmed ? `Ajuste os estabilizadores do núcleo (${st.filter(s => s.done).length}/4).` : 'Volte ao Cortador e DISPARE.';
     } else if (tut) {
-      html = `<div class="oh">◎ OBJETIVO ATUAL</div>` + tut.map(o => `<div class="oi ${o.done ? 'ok' : ''}">${o.done ? '■' : '□'} ${esc(o.text)}${o.cur && !o.done ? `<small>${o.cur}</small>` : ''}</div>`).join('');
+      title = `TUTORIAL ${tut.n}/${tut.total} · ${tut.title}`; text = tut.text;
+    } else if (g.canDescend()) {
+      title = 'CAMADA ESGOTADA'; text = 'Toque em ▼ DESCER no cartão da camada para ir à próxima.';
     } else {
-      const s = g.sectors.focus();
-      const st = g.sectors.s[s];
-      const objs = g.sectors.objectives(s);
-      html = `<div class="oh">◎ ${SECTORS[s - 1].code.toUpperCase()} · ${st.phase < 9 ? `FASE ${st.phase + 1}/9 — ${PHASES[st.phase].toUpperCase()}` : 'AUTOMATIZADO'}</div>` +
-        objs.map(o => `<div class="oi ${o.done ? 'ok' : ''}">${o.done ? '■' : '□'} ${esc(o.text)}${o.max > 1 ? `<small>${fmtShort(o.cur)} / ${fmtShort(o.max)}</small>` : ''}</div>`).join('');
-      const c = g.contracts.active[0];
-      if (c) html += `<div class="oc">◆ ${esc(c.title)} <small>${fmtShort(c.progress)} / ${fmtShort(c.target)}</small></div>`;
+      const s = g.planet.layer, st = g.sectors.s[s];
+      const o = g.sectors.objectives(s).find(x => !x.done);
+      if (st.phase < 9 && o) {
+        title = `META · FASE ${st.phase + 1}/9 — ${PHASES[st.phase].toUpperCase()}`;
+        text = o.text + (o.max > 1 ? ` (${fmtShort(o.cur)}/${fmtShort(o.max)})` : '');
+        prog = o.cur / o.max;
+      } else {
+        title = 'META · ESGOTAR A CAMADA';
+        text = `Extraia a ${g.planet.def.name}: perfuradoras, drones e Complexos aceleram a barra da camada.`;
+        prog = g.planet.layerFraction();
+      }
     }
-    this.el.objective.innerHTML = html;
-    if (g.input.touch) {
-      const pending = Array.from(this.el.objective.querySelectorAll<HTMLElement>('.oi:not(.ok)')).slice(0, 2);
-      const lines = pending.length ? pending : Array.from(this.el.objective.querySelectorAll<HTMLElement>('.oi')).slice(0, 1);
-      const label = (o: HTMLElement) => {
-        const small = o.querySelector('small')?.textContent?.trim();
-        const main = Array.from(o.childNodes).filter(n => n.nodeName !== 'SMALL').map(n => n.textContent).join('').trim();
-        return small ? `${main} (${small})` : main;
-      };
-      this.el.objective.innerHTML = `<div class="oh">◎ OBJETIVOS · TOQUE PARA VER TODOS</div>${lines.map(o => `<div class="oi">${esc(label(o))}</div>`).join('')}`;
-    }
+    this.el.metaTitle.textContent = title;
+    this.el.metaText.innerHTML = text;
+    (this.el.metaBar as HTMLElement).style.width = prog >= 0 ? Math.min(100, prog * 100) + '%' : '0';
+    (this.el.metaBar.parentElement as HTMLElement).style.display = prog >= 0 ? 'block' : 'none';
+    this.el.meta.classList.toggle('tut', !!tut);
   }
 
   private updateDialog() {

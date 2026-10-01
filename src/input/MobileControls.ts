@@ -17,34 +17,16 @@ export class MobileControls {
     this.root.innerHTML = `
       <div class="stick left"><div class="base"></div><div class="knob"></div></div>
       <div class="stick right"><div class="base"></div><div class="knob"></div><span>MIRAR / USAR</span></div>
-      <button class="mobile-menu-toggle" aria-label="Abrir menu">☰</button>
       <div class="mobile-actions">
-        <button data-b="interact" aria-label="Interagir">E<small>INTERAGIR</small></button>
+        <button data-b="interact" aria-label="Interagir">E<small>USAR</small></button>
         <button data-b="scan" aria-label="Scanner">◎<small>SCANNER</small></button>
-      </div>
-      <div class="mobile-menu-panel">
-        <div class="mobile-menu-title">MENU ZENITEX <button class="mobile-menu-close" aria-label="Fechar menu">✕</button></div>
-        <div class="mobile-menu-grid">
-          <button data-b="inv">▤ Inventário</button><button data-b="build">⚒ Construção</button>
-          <button data-b="upgrades">✚ Melhorias</button><button data-b="research">⚗ Pesquisa</button>
-          <button data-b="sectors">◈ Setores</button><button data-b="robots">⚙ Robôs</button>
-          <button data-b="contracts">☰ Contratos</button><button data-b="archive">▣ Arquivo</button>
-          <button data-b="map">⌖ Mapa</button><button data-b="tool2">✦ Ferramenta</button>
-          <button data-b="hud">◫ Recolher HUD</button><button data-b="help">? Ajuda</button>
-        </div>
       </div>`;
     document.body.appendChild(this.root);
     this.lb = this.root.querySelector('.left .base')!; this.lk = this.root.querySelector('.left .knob')!;
     this.rb = this.root.querySelector('.right .base')!; this.rk = this.root.querySelector('.right .knob')!;
-    const closeMenu = () => { this.root.classList.remove('menu-open'); document.body.classList.remove('mobile-menu-open'); };
-    this.root.querySelector('.mobile-menu-toggle')!.addEventListener('click', () => {
-      const open = this.root.classList.toggle('menu-open');
-      document.body.classList.toggle('mobile-menu-open', open);
-    });
-    this.root.querySelector('.mobile-menu-close')!.addEventListener('click', closeMenu);
     this.root.querySelectorAll<HTMLButtonElement>('[data-b]').forEach(b => b.addEventListener('click', e => {
       e.preventDefault(); e.stopPropagation();
-      closeMenu(); onButton(b.dataset.b!);
+      onButton(b.dataset.b!);
     }));
     const canvas = document.getElementById('game')!;
     const movePlacement = (t: Touch) => { input.placeX = t.clientX; input.placeY = t.clientY; input.placeDirty = true; };

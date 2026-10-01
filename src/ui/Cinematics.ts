@@ -118,7 +118,7 @@ export class Cinematics {
     const sectorsAuto = Array.from({ length: 12 }, (_, i) => i + 1).filter(i => g.sectors.automated(i)).length;
     const el = h(`<div class="report"><div class="logo-big">⬢ ZENITEX</div><h1>RELATÓRIO DE ENCERRAMENTO — CONTRATO 7-K${36 + g.opts.contract}</h1>
       <div class="rgrid">
-        ${[['Tempo de operação', fmtTime(g.time)], ['Massa extraída', fmtInt(g.planet.total) + ' t'], ['Setores automatizados', `${sectorsAuto}/12`], ['Minério extraído manualmente', fmtShort(totalOre) + ' kg'],
+        ${[['Tempo de operação', fmtTime(g.time)], ['Massa extraída', fmtInt(g.planet.total) + ' t'], ['Camadas automatizadas', `${sectorsAuto}/7`], ['Minério extraído manualmente', fmtShort(totalOre) + ' kg'],
           ['Enviado à Zenitex', fmtShort(s.shipped) + ' kg'], ['Descobertas arqueológicas', `${g.lore.unlocked.size}/${LORE.length}`], ['Estruturas preservadas', String(g.lore.preserved)], ['Estruturas demolidas', String(g.lore.demolished)],
           ['Artefatos destruídos pela automação', String(g.lore.destroyed)], ['Mortes', String(s.deaths)], ['Desabamentos', String(s.caveins)], ['Reparos manuais', String(s.repairs)],
           ['Calibrações manuais', String(s.calibrations)], ['Máquinas construídas', String(s.built)], ['Robôs fabricados', String(s.robots)], ['Contratos concluídos', String(s.contracts)],

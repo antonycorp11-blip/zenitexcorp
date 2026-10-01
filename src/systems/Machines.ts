@@ -79,7 +79,7 @@ export class Machines {
       const cmd = this.list.find(m => m.def.behavior === 'command');
       if (cmd && Math.hypot(tx - (cmd.tx + 1), ty - (cmd.ty + 1)) > BASE_RADIUS) return `Armazéns só na base (até ${BASE_RADIUS} tiles do Centro de Comando)`;
     }
-    if (def.phase9 && !this.g.sectors.certified(sec)) return 'Setor ainda não certificado (fase 8)';
+    if (def.phase9 && !this.g.sectors.certified(sec)) return 'Camada ainda não certificada (fase 8)';
     if (def.sector12 && sec !== LAYER_COUNT) return 'Apenas no Núcleo (última camada)';
     if (def.unique) {
       const k = def.key === 'cortador_planetario' || def.key === 'central_logistica' || def.key === 'comando';
@@ -437,7 +437,7 @@ export class Machines {
     if (layer === 'mantle') rate *= 1 + 0.5 * Math.min(3, this.count('uplink_orbital'));
     const t = rate * Math.min(1.1, m.eff) * k * dt / 60;
     const got = g.planet.extractDeep(m.sector, layer, t);
-    if (got <= 0) { m.state = layer === 'crust' ? 'Crosta do setor esgotada' : 'Reserva esgotada'; return; }
+    if (got <= 0) { m.state = layer === 'crust' ? 'Camada esgotada' : 'Reserva esgotada'; return; }
     g.sectors.rt[m.sector].deepRate += (got / dt) * 60;
     // minério associado entra no buffer do setor
     const sd = SECTORS[m.sector - 1];

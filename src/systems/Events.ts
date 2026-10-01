@@ -182,7 +182,7 @@ export class Events {
     g.stock.credits += 500 * a.sector;
     g.stats.anomalies++;
     g.dialogue.line('sera', 'A anomalia se acalmou quando você chegou perto. Como se tivesse sido... ouvida.');
-    g.dialogue.line('zena', 'Anomalia neutralizada. Energia do setor normalizada. Fragmentos recolhidos para avaliação.');
+    g.dialogue.line('zena', 'Anomalia neutralizada. Sistemas normalizados. Fragmentos recolhidos para avaliação.');
   }
 
   serialize() { return { anomalies: this.anomalies, nextId: this.nextId }; }

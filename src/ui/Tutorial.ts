@@ -1,35 +1,34 @@
 import { TILE, CELL } from '../core/constants';
 import { IS_SOLID } from '../data/materials';
 import type { Game } from '../Game';
-import { esc } from './dom';
 
 type Target = string | (() => [number, number] | null) | null;
 interface Step {
-  id: string;
   title: string;
   text: (touch: boolean) => string;
-  target: (g: Game, touch: boolean) => Target;   // seletor CSS ou ponto no mundo
+  target: (g: Game, touch: boolean) => Target;
   done: (g: Game) => boolean;
-  manual?: boolean;                                 // concluído pelo botão "Entendi"
+  manual?: boolean;          // avança tocando no cartão de META
 }
 
-const MOBILE_KEY: Record<string, string> = { inventory: 'inv', build: 'build', upgrades: 'upgrades', research: 'research', sectors: 'sectors', robots: 'robots', contracts: 'contracts', archive: 'archive', map: 'map' };
+const MAIN = new Set(['build', 'upgrades', 'inventory', 'missions', 'map']);
 
-/** Botão que abre um painel: lateral no PC, menu ☰ no celular. */
-function openBtn(g: Game, touch: boolean, panel: string): string {
-  // outro painel aberto por cima: primeiro feche-o
-  if (g.ui.panels.id && g.ui.panels.id !== panel) return '.pnl .x';
-  if (!touch) return `.side [data-open="${panel}"]`;
-  return document.body.classList.contains('mobile-menu-open') ? `#mobile [data-b="${MOBILE_KEY[panel]}"]` : '.mobile-menu-toggle';
+/** Botão que leva a uma aba do menu único. */
+function openTab(g: Game, tab: string): string {
+  const id = g.ui.panels.id;
+  if (!id) return '.menu-btn';
+  if (!MAIN.has(id)) return '.pnl .x';
+  return `[data-act="nav"][data-arg="${tab}"]`;
 }
-/** Fluxo de construção de uma peça pelo painel de Construção. */
-function buildFlow(g: Game, touch: boolean, cat: string, key: string): Target {
-  if (g.build.active && g.build.key === key) return '[data-build-action="confirm"]';
-  if (g.ui.panels.id === 'build') {
-    if (g.ui.panels.st.buildCat !== cat) return `.tabs [data-arg="buildCat:${cat}"]`;
-    return `[data-act="build"][data-arg="${key}"]`;
+/** Caminho de construção: MENU → CONSTRUIR → aba → POSICIONAR → CONFIRMAR. */
+function buildFlow(g: Game, cat: string, key: string): Target {
+  if (g.build.active && g.build.key === key) {
+    if (key === 'esteira' && !g.build.anchor) return null;   // primeiro desenhe a linha
+    return '[data-build-action="confirm"]';
   }
-  return openBtn(g, touch, 'build');
+  if (g.ui.panels.id !== 'build') return openTab(g, 'build');
+  if (g.ui.panels.st.buildCat !== cat) return `.tabs [data-arg="buildCat:${cat}"]`;
+  return `[data-act="build"][data-arg="${key}"]`;
 }
 function commandPos(g: Game): [number, number] | null {
   const c = g.machines.list.find(m => m.def.behavior === 'command');
@@ -45,98 +44,99 @@ function nearestWall(g: Game): [number, number] | null {
 }
 
 const STEPS: Step[] = [
-  { id: 'move', title: 'Movimento', text: t => t ? 'Arraste o <b>joystick esquerdo</b> para andar.' : 'Use <b>W A S D</b> para andar (Shift corre).',
-    target: (g, t) => t ? '#mobile .stick.left .base' : null, done: g => !!g.flags.tutMoved },
-  { id: 'mine', title: 'Minerar', text: t => t ? 'Arraste o <b>joystick direito</b> na direção de uma parede e segure: o feixe mina a rocha. Remova 50 kg.' : 'Aponte o mouse para uma parede e <b>segure o botão esquerdo</b>. Remova 50 kg.',
+  { title: 'Andar', text: t => t ? 'Arraste o <b>joystick esquerdo</b> para andar.' : 'Ande com <b>W A S D</b>.',
+    target: (_g, t) => t ? '#mobile .stick.left .base' : null, done: g => !!g.flags.tutMoved },
+  { title: 'Minerar', text: t => t ? 'Arraste o <b>joystick direito</b> na direção da rocha (seta) e segure. Junte <b>50 kg</b>.' : 'Mire na rocha (seta) e <b>segure o botão esquerdo</b>. Junte <b>50 kg</b>.',
     target: g => () => nearestWall(g), done: g => g.flags.tutorial >= 1 },
-  { id: 'deliver', title: 'Entregar a carga', text: t => `Volte ao <b>Centro de Comando</b> (a cápsula laranja) e ${t ? 'toque no botão <b>E</b>' : 'aperte <b>E</b>'} perto dela. A mochila vai para o Estoque Central.`,
+  { title: 'Entregar', text: t => `Volte à cápsula laranja (seta) e ${t ? 'toque em <b>E</b>' : 'aperte <b>E</b>'}: a mochila vira estoque para construir.`,
     target: (g, t) => t && g.hover?.kind === 'machine' ? '#mobile [data-b="interact"]' : () => commandPos(g), done: g => g.flags.tutorial >= 2 },
-  { id: 'oficina', title: 'Construir a Oficina', text: t => `Abra a <b>Construção</b>${t ? ' pelo menu ☰' : ''}, vá na aba <b>Base</b>, toque em <b>POSICIONAR</b> na Oficina, ${t ? 'toque no chão' : 'mova o mouse'} para escolher o local e aperte <b>CONFIRMAR</b>.`,
-    target: (g, t) => buildFlow(g, t, 'base', 'oficina'), done: g => g.machines.count('oficina') > 0 },
-  { id: 'lab', title: 'Estação de Pesquisa', text: () => 'Do mesmo jeito: Construção → aba <b>Base</b> → <b>Estação de Pesquisa</b> → POSICIONAR → CONFIRMAR.',
-    target: (g, t) => buildFlow(g, t, 'base', 'laboratorio'), done: g => g.machines.count('laboratorio') > 0 },
-  { id: 'research', title: 'Primeira pesquisa', text: t => `Abra a <b>Pesquisa</b>${t ? ' pelo menu ☰' : ''}, aba <b>Processamento</b>, escolha <b>Refino Mineral</b> e aperte <b>PESQUISAR</b>. A pesquisa roda sozinha.`,
-    target: (g, t) => {
-      if (g.ui.panels.id !== 'research') return openBtn(g, t, 'research');
-      if (g.ui.panels.st.resCat !== 'processamento') return '.tabs [data-arg="resCat:processamento"]';
+  { title: 'Perfuradora', text: () => '<b>MENU → CONSTRUIR → Perfuradora → POSICIONAR</b>. Encoste na rocha, use <b>GIRAR</b> até o cone apontar para ela e <b>CONFIRMAR</b>. Ela minera sozinha.',
+    target: g => buildFlow(g, 'extracao', 'perfuradora'), done: g => g.machines.countBehavior('drill') > 0 },
+  { title: 'Armazém', text: () => '<b>MENU → CONSTRUIR → Logística → Armazém</b>. Ele só pode ficar perto da cápsula (círculo tracejado).',
+    target: g => buildFlow(g, 'logistica', 'armazem'), done: g => g.machines.countBehavior('storage') > 0 },
+  { title: 'Esteira', text: t => `<b>Logística → Esteira</b>. ${t ? 'Toque' : 'Clique'} ao lado da perfuradora e <b>arraste até o armazém</b>; as setas devem apontar para ele. Depois <b>CONFIRMAR</b>.`,
+    target: g => buildFlow(g, 'logistica', 'esteira'), done: g => g.machines.countBehavior('belt') >= 3 },
+  { title: 'Melhoria', text: () => '<b>MENU → MELHORIAS → Processamento → Refino Mineral → DESBLOQUEAR</b>. Melhorias liberam máquinas e deixam você mais forte.',
+    target: g => {
+      if (g.ui.panels.id !== 'upgrades') return openTab(g, 'upgrades');
+      if (g.ui.panels.st.upBr !== 'processamento') return '.branches [data-arg="upBr:processamento"]';
       if (g.ui.panels.st.resSel !== 'refino') return '[data-arg="resSel:refino"]';
       return '[data-act="research"][data-arg="refino"]';
-    }, done: g => !!g.research.active || g.research.has('refino') },
-  { id: 'drill', title: 'Perfuradora automática', text: () => 'Slot <b>7</b> da barra (Perfuradora). Encoste-a numa parede, de preferência com cristais, e use <b>GIRAR</b> até a broca (o cone) apontar para a rocha. Confirme: ela quebra sozinha toda a faixa à frente e, quando termina, continua perfurando para baixo. O minério sai pelas laterais dela.',
-    target: g => g.build.active && g.build.key === 'perfuradora' ? '[data-build-action="confirm"]' : '.hotbar [data-slot="6"]', done: g => g.machines.countBehavior('drill') > 0 },
-  { id: 'storage', title: 'Armazém na base', text: () => 'Slot <b>8</b> (Armazém). Armazéns só podem ficar perto do Centro de Comando (círculo tracejado). Posicione e confirme.',
-    target: g => g.build.active && g.build.key === 'armazem' ? '[data-build-action="confirm"]' : '.hotbar [data-slot="7"]', done: g => g.machines.countBehavior('storage') > 0 },
-  { id: 'belt', title: 'Ligar com esteira', text: t => `Slot <b>6</b> (Esteira). ${t ? 'Toque' : 'Clique'} ao lado da perfuradora e <b>arraste até o armazém</b>: as setas devem apontar para o armazém. Aperte CONFIRMAR para instalar a linha toda.`,
-    target: g => g.build.active && g.build.key === 'esteira' ? (g.build.anchor ? '[data-build-action="confirm"]' : null) : '.hotbar [data-slot="5"]', done: g => g.machines.countBehavior('belt') >= 3 },
-  { id: 'scan', title: 'Scanner', text: t => `${t ? 'Toque no botão <b>SCANNER</b>' : 'Aperte <b>F</b> (ou botão direito)'} para revelar minérios próximos. Aponte perfuradoras para eles.`,
-    target: (g, t) => t ? '#mobile [data-b="scan"]' : '.hotbar [data-slot="1"]', done: g => (g.sectors.s[g.sectors.current]?.counters.scans ?? 0) > 0 },
-  { id: 'next', title: 'Daqui em diante', text: t => `O painel de <b>objetivos</b> mostra a próxima tarefa do setor${t ? ' (toque nele para ver tudo)' : ''}. Contratos dão créditos, e o envio orbital fica em Contratos → Envio Orbital. A ajuda completa está no menu.`,
-    target: () => '.objective', done: () => false, manual: true },
+    }, done: g => g.research.has('refino') },
+  { title: 'Scanner', text: t => `${t ? 'Toque em <b>SCANNER</b>' : 'Aperte <b>F</b>'}: os minérios próximos acendem. Aponte perfuradoras para eles.`,
+    target: (_g, t) => t ? '#mobile [data-b="scan"]' : '.hotbar [data-slot="1"]', done: g => (g.sectors.s[g.planet.layer]?.counters.scans ?? 0) > 0 },
+  { title: 'Sua meta', text: () => 'A barra da <b>CAMADA</b> (canto superior) é sua meta: tudo que você e as máquinas mineram enche ela. Em 100% você <b>desce</b> para a camada de baixo. <b>Toque aqui</b> para terminar o tutorial.',
+    target: () => '.hcard.layer', done: () => false, manual: true },
 ];
 
-/** Tutorial guiado: caixa de instruções + anel pulsante no botão certo ou seta no mundo. */
+/** Tutorial guiado: fala pelo cartão de META e destaca o botão exato (anel) ou o alvo no mapa (seta). */
 export class Tutorial {
-  private box: HTMLElement;
   private ring: HTMLElement;
   private arrow: HTMLElement;
-  private lastStep = -1;
-  private startX = 0; private startY = 0;
+  private sx = 0; private sy = 0; private last = -1;
 
-  constructor(private g: Game, layer: HTMLElement) {
-    this.box = document.createElement('div'); this.box.className = 'tut-box ui-block';
+  constructor(private g: Game, _layer: HTMLElement) {
     this.ring = document.createElement('div'); this.ring.className = 'tut-ring';
     this.arrow = document.createElement('div'); this.arrow.className = 'tut-arrow'; this.arrow.textContent = '▼';
     document.body.append(this.ring, this.arrow);
-    document.body.appendChild(this.box); void layer;
-    this.box.addEventListener('click', e => {
-      const a = (e.target as HTMLElement).closest<HTMLElement>('[data-tut]')?.dataset.tut;
-      if (a === 'skip') { this.g.flags.tutDone = true; this.g.toast('Tutorial pulado. Reative em Menu → Ajuda.', '#9ab'); }
-      if (a === 'ok') this.advance();
-    });
   }
 
   get active() { return !this.g.flags.tutDone && !this.g.flags.intro && !this.g.flags.ending && !!this.g.flags.briefed; }
-  restart() { this.g.flags.tutDone = false; this.g.flags.tutStep = 0; this.lastStep = -1; }
-  private advance() { this.g.flags.tutStep = (this.g.flags.tutStep ?? 0) + 1; this.g.audio.success(); }
+  restart() { this.g.flags.tutDone = false; this.g.flags.tutStep = 0; this.last = -1; }
+  skip() { this.g.flags.tutDone = true; }
+
+  private index(): number {
+    const g = this.g;
+    let i = g.flags.tutStep ?? 0;
+    while (i < STEPS.length && !STEPS[i].manual && STEPS[i].done(g)) i++;
+    if (i !== (g.flags.tutStep ?? 0)) { g.flags.tutStep = i; g.audio.success(); }
+    if (i >= STEPS.length) g.flags.tutDone = true;
+    return i;
+  }
+
+  /** Passo atual para o cartão de META (ou null se não há tutorial). */
+  current(): { n: number; total: number; title: string; text: string; manual: boolean } | null {
+    if (!this.active) return null;
+    const i = this.index();
+    const st = STEPS[i]; if (!st) return null;
+    return { n: i + 1, total: STEPS.length, title: st.title.toUpperCase(), text: st.text(this.g.input.touch) + ' <u class="tutskip">pular tutorial</u>', manual: !!st.manual };
+  }
+  /** Toque no cartão de META durante o tutorial: avança passos manuais. Retorna true se consumiu o toque. */
+  tap(target: HTMLElement): boolean {
+    if (!this.active) return false;
+    if (target.closest('.tutskip')) { this.skip(); this.g.toast('Tutorial encerrado. Refaça quando quiser em ⚙ → Manual.', '#9ab'); return true; }
+    const st = STEPS[this.index()];
+    if (st?.manual) { this.g.flags.tutStep = (this.g.flags.tutStep ?? 0) + 1; this.g.audio.success(); return true; }
+    return true;
+  }
 
   update() {
     const g = this.g, touch = g.input.touch;
-    const hide = () => { this.box.style.display = 'none'; this.ring.style.display = 'none'; this.arrow.style.display = 'none'; document.body.classList.remove('tut-on'); };
-    if (!this.active) return hide();
-    let i = g.flags.tutStep ?? 0;
-    // passos já cumpridos (saves antigos, ou feitos antes da hora) são pulados
-    while (i < STEPS.length && !STEPS[i].manual && STEPS[i].done(g)) i++;
-    if (i >= STEPS.length) { g.flags.tutDone = true; return hide(); }
-    if (i !== g.flags.tutStep) { if (g.flags.tutStep !== undefined) g.audio.success(); g.flags.tutStep = i; }
-    const st = STEPS[i];
-    if (i !== this.lastStep) {
-      this.lastStep = i;
-      if (st.id === 'move') { this.startX = g.player.x; this.startY = g.player.y; }
-      this.box.innerHTML = `<div class="tut-h"><span>TUTORIAL ${i + 1}/${STEPS.length}</span><b>${esc(st.title)}</b><button data-tut="skip">Pular</button></div><div class="tut-t">${st.text(touch)}</div>${st.manual ? '<button class="btn orange tut-ok" data-tut="ok">ENTENDI</button>' : ''}`;
-    }
-    if (st.id === 'move' && Math.hypot(g.player.x - this.startX, g.player.y - this.startY) > 40) g.flags.tutMoved = true;
-    document.body.classList.add('tut-on');
-    // painéis cobrem o jogo: a caixa sobe para não tampar o alvo
-    this.box.style.display = 'block';
-    this.box.classList.toggle('over-panel', g.ui.modalOpen() || document.body.classList.contains('mobile-menu-open'));
-    // no modo construção a caixa sobe para nunca cobrir CONFIRMAR / GIRAR / CANCELAR
-    this.box.classList.toggle('top', g.build.active && !g.ui.modalOpen());
-    const tg = st.target(g, touch);
     this.ring.style.display = 'none'; this.arrow.style.display = 'none';
+    document.body.classList.toggle('tut-on', this.active);
+    if (!this.active) return;
+    const i = this.index();
+    const st = STEPS[i]; if (!st) return;
+    if (i !== this.last) { this.last = i; this.sx = g.player.x; this.sy = g.player.y; }
+    if (i === 0 && Math.hypot(g.player.x - this.sx, g.player.y - this.sy) > 40) g.flags.tutMoved = true;
+    const tg = st.target(g, touch);
     if (typeof tg === 'string') {
       const el = Array.from(document.querySelectorAll<HTMLElement>(tg)).find(e => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden');
       if (!el) return;
-      const r = el.getBoundingClientRect();
-      Object.assign(this.ring.style, { display: 'block', left: r.left - 6 + 'px', top: r.top - 6 + 'px', width: r.width + 12 + 'px', height: r.height + 12 + 'px' });
+      // com um painel aberto, só destaca o que está dentro dele
+      if (g.ui.modalOpen() && !el.closest('.modal-layer, .mg-layer')) return;
       el.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+      const r = el.getBoundingClientRect();
+      Object.assign(this.ring.style, { display: 'block', left: r.left - 5 + 'px', top: r.top - 5 + 'px', width: r.width + 10 + 'px', height: r.height + 10 + 'px' });
     } else if (typeof tg === 'function') {
+      if (g.ui.modalOpen()) return;
       const p = tg(); if (!p) return;
       const cam = g.camera, dpr = cam.w / innerWidth;
-      let sx = (p[0] - cam.left()) * cam.zoom / dpr, sy = (p[1] - TILE - cam.top()) * cam.zoom / dpr;
-      const m = 40, off = sx < m || sy < m || sx > innerWidth - m || sy > innerHeight - m;
-      sx = Math.max(m, Math.min(innerWidth - m, sx)); sy = Math.max(m, Math.min(innerHeight - m, sy));
-      const ang = off ? Math.atan2(sy - innerHeight / 2, sx - innerWidth / 2) * 180 / Math.PI - 90 : 0;
-      Object.assign(this.arrow.style, { display: 'block', left: sx + 'px', top: sy + 'px', transform: `translate(-50%,-100%) rotate(${ang}deg)` });
+      let x = (p[0] - cam.left()) * cam.zoom / dpr, y = (p[1] - TILE - cam.top()) * cam.zoom / dpr;
+      const m = 44, off = x < m || y < m || x > innerWidth - m || y > innerHeight - m;
+      x = Math.max(m, Math.min(innerWidth - m, x)); y = Math.max(m, Math.min(innerHeight - m, y));
+      const ang = off ? Math.atan2(y - innerHeight / 2, x - innerWidth / 2) * 180 / Math.PI - 90 : 0;
+      Object.assign(this.arrow.style, { display: 'block', left: x + 'px', top: y + 'px', transform: `translate(-50%,-100%) rotate(${ang}deg)` });
     }
   }
 }

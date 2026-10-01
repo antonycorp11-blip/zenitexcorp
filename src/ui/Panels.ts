@@ -18,18 +18,23 @@ import { costStr, hazIcon, hexRgb } from './UI';
 import { renderPlanet } from './Orbital';
 import { esc } from './dom';
 
-export type PanelId = 'inventory' | 'build' | 'upgrades' | 'research' | 'sectors' | 'robots' | 'contracts' | 'archive' | 'map' | 'help' | 'menu' | 'machine' | 'ops' | 'lifts' | 'settings';
+export type PanelId = 'inventory' | 'build' | 'upgrades' | 'research' | 'sectors' | 'robots' | 'contracts' | 'archive' | 'map' | 'help' | 'menu' | 'machine' | 'ops' | 'lifts' | 'settings' | 'missions';
+
+/** O menu único: 5 abas grandes. Os painéis antigos viram atalhos para elas. */
+const MAIN: [PanelId, string, string][] = [['build', '⚒', 'CONSTRUIR'], ['upgrades', '✚', 'MELHORIAS'], ['inventory', '▣', 'MOCHILA'], ['missions', '◎', 'MISSÕES'], ['map', '⌖', 'MAPA']];
+const IS_MAIN = new Set(MAIN.map(m => m[0]));
 
 const TITLES: Record<PanelId, string> = {
   inventory: 'INVENTÁRIO E FABRICAÇÃO', build: 'CONSTRUÇÃO', upgrades: 'MELHORIAS DE EQUIPAMENTO', research: 'ÁRVORE DE PESQUISAS',
   sectors: 'SETORES DE EXTRAÇÃO', robots: 'ROBÔS E AUTOMAÇÃO', contracts: 'CONTRATOS E TAREFAS CORPORATIVAS', archive: 'ARQUIVO DE KHELOS',
-  map: 'MAPA PLANETÁRIO', help: 'MANUAL DO COLABORADOR', menu: 'ZENITEX PLANETARY RESOURCES', machine: '', ops: 'CENTRAL DE OPERAÇÕES', lifts: 'REDE DE ELEVADORES PESSOAIS', settings: 'CONFIGURAÇÕES',
+  map: 'MAPA PLANETÁRIO', missions: 'MISSÕES', help: 'MANUAL DO COLABORADOR', menu: 'ZENITEX PLANETARY RESOURCES', machine: '', ops: 'CENTRAL DE OPERAÇÕES', lifts: 'REDE DE ELEVADORES PESSOAIS', settings: 'CONFIGURAÇÕES',
 };
 
 export class Panels {
   id: PanelId | null = null;
   el: HTMLElement | null = null;
-  st: Record<string, any> = { invTab: 'todos', buildCat: 'logistica', resCat: 'mineracao', archCat: 'historia', craftSel: 'of_componente', mapTab: 'mapa', conTab: 'disp' };
+  lastTab: PanelId = 'build';
+  st: Record<string, any> = { invTab: 'todos', buildCat: 'extracao', upBr: 'perf', misTab: 'camada', resCat: 'mineracao', archCat: 'historia', craftSel: 'of_componente', mapTab: 'mapa', conTab: 'disp' };
   machine: Machine | null = null;
   private refreshT = 0;
   private mapRaf = 0;
@@ -41,11 +46,21 @@ export class Panels {
   isOpen() { return !!this.id; }
 
   open(id: PanelId) {
+    // atalhos antigos -> abas do menu único
+    if (id === 'research') { id = 'upgrades'; if (this.st.upBr === 'perf' || this.st.upBr === 'traje') this.st.upBr = 'mineracao'; }
+    if (id === 'sectors') { id = 'missions'; this.st.misTab = 'camada'; }
+    if (id === 'contracts') { id = 'missions'; this.st.misTab = 'contratos'; }
+    if (id === 'archive') { id = 'missions'; this.st.misTab = 'arquivo'; }
+    if (id === 'robots') { id = 'build'; this.st.buildCat = 'drones'; }
     if (this.id === id && id !== 'machine') { this.close(); return; }
     this.close();
     this.id = id;
+    if (IS_MAIN.has(id)) this.lastTab = id;
     const layer = this.ui.modal;
-    layer.innerHTML = `<div class="pnl ui-block ${id}"><div class="pnl-h"><span class="pnl-t"></span><button class="x" data-act="close">✕</button></div><div class="pnl-b"></div></div>`;
+    const head = IS_MAIN.has(id)
+      ? `<div class="pnl-h nav">${MAIN.map(([k, ic, n]) => `<button class="nt ${k === id ? 'on' : ''}" data-act="nav" data-arg="${k}"><span>${ic}</span><b>${n}</b></button>`).join('')}<button class="gear" data-act="pause" title="Menu do jogo">⚙</button><button class="x" data-act="close">✕</button></div>`
+      : `<div class="pnl-h"><span class="pnl-t"></span><button class="x" data-act="close">✕</button></div>`;
+    layer.innerHTML = `<div class="pnl ui-block ${id} ${IS_MAIN.has(id) ? 'main' : ''}">${head}<div class="pnl-b"></div></div>`;
     layer.classList.add('show');
     this.el = layer.querySelector('.pnl')!;
     this.el.addEventListener('click', e => this.onClick(e));
@@ -88,8 +103,8 @@ export class Panels {
     if (!this.el || !this.id) return;
     const body = this.el.querySelector('.pnl-b')!;
     const scrolls = Array.from(body.querySelectorAll('.scroll')).map(s => s.scrollTop);
-    const t = this.el.querySelector('.pnl-t')!;
-    t.textContent = this.id === 'machine' && this.machine ? this.machine.def.name.toUpperCase() : TITLES[this.id];
+    const t = this.el.querySelector('.pnl-t');
+    if (t) t.textContent = this.id === 'machine' && this.machine ? this.machine.def.name.toUpperCase() : TITLES[this.id];
     body.innerHTML = (this as any)['r_' + this.id]?.() ?? '';
     body.querySelectorAll('.scroll').forEach((s, i) => { if (scrolls[i]) s.scrollTop = scrolls[i]; });
     if (this.id === 'map') this.bindMapCanvas();
@@ -97,6 +112,9 @@ export class Panels {
 
   private act: Record<string, (arg: string, el: HTMLElement) => void> = {
     close: () => this.close(),
+    nav: (a) => { if (this.id !== a) this.open(a as PanelId); },
+    pause: () => { this.close(); this.ui.toggleMenu(); },
+    descend: () => { this.close(); this.ui.descendPrompt(); },
     tab: (a) => { const [k, v] = a.split(':'); this.st[k] = v; this.render(); },
     sel: (a) => { const [k, v] = a.split(':'); this.st[k] = v; this.render(); },
     craft: (a) => { const err = this.g.crafting.enqueue(a, Number(this.st.craftN ?? 1)); if (err) this.g.toast(err, '#ff8a3a'); else this.g.audio.click(); this.render(); },
@@ -137,7 +155,7 @@ export class Panels {
     settings: () => { this.id = 'settings'; this.render(); },
     help: () => { this.id = 'help'; this.render(); },
     briefing: () => { this.close(); if (this.ui.menuOpen) this.ui.toggleMenu(); this.ui.mini.briefing(() => {}); },
-    tutorial: () => { this.ui.tutorial.restart(); this.close(); if (this.ui.menuOpen) this.ui.toggleMenu(); },
+    tutorial: () => { this.ui.tutorial.restart(); this.close(); if (this.ui.menuOpen) { this.ui.menuOpen = false; this.g.paused = false; } },
     newgame: () => { if (confirm('Iniciar um novo contrato? O progresso atual será perdido.')) (window as any).zenitexNewGame(); },
     quit: () => { this.g.save().then(() => location.reload()); },
     collapse: () => this.ui.toggleCollapse(),
@@ -221,13 +239,13 @@ export class Panels {
   r_build() {
     const g = this.g;
     const cat = this.st.buildCat as MachineCat;
-    let h = this.tabs('buildCat', MACHINE_CATS) + `<p class="muted">Selecione a peça, posicione a prévia no mapa e aperte CONFIRMAR. 📌 fixa no slot selecionado da barra (${(g.selected + 1) % 10}). <b>X</b> = desmontar. Custos são pagos do Estoque Central + mochila.</p>`;
-    h += `<div class="cards scroll tall">${MACHINES.filter(m => m.cat === cat && m.behavior !== 'command').map(d => {
+    let h = this.tabs('buildCat', MACHINE_CATS) + `<p class="muted">Toque em <b>POSICIONAR</b>, coloque a peça no mapa e aperte <b>CONFIRMAR</b>. Custos saem do Estoque Central + mochila. 📌 fixa no slot ${(g.selected + 1) % 10} da barra.</p>`;
+    h += `<div class="cards scroll tall">${MACHINES.filter(m => m.cat === cat && m.behavior !== 'command' && !m.hidden).map(d => {
       const locked = d.research && !g.research.has(d.research);
-      const req = locked ? `🔒 Pesquisa: ${esc(RESEARCH.find(r => r.key === d.research)?.name ?? d.research!)}` : d.phase9 ? '◈ Exige setor certificado' : d.sector12 ? '◈ Apenas no Coração' : '';
+      const req = locked ? `🔒 Desbloqueie em Melhorias: ${esc(RESEARCH.find(r => r.key === d.research)?.name ?? d.research!)}` : d.phase9 ? '◈ Exige a camada certificada (fase 8)' : d.sector12 ? '◈ Apenas no Núcleo' : '';
       const afford = g.stock.has(d.cost, g.pack.items);
       return `<div class="card ${locked ? 'locked' : afford ? '' : 'poor'}">
-        <div class="ch"><img src="${g.sprites.machineUrl(d)}"><div><b>${esc(d.name)}</b><small>${d.w}×${d.h} · ${d.power > 0 ? `<span class="gen">+${fmtShort(d.power)} kW</span>` : d.power < 0 ? `${fmtShort(-d.power)} kW` : 'sem energia'}${d.heat ? ` · 🔥${d.heat}` : ''}${d.capacity ? ` · ${fmtShort(d.capacity)} ${d.behavior === 'storage' ? 'kg' : 'kg/min'}` : ''}</small></div></div>
+        <div class="ch"><img src="${g.sprites.machineUrl(d)}"><div><b>${esc(d.name)}</b><small>${d.w}×${d.h} tiles${d.capacity ? ` · ${fmtShort(d.capacity)} ${d.behavior === 'storage' ? 'kg' : 'kg/min'}` : ''}</small></div></div>
         <p>${esc(d.desc)}</p><div class="cost">${costStr(g, d.cost)}</div>${req ? `<div class="req">${req}</div>` : ''}
         <div class="row">${locked ? '' : `<button class="btn" data-act="build" data-arg="${d.key}">POSICIONAR</button><button class="btn ghost" data-act="pin" data-arg="${d.key}">📌</button>`}<span class="count">${g.machines.count(d.key) ? `Ativas: ${g.machines.count(d.key)}` : ''}</span></div></div>`;
     }).join('')}</div>`;
@@ -235,7 +253,62 @@ export class Panels {
   }
 
   // =============== MELHORIAS ===============
+  // =============== MELHORIAS: árvore única ===============
   r_upgrades() {
+    const g = this.g, p = g.player;
+    const BR: { key: string; name: string }[] = [{ key: 'perf', name: '⛏ Perfurador' }, { key: 'traje', name: '🧑‍🚀 Traje e Mochila' },
+      ...RESEARCH_CATS.filter(c => c.key !== 'energia').map(c => ({ key: c.key, name: c.key === 'robotica' ? 'Drones' : c.key === 'mineracao' ? 'Extração' : c.name }))];
+    const br = this.st.upBr;
+    let h = `<div class="tabs branches">${BR.map(b => {
+      const avail = b.key === 'perf' ? !!DRILLS[p.drillLevel + 1] && g.stock.has(DRILLS[p.drillLevel + 1].cost, g.pack.items) && (!DRILLS[p.drillLevel + 1].research || g.research.has(DRILLS[p.drillLevel + 1].research!))
+        : b.key === 'traje' ? false : RESEARCH.some(r => r.cat === b.key && !g.research.blocked(r) && g.stock.credits >= g.research.cost(r).credits && g.stock.has(g.research.cost(r).items, g.pack.items));
+      return `<button class="${br === b.key ? 'on' : ''}" data-act="tab" data-arg="upBr:${b.key}">${esc(b.name)}${avail ? ' <i class="dotn"></i>' : ''}</button>`;
+    }).join('')}</div>`;
+    if (br === 'traje') return h + this.equipList(false);
+    if (br === 'perf') {
+      // cadeia visual P-01 -> P-06
+      const sel = Math.min(DRILLS.length - 1, Number(this.st.drillSel ?? p.drillLevel + 1));
+      h += `<p class="muted">O perfurador define que rocha você consegue quebrar. Cada camada mais funda exige uma classe maior.</p><div class="chain">${DRILLS.map((d, i) => {
+        const st = i <= p.drillLevel ? 'done' : i === p.drillLevel + 1 ? 'avail' : 'lock';
+        return `${i ? '<span class="tarrow">➜</span>' : ''}<div class="node ${st} ${i === sel ? 'on' : ''}" data-act="sel" data-arg="drillSel:${i}"><b>P-0${i + 1}</b><small>${st === 'done' ? '✔ equipado' : `classe ${d.tier}`}</small></div>`;
+      }).join('')}</div>`;
+      const d = DRILLS[sel];
+      const layers = SECTORS.filter(L => L.tier <= d.tier).map(L => L.id);
+      h += `<div class="detail"><h2>${esc(d.name)}</h2><div class="stats"><div><small>CLASSE (DUREZA)</small><b>${d.tier}</b></div><div><small>POTÊNCIA</small><b>${d.power}×</b></div><div><small>RAIO DO FEIXE</small><b>${d.radius}</b></div><div><small>ALCANCE</small><b>${d.range} px</b></div><div><small>CAMADAS QUE MINERA</small><b>${layers.length ? layers[0] + '–' + layers[layers.length - 1] : '—'}</b></div></div>`;
+      if (sel === p.drillLevel + 1) {
+        const lock = d.research && !g.research.has(d.research) ? `🔒 Antes desbloqueie: ${esc(RESEARCH.find(r => r.key === d.research)?.name ?? '')}` : '';
+        h += `${this.costCells(d.cost)}${lock ? `<p class="warn">${lock}</p>` : ''}<button class="btn orange big" data-act="upgrade" data-arg="drill" ${lock || !g.stock.has(d.cost, g.pack.items) ? 'disabled' : ''}>MELHORAR PARA P-0${sel + 1}</button>`;
+      } else if (sel <= p.drillLevel) h += '<p class="ok">✔ Você já tem este perfurador (ou melhor).</p>';
+      else h += '<p class="muted">Melhore os anteriores primeiro.</p>';
+      return h + '</div>';
+    }
+    this.st.resCat = br;
+    return h + this.r_research();
+  }
+
+  // =============== MISSÕES ===============
+  r_missions() {
+    const g = this.g, t = this.st.misTab;
+    let h = this.tabs('misTab', [{ key: 'camada', name: '◈ Camada atual' }, { key: 'contratos', name: `☰ Contratos (${g.contracts.available.length})` }, { key: 'arquivo', name: `📖 Arquivo (${g.lore.unlocked.size})` }]);
+    if (t === 'contratos') return h + this.r_contracts();
+    if (t === 'arquivo') return h + this.r_archive();
+    const L = g.planet.def, lf = g.planet.layerFraction(), st = g.sectors.s[L.id];
+    h += `<div class="cols"><div class="col wide"><div class="detail"><h2 style="color:${L.accent}">${L.code.toUpperCase()} — ${esc(L.name.toUpperCase())}</h2><p>${esc(L.desc)}</p>
+      <div class="kv"><span>Camada esgotada</span><b>${(lf * 100).toFixed(2).replace('.', ',')}%</b></div>${this.bar(lf, 1, L.accent)}
+      <p class="muted">Cada pedra minerada (por você, perfuradoras, drones ou Complexos) enche esta barra. Em 100% a camada acaba e você desce.</p>
+      ${g.canDescend() ? '<button class="btn orange big" data-act="descend">▼ DESCER PARA A PRÓXIMA CAMADA</button>' : ''}
+      <h4>FASES DA CAMADA (bônus em créditos e liberam o Complexo de Extração)</h4>
+      <div class="phases">${PHASES.map((ph, i) => `<div class="ph ${i < st.phase ? 'done' : i === st.phase ? 'cur' : ''}"><b>${i + 1}</b><span>${ph}</span></div>`).join('')}</div>
+      ${st.phase < 9 ? `<div class="objs">${g.sectors.objectives(L.id).map(o => `<div class="obj ${o.done ? 'ok' : ''}"><span>${o.done ? '■' : '□'} ${esc(o.text)}</span><b>${fmtShort(o.cur)} / ${fmtShort(o.max)}</b>${this.bar(o.cur, o.max, o.done ? '#3aff8a' : L.accent)}</div>`).join('')}</div>` : '<p class="ok">Camada automatizada.</p>'}
+      ${st.phase === 7 && !st.auditPassed ? '<p class="muted">O formulário de auditoria Z-77 é preenchido no Centro de Comando [E].</p>' : ''}
+      </div></div><div class="col"><h3>O PLANETA</h3><div class="layers">${SECTORS.map(S => {
+        const done = S.id < g.planet.layer, cur = S.id === g.planet.layer;
+        return `<div class="lyr ${done ? 'done' : cur ? 'cur' : ''}" style="--acc:${S.accent}"><b>${S.code}</b><span>${done || cur ? esc(S.name) : '???'}</span><em>${done ? '✔ esgotada' : cur ? (lf * 100).toFixed(1).replace('.', ',') + '%' : `classe ${S.tier}`}</em></div>`;
+      }).join('')}</div></div></div>`;
+    return h;
+  }
+
+  private equipList(withDrill: boolean) {
     const g = this.g, p = g.player;
     const item = (key: string, title: string, sub: string, cur: string, next: string | null, cost: Record<string, number> | null, req: string | null) => `
       <div class="up"><div class="uh"><b>${esc(title)}</b><small>${esc(sub)}</small></div>
@@ -244,7 +317,7 @@ export class Panels {
     const rq = (r?: string) => r && !g.research.has(r) ? `🔒 Pesquisa: ${RESEARCH.find(x => x.key === r)?.name}` : null;
     const d = DRILLS[p.drillLevel], dn = DRILLS[p.drillLevel + 1];
     let h = `<div class="ups scroll tall">`;
-    h += item('drill', 'Perfurador Portátil', d.name, `Classe ${d.tier} · potência ${d.power} · raio ${d.radius}`, dn ? `Classe ${dn.tier} · potência ${dn.power} · raio ${dn.radius}` : null, dn?.cost ?? null, rq(dn?.research));
+    if (withDrill) h += item('drill', 'Perfurador Portátil', d.name, `Classe ${d.tier} · potência ${d.power} · raio ${d.radius}`, dn ? `Classe ${dn.tier} · potência ${dn.power} · raio ${dn.radius}` : null, dn?.cost ?? null, rq(dn?.research));
     const s = SCANNERS[p.scannerLevel], sn = SCANNERS[p.scannerLevel + 1];
     h += item('scanner', 'Scanner', s.name, `${s.radius} tiles — ${s.desc}`, sn ? `${sn.radius} tiles — ${sn.desc}` : null, sn?.cost ?? null, rq(sn?.research));
     const pk = PACKS[g.pack.level], pn = PACKS[g.pack.level + 1];
@@ -281,8 +354,7 @@ export class Panels {
     const cat = this.st.resCat as ResearchCat;
     const nodes = RESEARCH.filter(r => r.cat === cat);
     const sel = RESEARCH.find(r => r.key === this.st.resSel && r.cat === cat) ?? nodes.find(r => !R.done.has(r.key)) ?? nodes[0];
-    let h = this.tabs('resCat', RESEARCH_CATS);
-    if (!g.machines.count('laboratorio')) h += '<p class="warn">Construa uma Estação de Pesquisa para pesquisar.</p>';
+    let h = '';
     if (R.active) { const a = RESEARCH.find(r => r.key === R.active!.key)!; h += `<div class="active-res">⚗ Pesquisando <b>${esc(a.name)}</b> ${this.bar(R.active.t, a.time, '#3ab4ff')} <small>${fmtTime(a.time - R.active.t)}</small></div>`; }
     // profundidade de cada nó pela cadeia de requisitos
     const depth = (k: string, seen = 0): number => { const r = RESEARCH.find(x => x.key === k); if (!r || seen > 10) return 0; return r.req.filter(q => RESEARCH.find(x => x.key === q)?.cat === r.cat).reduce((m, q) => Math.max(m, depth(q, seen + 1) + 1), 0); };
@@ -299,12 +371,12 @@ export class Panels {
       h += `<div class="col"><div class="detail"><h2>${esc(sel.name.toUpperCase())}</h2><p>${esc(sel.desc)}</p>
         ${machines.length ? `<h4>DESBLOQUEIA</h4><div class="unl">${machines.map(m => `<div><img src="${g.sprites.machineUrl(m)}"><span>${esc(m.name)}</span></div>`).join('')}${ROBOTS.filter(r => r.research === sel.key).map(r => `<div><img src="${g.sprites.robotUrl(r.kind)}"><span>${esc(r.name)}</span></div>`).join('')}</div>` : ''}
         <h4>REQUISITOS</h4><div class="reqs">${sel.req.map(q => `<div class="${R.done.has(q) ? 'ok' : 'no'}">${R.done.has(q) ? '✔' : '✖'} ${esc(RESEARCH.find(x => x.key === q)?.name ?? q)}</div>`).join('')}
-        ${sel.certified ? `<div class="${g.sectors.certified(sel.certified) ? 'ok' : 'no'}">${g.sectors.certified(sel.certified) ? '✔' : '✖'} Setor ${String(sel.certified).padStart(2, '0')} certificado</div>` : ''}
+        ${sel.certified ? `<div class="${g.sectors.certified(sel.certified) ? 'ok' : 'no'}">${g.sectors.certified(sel.certified) ? '✔' : '✖'} Camada ${sel.certified} certificada</div>` : ''}
         ${sel.lore ? `<div class="${g.lore.unlocked.size >= sel.lore ? 'ok' : 'no'}">${g.lore.unlocked.size >= sel.lore ? '✔' : '✖'} ${sel.lore} registros de Khelos (${g.lore.unlocked.size})</div>` : ''}
         ${!sel.req.length && !sel.certified && !sel.lore ? '<div class="ok">✔ Nenhum</div>' : ''}</div>
         <h4>CUSTO DA PESQUISA</h4>${this.costCells(c.items)}<div class="kv"><span>Créditos</span><b style="color:${g.stock.credits >= c.credits ? '#9cff8a' : '#ff7a5a'}">${fmtInt(c.credits)} ◆</b></div>
         ${sel.corporate ? '<p class="muted">◆ Tecnologia corporativa: permanece no próximo contrato.</p>' : ''}
-        <button class="btn blue" data-act="research" data-arg="${sel.key}" ${b || R.active ? 'disabled' : ''}>${R.done.has(sel.key) ? 'CONCLUÍDA' : `PESQUISAR (${sel.time}s)`}</button>${b && !R.done.has(sel.key) ? `<p class="warn">${esc(b)}</p>` : ''}</div></div>`;
+        <button class="btn orange" data-act="research" data-arg="${sel.key}" ${b ? 'disabled' : ''}>${R.done.has(sel.key) ? '✔ DESBLOQUEADO' : 'DESBLOQUEAR'}</button>${b && !R.done.has(sel.key) ? `<p class="warn">${esc(b)}</p>` : ''}</div></div>`;
     }
     return h + '</div>';
   }
@@ -330,7 +402,7 @@ export class Panels {
       if (st.phase < 9) {
         h += `<h4>FASE ${st.phase + 1} — ${PHASES[st.phase].toUpperCase()}</h4><div class="objs">${g.sectors.objectives(sel).map(o => `<div class="obj ${o.done ? 'ok' : ''}"><span>${o.done ? '■' : '□'} ${esc(o.text)}</span><b>${fmtShort(o.cur)} / ${fmtShort(o.max)}</b>${this.bar(o.cur, o.max, o.done ? '#3aff8a' : sd.accent)}</div>`).join('')}</div>`;
         if (st.phase === 7 && !st.auditPassed) h += `<p class="muted">O formulário de auditoria Z-77 é preenchido no Centro de Comando (Central de Operações).</p>`;
-      } else h += `<p class="ok">Setor automatizado. Ele continuará gerando manutenção, falhas, anomalias e decisões.</p>`;
+      } else h += `<p class="ok">Camada automatizada. Ela continuará gerando manutenção, falhas, anomalias e decisões.</p>`;
       const hz = Object.entries(sd.hazards) as [HazardKey, number][];
       h += `<div class="stats">
         <div><small>ENERGIA</small><b style="color:${rt.ratio < 0.99 ? '#ff7a5a' : '#9cff8a'}">${fmtShort(rt.gen)} / ${fmtShort(rt.use)} kW</b>${this.bar(Math.min(rt.gen, rt.use), Math.max(rt.use, 1), rt.ratio < 0.99 ? '#ff6a3a' : '#3aff8a')}</div>
@@ -439,7 +511,6 @@ export class Panels {
     let h = `<div class="cols"><div class="col"><div class="dh"><img src="${g.sprites.machineUrl(d)}" style="width:64px"><div><h2>${esc(d.name)}${d.behavior === 'complex' ? ' ' + COMPLEX_LEVELS[m.level].name : ''}</h2><small>${SECTORS[m.sector - 1].code} · ${esc(SECTORS[m.sector - 1].name)}</small><p>${esc(d.desc)}</p></div></div>
       <div class="kv"><span>Estado</span><b style="color:${m.broken || m.overheat ? '#ff6a4a' : m.working ? '#9cff8a' : '#ffd04a'}">${esc(m.state)}</b></div>
       <div class="kv"><span>Condição</span><b>${Math.round(m.cond)}%</b></div>${this.bar(m.cond, 100, m.cond < 30 ? '#ff6a3a' : '#e8962a')}
-      ${d.power ? `<div class="kv"><span>Energia do setor</span><b>${Math.round(rt.ratio * 100)}%</b></div>` : ''}
       ${['complex', 'tectonic', 'mantle', 'collector'].includes(d.behavior) ? `<div class="kv"><span>Calibração / eficiência</span><b style="color:${m.eff < 0.6 ? '#ff7a5a' : '#9cff8a'}">${Math.round(m.eff * 100)}%</b></div>${this.bar(m.eff, 1.1, m.eff < 0.6 ? '#ff6a3a' : '#3aff8a')}<div class="kv"><span>Extração</span><b>${fmtShort(m.produced)} t no total</b></div>` : ''}
       ${m.boost > 1.001 ? `<div class="kv"><span>Bônus de calibração</span><b>+${Math.round((m.boost - 1) * 100)}%</b></div>` : ''}
       ${d.behavior === 'drill' ? `<div class="kv"><span>Avanço no veio</span><b>${m.depth} células</b></div><div class="kv"><span>Produção total</span><b>${fmtShort(m.produced)} kg</b></div>` : ''}
@@ -496,7 +567,7 @@ export class Panels {
     } else if (a === 'status') {
       const broken = g.machines.list.filter(m => m.broken).length;
       const rt = g.sectors.rt[1];
-      this.st.opsResp = [['br7', `Máquinas: ${g.machines.list.length} (${broken} quebradas). Robôs: ${g.robots.list.length}. Energia no Setor 01: ${Math.round(rt.ratio * 100)}%. Vazão logística: ${fmtShort(rt.linkFlow)}/${fmtShort(rt.linkCap)} kg/min. Envio orbital: ${fmtShort(g.machines.shipFlow)} kg/min.`], ['rocha', broken ? 'Tem coisa quebrada por aí. Não vai se consertar sozinha.' : 'Tudo rodando. Por enquanto. Bate na madeira. Se achar madeira neste planeta.']];
+      this.st.opsResp = [['br7', `Máquinas: ${g.machines.list.length} (${broken} quebradas). Robôs: ${g.robots.list.length}. Vazão logística: ${fmtShort(rt.linkFlow)}/${fmtShort(rt.linkCap)} kg/min. Envio orbital: ${fmtShort(g.machines.shipFlow)} kg/min.`], ['rocha', broken ? 'Tem coisa quebrada por aí. Não vai se consertar sozinha.' : 'Tudo rodando. Por enquanto. Bate na madeira. Se achar madeira neste planeta.']];
     } else if (a === 'contracts') {
       this.st.opsResp = [['varren', `Contratos ativos: ${g.contracts.active.length}. Disponíveis: ${g.contracts.available.length}. Concluídos: ${g.contracts.completed}. Abra o painel de contratos (J) para os detalhes. Eu não leio detalhes.`]];
     } else if (a === 'ends') {
