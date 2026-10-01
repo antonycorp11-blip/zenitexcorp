@@ -34,7 +34,7 @@ export class Research {
   blocked(r: ResearchDef): string | null {
     if (this.done.has(r.key)) return 'Concluída';
     for (const q of r.req) if (!this.done.has(q)) return `Requer: ${RESEARCH_BY_KEY[q]?.name ?? q}`;
-    if (r.certified && !this.g.sectors.certified(r.certified)) return `Requer Camada ${r.certified} certificada`;
+    if (r.certified && !this.g.sectors.certified(r.certified)) return `Requer chegar à Camada ${r.certified}`;
     if (r.lore && this.g.lore.unlocked.size < r.lore) return `Requer ${r.lore} registros no Arquivo (${this.g.lore.unlocked.size})`;
     return null;
   }

@@ -11,7 +11,7 @@ import { Input } from './input/Input';
 import { Audio } from './audio/Audio';
 import { Player } from './player/Player';
 import { Backpack, Stock } from './systems/Inventory';
-import { Machines, type Machine } from './systems/Machines';
+import { Machines, DELIVERY_PAY, type Machine } from './systems/Machines';
 import { Robots, type Robot } from './systems/Robots';
 import { SectorSystem } from './systems/Sectors';
 import { PlanetProgress } from './systems/Planet';
@@ -363,23 +363,46 @@ export class Game {
     this.build.active = false; this.build.deconstruct = false; this.build.key = null; this.build.anchor = null; this.build.dragging = false; this.input.placeMode = false; }
   isLineBuild() { const d = this.build.key ? MACHINE[this.build.key] : null; return !!d && d.behavior === 'belt'; }
 
-  /** Linha de esteiras em L (horizontal, depois vertical), cada uma apontando para a próxima. */
+  /**
+   * Linha de esteiras em L. Escolhe a ordem (horizontal ou vertical primeiro) que desvia de obstáculos
+   * e não aponta para dentro de quem fornece; a última esteira aponta para o armazém/máquina encostada.
+   */
   beltPath(): [number, number, number][] {
     const b = this.build;
     if (!b.anchor) return [[b.tx, b.ty, b.dir]];
     const [ax, ay] = b.anchor, ex = b.tx, ey = b.ty;
-    const pts: [number, number][] = [];
-    let x = ax, y = ay;
-    pts.push([x, y]);
-    while (x !== ex) { x += Math.sign(ex - x); pts.push([x, y]); }
-    while (y !== ey) { y += Math.sign(ey - y); pts.push([x, y]); }
-    if (pts.length > 120) pts.length = 120;
     const dirOf = (dx: number, dy: number) => (dx > 0 ? 0 : dy > 0 ? 1 : dx < 0 ? 2 : 3);
-    return pts.map(([px, py], i) => {
-      if (pts.length === 1) return [px, py, b.dir];
-      const [nx, ny] = i < pts.length - 1 ? pts[i + 1] : [px * 2 - pts[i - 1][0], py * 2 - pts[i - 1][1]];
-      return [px, py, dirOf(nx - px, ny - py)];
-    });
+    const D = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+    const SINK = new Set(['storage', 'link', 'command', 'terminal', 'launchpad', 'crusher', 'refinery', 'purifier', 'foundry', 'synth', 'splitter', 'reactor']);
+    const def = MACHINE[b.key ?? 'esteira'] ?? MACHINE.esteira;
+    const build = (hFirst: boolean) => {
+      const pts: [number, number][] = [];
+      let x = ax, y = ay;
+      pts.push([x, y]);
+      const hx = () => { while (x !== ex) { x += Math.sign(ex - x); pts.push([x, y]); } };
+      const vy = () => { while (y !== ey) { y += Math.sign(ey - y); pts.push([x, y]); } };
+      if (hFirst) { hx(); vy(); } else { vy(); hx(); }
+      if (pts.length > 120) pts.length = 120;
+      const out: [number, number, number][] = pts.map(([px, py], i) => {
+        if (pts.length === 1) return [px, py, b.dir];
+        const [nx, ny] = i < pts.length - 1 ? pts[i + 1] : [px * 2 - pts[i - 1][0], py * 2 - pts[i - 1][1]];
+        return [px, py, dirOf(nx - px, ny - py)];
+      });
+      // a ponta aponta para quem recebe, se houver um encostado
+      const last = out[out.length - 1];
+      const order = [last[2], 0, 1, 2, 3];
+      for (const d of order) {
+        const m = this.machines.at(last[0] + D[d][0], last[1] + D[d][1]);
+        if (m && !m.belt && SINK.has(m.def.behavior)) { last[2] = d; break; }
+      }
+      let score = 0;
+      for (const [px, py] of out) { const m = this.machines.at(px, py); if (!(m?.belt) && this.machines.canPlace(def, px, py)) score += 10; }
+      const first = out[0], into = this.machines.at(first[0] + D[first[2]][0], first[1] + D[first[2]][1]);
+      if (into && !into.belt && !SINK.has(into.def.behavior)) score += 25;   // apontaria para dentro da perfuradora
+      return { out, score };
+    };
+    const h = build(true), v = build(false);
+    return (v.score < h.score ? v : h).out;
   }
 
   private placeBeltLine() {
@@ -515,15 +538,18 @@ export class Game {
   }
 
   depositPack() {
-    let n = 0;
+    let n = 0, pay = 0;
     for (const k of Object.keys(this.pack.items)) {
       const c = ITEM[k]?.cat;
       if (c === 'consumivel') continue;
       const q = this.pack.take(k, this.pack.count(k));
       this.stock.add(k, q); n += q;
+      pay += q * (ITEM[k]?.value ?? 1) * DELIVERY_PAY;
     }
     if (n > 0) {
-      this.toast(`Depositado no Estoque Central: ${Math.round(n)} kg`, '#9cff8a');
+      this.stock.credits += pay;
+      this.sectors.counter(this.planet.layer, 'delivered', n);
+      this.toast(`Entregue: ${Math.round(n)} kg · +${Math.round(pay)} ◆ créditos`, '#9cff8a');
       this.audio.success();
       if (this.flags.tutorial === 1) { this.flags.tutorial = 2; this.flags.firstDeliver = this.time; this.say('t_first_deliver'); this.ui.flashMass(); }
     }
@@ -644,10 +670,13 @@ export class Game {
   }
 
   canDescend() { return this.planet.layerDone() && this.planet.layer < LAYER_COUNT; }
+  descendBlocked() { return this.sectors.descendBlock(); }
 
   /** Desce para a próxima camada: empacota a base (100% de reembolso) e gera o mapa de baixo. */
   async descend() {
     if (!this.canDescend()) return;
+    const block = this.descendBlocked();
+    if (block) { this.toast(block, '#ff8a3a'); this.audio.error(); return; }
     const s: any = this.serialize();
     const next = this.planet.layer + 1;
     // reembolso integral de todas as construções e do conteúdo delas

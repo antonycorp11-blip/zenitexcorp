@@ -568,3 +568,7 @@ body.touch .hud .toasts { top: 112px; width: 180px; } body.touch .hud .toasts .t
 #mobile .stick .knob { width: 42px !important; height: 42px !important; margin: -21px 0 0 -21px !important; }
 body.touch .sectortitle .n { font-size: 20px; } body.touch .sectortitle .c { font-size: 10px; }
 body.touch .banner .t { font-size: 15px; } body.touch .banner .s { font-size: 10px; }
+
+.ly-warn { display: none; margin-top: 5px; padding: 4px 7px; border-radius: 6px; background: #3a1d08; border: 1px solid #ff9a3a; color: #ffd27a; font-size: 12px; line-height: 1.25; animation: tutp 1.4s infinite; }
+body.touch .ly-warn { font-size: 9px; padding: 3px 5px; margin-top: 3px; }
+.objs .obj.cur { border-left: 3px solid #ffb84a; padding-left: 6px; } .objs .obj.later { opacity: .5; }

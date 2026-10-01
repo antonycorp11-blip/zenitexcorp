@@ -9,7 +9,6 @@ import { ROBOTS, ROBOT, type RobotKind } from '../data/robots';
 import { LORE, LORE_CATS, type LoreCat } from '../data/lore';
 import { DRILLS, SCANNERS, PACKS, SUIT_MODULES, ENERGY_LEVELS, HEALTH_LEVELS } from '../data/equipment';
 import { POOLS } from '../data/dialogue';
-import { PHASES } from '../systems/Sectors';
 import { bagTotal } from '../systems/Inventory';
 import type { Machine } from '../systems/Machines';
 import type { Game } from '../Game';
@@ -242,7 +241,7 @@ export class Panels {
     let h = this.tabs('buildCat', MACHINE_CATS) + `<p class="muted">Toque em <b>POSICIONAR</b>, coloque a peça no mapa e aperte <b>CONFIRMAR</b>. Custos saem do Estoque Central + mochila. 📌 fixa no slot ${(g.selected + 1) % 10} da barra.</p>`;
     h += `<div class="cards scroll tall">${MACHINES.filter(m => m.cat === cat && m.behavior !== 'command' && !m.hidden).map(d => {
       const locked = d.research && !g.research.has(d.research);
-      const req = locked ? `🔒 Desbloqueie em Melhorias: ${esc(RESEARCH.find(r => r.key === d.research)?.name ?? d.research!)}` : d.phase9 ? '◈ Exige a camada certificada (fase 8)' : d.sector12 ? '◈ Apenas no Núcleo' : '';
+      const req = locked ? `🔒 Desbloqueie em Melhorias: ${esc(RESEARCH.find(r => r.key === d.research)?.name ?? d.research!)}` : d.sector12 ? '◈ Apenas no Núcleo' : '';
       const afford = g.stock.has(d.cost, g.pack.items);
       return `<div class="card ${locked ? 'locked' : afford ? '' : 'poor'}">
         <div class="ch"><img src="${g.sprites.machineUrl(d)}"><div><b>${esc(d.name)}</b><small>${d.w}×${d.h} tiles${d.capacity ? ` · ${fmtShort(d.capacity)} ${d.behavior === 'storage' ? 'kg' : 'kg/min'}` : ''}</small></div></div>
@@ -297,10 +296,9 @@ export class Panels {
       <div class="kv"><span>Camada esgotada</span><b>${(lf * 100).toFixed(2).replace('.', ',')}%</b></div>${this.bar(lf, 1, L.accent)}
       <p class="muted">Cada pedra minerada (por você, perfuradoras, drones ou Complexos) enche esta barra. Em 100% a camada acaba e você desce.</p>
       ${g.canDescend() ? '<button class="btn orange big" data-act="descend">▼ DESCER PARA A PRÓXIMA CAMADA</button>' : ''}
-      <h4>FASES DA CAMADA (bônus em créditos e liberam o Complexo de Extração)</h4>
-      <div class="phases">${PHASES.map((ph, i) => `<div class="ph ${i < st.phase ? 'done' : i === st.phase ? 'cur' : ''}"><b>${i + 1}</b><span>${ph}</span></div>`).join('')}</div>
-      ${st.phase < 9 ? `<div class="objs">${g.sectors.objectives(L.id).map(o => `<div class="obj ${o.done ? 'ok' : ''}"><span>${o.done ? '■' : '□'} ${esc(o.text)}</span><b>${fmtShort(o.cur)} / ${fmtShort(o.max)}</b>${this.bar(o.cur, o.max, o.done ? '#3aff8a' : L.accent)}</div>`).join('')}</div>` : '<p class="ok">Camada automatizada.</p>'}
-      ${st.phase === 7 && !st.auditPassed ? '<p class="muted">O formulário de auditoria Z-77 é preenchido no Centro de Comando [E].</p>' : ''}
+      ${g.sectors.descendBlock() && lf >= 1 ? `<p class="warn">${esc(g.sectors.descendBlock()!)}</p>` : ''}
+      <h4>METAS DA CAMADA (cada uma paga créditos)</h4>
+      <div class="objs">${g.sectors.objectives(L.id).map((o, i) => `<div class="obj ${o.done ? 'ok' : i === st.phase ? 'cur' : 'later'}"><span>${o.done ? '✔' : i === st.phase ? '▶' : '·'} ${esc(o.text)}</span><b>${o.done ? '' : `${fmtShort(o.cur)} / ${fmtShort(o.max)} · +${fmtShort(g.sectors.reward(L.id, i))} ◆`}</b>${i === st.phase ? this.bar(o.cur, o.max, L.accent) : ''}</div>`).join('')}</div>
       </div></div><div class="col"><h3>O PLANETA</h3><div class="layers">${SECTORS.map(S => {
         const done = S.id < g.planet.layer, cur = S.id === g.planet.layer;
         return `<div class="lyr ${done ? 'done' : cur ? 'cur' : ''}" style="--acc:${S.accent}"><b>${S.code}</b><span>${done || cur ? esc(S.name) : '???'}</span><em>${done ? '✔ esgotada' : cur ? (lf * 100).toFixed(1).replace('.', ',') + '%' : `classe ${S.tier}`}</em></div>`;
@@ -371,7 +369,7 @@ export class Panels {
       h += `<div class="col"><div class="detail"><h2>${esc(sel.name.toUpperCase())}</h2><p>${esc(sel.desc)}</p>
         ${machines.length ? `<h4>DESBLOQUEIA</h4><div class="unl">${machines.map(m => `<div><img src="${g.sprites.machineUrl(m)}"><span>${esc(m.name)}</span></div>`).join('')}${ROBOTS.filter(r => r.research === sel.key).map(r => `<div><img src="${g.sprites.robotUrl(r.kind)}"><span>${esc(r.name)}</span></div>`).join('')}</div>` : ''}
         <h4>REQUISITOS</h4><div class="reqs">${sel.req.map(q => `<div class="${R.done.has(q) ? 'ok' : 'no'}">${R.done.has(q) ? '✔' : '✖'} ${esc(RESEARCH.find(x => x.key === q)?.name ?? q)}</div>`).join('')}
-        ${sel.certified ? `<div class="${g.sectors.certified(sel.certified) ? 'ok' : 'no'}">${g.sectors.certified(sel.certified) ? '✔' : '✖'} Camada ${sel.certified} certificada</div>` : ''}
+        ${sel.certified ? `<div class="${g.sectors.certified(sel.certified) ? 'ok' : 'no'}">${g.sectors.certified(sel.certified) ? '✔' : '✖'} Chegar à Camada ${sel.certified}</div>` : ''}
         ${sel.lore ? `<div class="${g.lore.unlocked.size >= sel.lore ? 'ok' : 'no'}">${g.lore.unlocked.size >= sel.lore ? '✔' : '✖'} ${sel.lore} registros de Khelos (${g.lore.unlocked.size})</div>` : ''}
         ${!sel.req.length && !sel.certified && !sel.lore ? '<div class="ok">✔ Nenhum</div>' : ''}</div>
         <h4>CUSTO DA PESQUISA</h4>${this.costCells(c.items)}<div class="kv"><span>Créditos</span><b style="color:${g.stock.credits >= c.credits ? '#9cff8a' : '#ff7a5a'}">${fmtInt(c.credits)} ◆</b></div>
@@ -379,47 +377,6 @@ export class Panels {
         <button class="btn orange" data-act="research" data-arg="${sel.key}" ${b ? 'disabled' : ''}>${R.done.has(sel.key) ? '✔ DESBLOQUEADO' : 'DESBLOQUEAR'}</button>${b && !R.done.has(sel.key) ? `<p class="warn">${esc(b)}</p>` : ''}</div></div>`;
     }
     return h + '</div>';
-  }
-
-  // =============== SETORES ===============
-  r_sectors() {
-    const g = this.g;
-    const sel = this.st.secSel ?? g.sectors.focus();
-    let h = `<div class="cols"><div class="col list scroll tall">`;
-    for (const sd of SECTORS) {
-      const st = g.sectors.s[sd.id];
-      const f = g.planet.sectorFraction(sd.id);
-      h += `<div class="li sec ${sel === sd.id ? 'on' : ''}" data-act="secsel" data-arg="${sd.id}"><i style="background:${st.discovered ? sd.accent : '#333'}"></i><div><b>${st.discovered ? esc(sd.name) : '??? — não explorado'}</b><small>${sd.code} · classe ${sd.tier} · ${st.phase >= 9 ? 'AUTOMATIZADO' : st.discovered ? `fase ${st.phase + 1}/9` : '—'}</small>${this.bar(f, 1, sd.accent)}</div><em>${(f * 100).toFixed(1).replace('.', ',')}%</em></div>`;
-    }
-    h += `</div>`;
-    const sd = SECTORS[sel - 1], st = g.sectors.s[sel], rt = g.sectors.rt[sel];
-    const disc = st.discovered;
-    h += `<div class="col wide scroll tall"><div class="detail"><h2 style="color:${sd.accent}">${sd.code.toUpperCase()} — ${disc ? esc(sd.name.toUpperCase()) : '???'}</h2><p>${disc ? esc(sd.desc) : 'Setor não explorado. Barreira de contenção classe ' + sd.tier + '.'}</p>`;
-    const tutorial = g.tutorialObjectives();
-    if (tutorial) h += `<h4>OBJETIVO ATUAL</h4><div class="objs">${tutorial.map(o => `<div class="obj ${o.done ? 'ok' : ''}"><span>${o.done ? '■' : '□'} ${esc(o.text)}</span>${o.cur && !o.done ? `<b>${esc(o.cur)}</b>` : ''}</div>`).join('')}</div>`;
-    if (disc) {
-      h += `<div class="phases">${PHASES.map((p, i) => `<div class="ph ${i < st.phase ? 'done' : i === st.phase ? 'cur' : ''}"><b>${i + 1}</b><span>${p}</span></div>`).join('')}</div>`;
-      if (st.phase < 9) {
-        h += `<h4>FASE ${st.phase + 1} — ${PHASES[st.phase].toUpperCase()}</h4><div class="objs">${g.sectors.objectives(sel).map(o => `<div class="obj ${o.done ? 'ok' : ''}"><span>${o.done ? '■' : '□'} ${esc(o.text)}</span><b>${fmtShort(o.cur)} / ${fmtShort(o.max)}</b>${this.bar(o.cur, o.max, o.done ? '#3aff8a' : sd.accent)}</div>`).join('')}</div>`;
-        if (st.phase === 7 && !st.auditPassed) h += `<p class="muted">O formulário de auditoria Z-77 é preenchido no Centro de Comando (Central de Operações).</p>`;
-      } else h += `<p class="ok">Camada automatizada. Ela continuará gerando manutenção, falhas, anomalias e decisões.</p>`;
-      const hz = Object.entries(sd.hazards) as [HazardKey, number][];
-      h += `<div class="stats">
-        <div><small>ENERGIA</small><b style="color:${rt.ratio < 0.99 ? '#ff7a5a' : '#9cff8a'}">${fmtShort(rt.gen)} / ${fmtShort(rt.use)} kW</b>${this.bar(Math.min(rt.gen, rt.use), Math.max(rt.use, 1), rt.ratio < 0.99 ? '#ff6a3a' : '#3aff8a')}</div>
-        <div><small>CALOR / REFRIGERAÇÃO</small><b style="color:${rt.stress > 0 ? '#ff7a5a' : '#9cff8a'}">${fmtInt(rt.heat)} / ${fmtInt(rt.cooling)}</b>${rt.stress > 0 ? '<em>SUPERAQUECENDO</em>' : ''}</div>
-        <div><small>BUFFER DO SETOR</small><b>${fmtShort(bagTotal(rt.buffer))} / ${fmtShort(rt.bufCap)} kg</b>${this.bar(bagTotal(rt.buffer), rt.bufCap, '#e8962a')}</div>
-        <div><small>VAZÃO LOGÍSTICA</small><b>${fmtShort(rt.linkFlow)} / ${fmtShort(rt.linkCap)} kg/min</b>${this.bar(rt.linkFlow, rt.linkCap, '#3ab4ff')}</div>
-        <div><small>EXTRAÇÃO PROFUNDA</small><b>${fmtShort(rt.deepRate)} t/min</b></div>
-        <div><small>CAMADA ESGOTADA</small><b>${(g.planet.layerFraction(sel) * 100).toFixed(1).replace('.', ',')}%</b></div>
-        <div><small>EXPLORADO</small><b>${(g.world.exploredFrac(sel) * 100).toFixed(1).replace('.', ',')}%</b></div>
-        <div><small>TEMPERATURA BASE</small><b>${sd.tempC} °C</b></div>
-      </div>`;
-      if (hz.length) h += `<h4>PERIGOS</h4><div class="hzl">${hz.map(([k, v]) => `<span>${hazIcon(k)} ${HAZARD_NAMES[k]} <b>${v}%</b> <small>mitigado: -${fmtInt(rt.fields[k] ?? 0)}</small></span>`).join('')}</div>`;
-      const probs = g.machines.list.filter(m => m.sector === sel && (m.broken || m.overheat || m.buried > 0 || m.exhausted || (m.def.behavior === 'complex' && m.eff < 0.7)));
-      const rob = g.robots.list.filter(r => r.sector === sel && (r.stuck || r.broken || r.energy <= 0));
-      if (probs.length || rob.length) h += `<h4>⚠ PROBLEMAS QUE EXIGEM VOCÊ</h4><div class="probs">${probs.map(m => `<div>⚠ ${esc(m.def.name)} — ${esc(m.state)}${m.def.behavior === 'complex' ? ` (eficiência ${Math.round(m.eff * 100)}%)` : ''}</div>`).join('')}${rob.map(r => `<div>⚠ ${esc(r.name)} — ${esc(r.state)}</div>`).join('')}</div>`;
-    }
-    return h + '</div></div></div>';
   }
 
   // =============== ROBÔS ===============
@@ -542,18 +499,16 @@ export class Panels {
   r_ops() {
     const g = this.g;
     const resp = this.st.opsResp as [string, string][] | undefined;
-    const auditSec = SECTORS.find(s => g.sectors.s[s.id].phase === 7 && !g.sectors.s[s.id].auditPassed);
     const lines: [string, string][] = resp ?? [
-      ['rocha', `Carga recebida. ${g.planet.fraction() < 0.0001 ? 'Ainda tá tudo aí, o planeta inteiro. Não se preocupa, ele não vai fugir.' : 'O planeta tá diminuindo. Devagar, mas tá.'}`],
-      ['zena', `Massa extraída: ${(g.planet.fraction() * 100).toFixed(6).replace('.', ',')}%. Créditos: ${fmtInt(g.stock.credits)}. Sua produtividade foi registrada.`],
+      ['rocha', g.planet.layerFraction() < 0.01 ? 'Carga recebida. A camada ainda tá inteira. Não se preocupa, ela não vai fugir.' : 'Carga recebida. A camada tá diminuindo. Devagar, mas tá.'],
+      ['zena', `Camada ${(g.planet.layerFraction() * 100).toFixed(1).replace('.', ',')}% esgotada. Créditos: ${fmtInt(g.stock.credits)}. Sua produtividade foi registrada.`],
     ];
+    if (g.canDescend()) lines.push(['br7', 'Camada esgotada. Descida autorizada pelo cartão da camada (▼ DESCER).']);
     const opts: [string, string][] = [
-      ['next', 'Qual é o próximo objetivo e a cota de extração?'],
+      ['next', 'Qual é o próximo objetivo?'],
       ['status', 'Mostrar status da base e logística.'],
-      ['contracts', 'Detalhes dos contratos e recompensas.'],
       ['ends', 'Isso aqui algum dia acaba? (sarcástico)'],
     ];
-    if (auditSec) opts.push(['audit:' + auditSec.id, `Preencher Formulário de Auditoria Z-77 (${auditSec.code})`]);
     opts.push(['lifts', 'Usar a rede de elevadores pessoais.']);
     return `<div class="ops">${lines.map(([sp, t]) => `<div class="opl"><img src="${g.sprites.portraitUrl(sp as any)}"><div><b>${sp === 'zena' ? 'ZENA' : sp === 'rocha' ? 'ROCHA' : sp === 'br7' ? 'BR-7' : sp === 'varren' ? 'DIRETOR VARREN' : sp === 'sera' ? 'DRA. SERA VENN' : 'ZENITEX'}</b><p>${esc(t)}</p></div></div>`).join('')}
       <div class="opts">${opts.map(([k, t], i) => `<button data-act="ops" data-arg="${k}"><span>${i + 1}.</span> ${esc(t)} <em>›</em></button>`).join('')}</div></div>`;
@@ -561,9 +516,8 @@ export class Panels {
   private ops(a: string) {
     const g = this.g;
     if (a === 'next') {
-      const s = g.sectors.focus(); const st = g.sectors.s[s];
-      const obj = g.sectors.objectives(s).filter(o => !o.done).map(o => o.text).join('; ');
-      this.st.opsResp = [['zena', `${SECTORS[s - 1].code}, fase ${st.phase + 1}: ${PHASES[st.phase] ?? 'automatizado'}. Pendências: ${obj || 'nenhuma'}.`], ['varren', 'E lembre-se: cota cumprida é só o início de uma cota maior.']];
+      const o = g.sectors.currentMeta();
+      this.st.opsResp = [['zena', o ? `Próxima meta: ${o.text} (${fmtShort(o.cur)}/${fmtShort(o.max)}). Camada ${(g.planet.layerFraction() * 100).toFixed(1).replace('.', ',')}% esgotada.` : `Metas cumpridas. Esgote a ${g.planet.def.name} para descer.`], ['varren', 'E lembre-se: meta cumprida é só o início de uma meta maior.']];
     } else if (a === 'status') {
       const broken = g.machines.list.filter(m => m.broken).length;
       const rt = g.sectors.rt[1];

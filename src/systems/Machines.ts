@@ -9,6 +9,7 @@ import { SECTORS } from '../data/sectors';
 import { type Bag, bagAdd, bagTotal } from './Inventory';
 import type { Game } from '../Game';
 
+export const DELIVERY_PAY = 0.5;  // créditos por kg entregue = valor do item × isto
 export const LOT = 5;            // kg por lote em esteira
 export const BASE_RADIUS = 40;   // tiles: área da base onde armazéns podem ser construídos
 const BELT_GAP = 0.5;            // espaçamento mínimo entre lotes
@@ -199,12 +200,14 @@ export class Machines {
           const n = r.buffer[k] * frac;
           bagAdd(r.buffer, k, -n);
           g.stock.add(k, n);
+          // a Zenitex paga pelo minério que chega à base
+          g.stock.credits += n * (ITEM[k]?.value ?? 1) * DELIVERY_PAY;
           moved += n;
         }
       }
       r.linkFlow = r.linkFlow * 0.9 + (moved / dt) * 60 * 0.1;
       r.linkedTotal += moved;
-      if (moved > 0) g.sectors.counter(s, 'linked', moved);
+      if (moved > 0) { g.sectors.counter(s, 'linked', moved); g.sectors.counter(s, 'delivered', moved); }
     }
 
     // envio orbital

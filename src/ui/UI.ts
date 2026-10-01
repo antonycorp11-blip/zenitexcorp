@@ -5,7 +5,6 @@ import { SPEAKERS } from '../data/dialogue';
 import { ITEM, TOP_BAR_ITEMS, itemName } from '../data/items';
 import { SLOGANS } from '../data/slogans';
 import { MACHINE } from '../data/machines';
-import { PHASES } from '../systems/Sectors';
 import type { LoreDef } from '../data/lore';
 import type { Game } from '../Game';
 import type { Machine } from '../systems/Machines';
@@ -85,6 +84,7 @@ export class UI {
         <div class="ly-top"><span class="ly-code" data-id="lyCode"></span><b data-id="lyName"></b></div>
         <div class="ly-bar"><i data-id="lyBar"></i><span data-id="lyPct"></span></div>
         <div class="ly-sub"><span data-id="lyPlanet"></span><span data-id="lyRate" class="rate"></span></div>
+        <div class="ly-warn" data-id="lyWarn"></div>
         <button class="descend" data-id="descendBtn">▼ DESCER PARA A PRÓXIMA CAMADA</button>
       </div>
       <button class="ui-block menu-btn" data-id="menuBtn" title="Menu (Tab)"><span>☰</span><b>MENU</b><i class="badge" data-id="menuBadge"></i></button>
@@ -208,7 +208,10 @@ export class UI {
     this.el.lyPlanet.textContent = `Planeta: ${PCT(g.planet.fraction())} extraído`;
     const ru = g.planet.rateUnits();
     this.el.lyRate.textContent = ru > 0.05 ? `+${(ru / L.target * 100).toFixed(ru / L.target < 0.001 ? 3 : 2).replace('.', ',')}%/min` : '';
-    this.el.descendBtn.style.display = g.canDescend() ? 'block' : 'none';
+    this.el.descendBtn.style.display = g.canDescend() && !g.descendBlocked() ? 'block' : 'none';
+    const warn = this.bottleneck();
+    this.el.lyWarn.innerHTML = warn ? esc(warn) : '';
+    this.el.lyWarn.style.display = warn ? 'block' : 'none';
     // recursos: os 4 mais abundantes + créditos
     const tops = TOP_BAR_ITEMS.filter(k => g.stock.count(k) >= 1).sort((a, b) => g.stock.count(b) - g.stock.count(a)).slice(0, 4);
     if (!tops.length) tops.push('ferronox', 'lumenita');
@@ -280,6 +283,33 @@ export class UI {
   }
 
 
+  /** Diagnóstico do que está travando a produção — em linguagem de jogador. */
+  private bottleneck(): string | null {
+    const g = this.g, M = g.machines, L = g.planet.layer, rt = g.sectors.rt[L];
+    if (g.canDescend()) return g.descendBlocked();
+    const broken = M.list.filter(m => m.broken).length;
+    if (broken) return `⚠ ${broken} máquina(s) quebrada(s): chegue perto e segure E para consertar.`;
+    const buried = M.list.filter(m => m.buried > 0).length;
+    if (buried) return `⚠ ${buried} máquina(s) soterrada(s): mine o entulho em cima delas.`;
+    const drills = M.list.filter(m => m.def.behavior === 'drill');
+    const full = drills.filter(m => m.state === 'Saída cheia').length;
+    if (full) return `⚠ ${full} perfuradora(s) PARADA(S) com a saída cheia: ligue uma esteira saindo dela até o armazém da base.`;
+    const jam = M.list.filter(m => m.belt && m.state.startsWith('Travada')).length;
+    if (jam) return `⚠ Esteira travada: a ponta dela aponta para algo que não aceita minério. Aponte para um armazém.`;
+    const D = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+    const facing = M.list.some(m => { if (!m.belt || !m.belt.length) return false; const n = M.at(m.tx + D[m.dir][0], m.ty + D[m.dir][1]); return !!n?.belt && (n.dir + 2) % 4 === m.dir; });
+    if (facing) return '⚠ Duas esteiras apontando uma contra a outra: redesenhe o trecho até o armazém.';
+    const lost = M.list.filter(m => m.belt && m.state === 'Sem destino' && m.belt.length).length;
+    if (lost) return `⚠ Esteira sem destino: a última esteira não está encostada no armazém.`;
+    const total = Object.values(rt.buffer).reduce((a, b) => a + b, 0);
+    if (rt.bufCap > 0 && total >= rt.bufCap * 0.97) return '⚠ Armazéns cheios: construa outro Armazém ou um Elevador de Carga (+1.500 kg/min).';
+    if (rt.linkCap > 0 && total > 200 && rt.linkFlow >= rt.linkCap * 0.95) return `Base no limite (${fmtShort(rt.linkCap)} kg/min): um Elevador de Carga acelera a entrega.`;
+    const stuck = g.robots.list.filter(r => r.stuck || r.broken || r.energy <= 0).length;
+    if (stuck) return `⚠ ${stuck} drone(s) precisando de você: chegue perto e toque em E.`;
+    if (drills.length && drills.every(m => m.exhausted)) return 'Perfuradoras só rendendo em profundidade: gire-as para paredes novas ou mude-as de lugar.';
+    return null;
+  }
+
   /** Cartão de META: uma única coisa a fazer agora. */
   private updateMeta() {
     const g = this.g;
@@ -294,17 +324,17 @@ export class UI {
     } else if (tut) {
       title = `TUTORIAL ${tut.n}/${tut.total} · ${tut.title}`; text = tut.text;
     } else if (g.canDescend()) {
-      title = 'CAMADA ESGOTADA'; text = 'Toque em ▼ DESCER no cartão da camada para ir à próxima.';
+      title = 'CAMADA ESGOTADA'; text = g.descendBlocked() ?? 'Toque em ▼ DESCER no cartão da camada para ir à próxima.';
     } else {
-      const s = g.planet.layer, st = g.sectors.s[s];
-      const o = g.sectors.objectives(s).find(x => !x.done);
-      if (st.phase < 9 && o) {
-        title = `META · FASE ${st.phase + 1}/9 — ${PHASES[st.phase].toUpperCase()}`;
-        text = o.text + (o.max > 1 ? ` (${fmtShort(o.cur)}/${fmtShort(o.max)})` : '');
+      const L = g.planet.layer, st = g.sectors.s[L], list = g.sectors.objectives(L);
+      const o = g.sectors.currentMeta();
+      if (o) {
+        title = `META ${st.phase + 1}/${list.length} · ${g.planet.def.name.toUpperCase()} · +${fmtShort(g.sectors.reward(L, st.phase))} ◆`;
+        text = o.text + (o.max > 1 ? ` <b>(${fmtShort(o.cur)}/${fmtShort(o.max)})</b>` : '');
         prog = o.cur / o.max;
       } else {
         title = 'META · ESGOTAR A CAMADA';
-        text = `Extraia a ${g.planet.def.name}: perfuradoras, drones e Complexos aceleram a barra da camada.`;
+        text = `Esgote a ${g.planet.def.name}: perfuradoras, drones e Complexos enchem a barra da camada.`;
         prog = g.planet.layerFraction();
       }
     }
