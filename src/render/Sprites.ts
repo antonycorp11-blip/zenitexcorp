@@ -144,26 +144,47 @@ export class Sprites {
     const [c, x] = cv(W, H + ex);
     const R = (a: number, b: number, w: number, h: number, col: C3, al = 1) => { x.fillStyle = css(col, al); x.fillRect(Math.round(a), Math.round(b), Math.round(w), Math.round(h)); };
     const glow: C3 = def.glow ?? [255, 180, 80];
+    // identidade visual por família: cor do painel, padrão do teto e tom da estrutura
+    const FAM: Record<string, { p: C3; pl: C3; pat: 'slat' | 'hazard' | 'grid' | 'hex' | 'clean' | 'mesh' | 'rivet'; body: C3 }> = {
+      logistica: { p: [176, 100, 22], pl: [240, 150, 42], pat: 'slat', body: PAL.mid },
+      extracao: { p: [190, 150, 20], pl: [250, 210, 50], pat: 'hazard', body: [58, 54, 48] },
+      processamento: { p: [44, 84, 124], pl: [90, 150, 210], pat: 'grid', body: [50, 58, 72] },
+      energia: { p: [24, 110, 100], pl: [60, 210, 180], pat: 'hex', body: [40, 60, 62] },
+      base: { p: [150, 158, 170], pl: [220, 226, 236], pat: 'clean', body: [70, 76, 88] },
+      estabilizacao: { p: shade(glow, 0.45), pl: shade(glow, 0.8), pat: 'mesh', body: [46, 52, 60] },
+      mega: { p: [110, 30, 34], pl: [200, 60, 60], pat: 'rivet', body: [44, 34, 40] },
+    };
+    const fam = FAM[def.cat] ?? FAM.logistica;
     const oy = ex; // origem da pegada
     // sombra
     R(1, oy + 2, W - 2, H - 2, [0, 0, 0], 0.35);
 
     // corpo genérico em caixa 3/4 — estrutura preta, painéis laranja, costuras e rebites
     const box = (bx: number, by: number, bw: number, bh: number, height: number, top: C3, front: C3, panel = true) => {
+      if (top === PAL.mid) top = fam.body;
       const fy = by + bh - height, ty = by - height;
       R(bx - 1, ty - 1, bw + 2, bh + height + 2, [8, 9, 12]);   // contorno
       R(bx, fy, bw, height, front);                                     // frente
       for (let x = 3; x < bw - 1; x += 6) R(bx + x, fy + 2, 1, height - 3, shade(front, 1.35));
       R(bx, fy + height - 3, bw, 1, shade(front, 0.55));
-      if (height >= 8) { for (let x = 2; x < bw - 2; x += 4) R(bx + x, fy + 2, 2, 1, PAL.orange); }
+      if (height >= 8) { for (let x = 2; x < bw - 2; x += 4) R(bx + x, fy + 2, 2, 1, fam.pl); }
       R(bx, ty, bw, bh, top);                                           // topo
       R(bx, ty, bw, 1, shade(top, 1.45)); R(bx, ty, 1, bh, shade(top, 1.25));
       R(bx + bw - 1, ty, 1, bh, shade(top, 0.7));
       if (panel && bw >= 10 && bh >= 10) {
+        const ix = bx + 3, iy = ty + 3, iw = bw - 6, ih = bh - 6;
         R(bx + 2, ty + 2, bw - 4, bh - 4, [22, 24, 30]);
-        R(bx + 3, ty + 3, bw - 6, bh - 6, PAL.orangeD);
-        R(bx + 3, ty + 3, bw - 6, 1, PAL.orange); R(bx + 3, ty + 3, 1, bh - 6, PAL.orange);
-        for (let x = 6; x < bw - 6; x += 5) R(bx + x, ty + 5, 2, bh - 10, shade(PAL.orangeD, 0.8));
+        R(ix, iy, iw, ih, fam.p);
+        R(ix, iy, iw, 1, fam.pl); R(ix, iy, 1, ih, fam.pl);
+        switch (fam.pat) {
+          case 'slat': for (let k = 3; k < iw - 3; k += 5) R(ix + k, iy + 2, 2, ih - 4, shade(fam.p, 0.78)); break;
+          case 'hazard': for (let k = -ih; k < iw; k += 6) for (let j = 0; j < ih; j++) { const xx = k + j; if (xx >= 0 && xx < iw && (j + k) % 6 < 3) R(ix + xx, iy + j, 1, 1, [30, 28, 24]); } break;
+          case 'grid': for (let k = 4; k < iw; k += 6) R(ix + k, iy, 1, ih, shade(fam.p, 0.6)); for (let k = 4; k < ih; k += 6) R(ix, iy + k, iw, 1, shade(fam.p, 0.6)); break;
+          case 'hex': for (let j = 3; j < ih - 2; j += 5) for (let k = 3 + (j % 2) * 2; k < iw - 2; k += 5) R(ix + k, iy + j, 2, 2, fam.pl); break;
+          case 'clean': R(ix + 2, iy + 2, iw - 4, Math.min(4, ih - 4), [60, 140, 210]); R(ix + 2, iy + 2, iw - 4, 1, [150, 220, 255]); break;
+          case 'mesh': for (let j = 1; j < ih; j += 2) for (let k = (j % 4 === 1 ? 0 : 1); k < iw; k += 2) R(ix + k, iy + j, 1, 1, shade(fam.p, 0.6)); break;
+          case 'rivet': for (let j = 2; j < ih - 1; j += 4) for (let k = 2; k < iw - 1; k += 4) R(ix + k, iy + j, 1, 1, [230, 200, 190]); break;
+        }
       }
       for (const [rx, ry] of [[1, 1], [bw - 2, 1], [1, bh - 2], [bw - 2, bh - 2]]) R(bx + rx, ty + ry, 1, 1, PAL.steel);
       R(bx, fy, bw, 1, shade(front, 1.6));
@@ -230,10 +251,22 @@ export class Sprites {
             R(sx, oy + H - hh - 18, sw, 4, PAL.orange); light(sx + sw / 2 - 1, oy + H - hh - 4, [80, 180, 255]);
           }
         } else {
-          box(2, oy + 2, W - 4, H - 4, hh, PAL.orangeD, [80, 50, 20]);
-          R(4, oy - hh + 4, W - 8, H - 10, PAL.orange); R(6, oy - hh + 6, W - 12, 1, PAL.orangeL);
-          R(W / 2 - 1, oy - hh + 2, 2, H - 6, PAL.dark);
-          light(4, oy + H - hh + 1, [80, 180, 255]);
+          // pilha de caixotes com cintas: 4 caixas, uma empilhada
+          const cw = (W - 6) / 2, chh = (H - 6) / 2;
+          const crate = (cx2: number, cy2: number, w2: number, h2: number, col: C3) => {
+            R(cx2 - 1, cy2 - 7, w2 + 2, h2 + 8, [10, 8, 6]);
+            R(cx2, cy2 + h2 - 6, w2, 6, shade(col, 0.55));
+            R(cx2, cy2 - 6, w2, h2, col); R(cx2, cy2 - 6, w2, 1, shade(col, 1.35));
+            R(cx2 + 1, cy2 - 5, w2 - 2, 1, shade(col, 0.7)); R(cx2 + 1, cy2 + h2 - 8, w2 - 2, 1, shade(col, 0.7));
+            R(cx2 + w2 / 2 - 1, cy2 - 6, 2, h2 + 6, [40, 40, 46]);                 // cinta
+            for (let k = 2; k < w2 - 2; k += 3) R(cx2 + k, cy2 - 3, 1, h2 - 6, shade(col, 0.82));
+          };
+          crate(3, oy + 4, cw - 1, chh, [168, 112, 52]);
+          crate(3 + cw + 1, oy + 4, cw - 1, chh, [150, 98, 44]);
+          crate(3, oy + 4 + chh, cw - 1, chh, [160, 104, 48]);
+          crate(3 + cw + 1, oy + 4 + chh, cw - 1, chh, [172, 116, 56]);
+          crate(W / 4 + 1, oy - 6, W / 2 - 2, chh - 1, [186, 126, 60]);           // caixa de cima
+          R(W - 8, oy + H - 7, 4, 3, [232, 150, 42]); light(4, oy + H - 6, [80, 180, 255]);
         }
         break;
       }
@@ -358,7 +391,37 @@ export class Sprites {
       }
       default: box(1, oy + 1, W - 2, H - 2, 10, PAL.mid, PAL.dark);
     }
+    this.glyph(x, def.key, W, oy, def.h * TILE);
     return c;
+  }
+
+  /** Pictograma no teto/fachada: identifica a máquina de longe. */
+  private glyph(x: CanvasRenderingContext2D, key: string, W: number, oy: number, H: number) {
+    const G: Record<string, string[]> = {
+      oficina: ['..##...', '.#..#..', '..##...', '...#...', '...##..', '....##.', '.....#.'],           // chave inglesa
+      laboratorio: ['..###..', '...#...', '...#...', '..#.#..', '.#...#.', '#.###.#', '#######'],     // frasco
+      centro_robotico: ['.#.#.#.', '#######', '##...##', '.#.#.#.', '##...##', '#######', '.#.#.#.'], // engrenagem
+      centro_arqueologico: ['..###..', '.#...#.', '#.#.#.#', '#..#..#', '#.#.#.#', '.#...#.', '..###..'],
+      gerador: ['....##.', '...##..', '..##...', '.#####.', '...##..', '..##...', '.##....'],          // raio
+      reator_lumenita: ['..###..', '.#...#.', '#..#..#', '#.###.#', '#..#..#', '.#...#.', '..###..'],
+      triturador: ['#.#.#.#', '#######', '.......', '#######', '#.#.#.#'],                             // dentes
+      refinaria: ['.#...#.', '.#...#.', '.##.##.', '..###..', '...#...', '..###..'],                   // gota/funil
+      purificador: ['...#...', '..###..', '.#####.', '.#####.', '..###..'],
+      sintetizador: ['###.###', '#.#.#.#', '###.###', '.......', '###.###', '#.#.#.#', '###.###'],
+      fundidor: ['#.....#', '##...##', '.#####.', '.#####.', '..###..'],
+      suporte: [], holofote: [],
+      terminal_orbital: ['...#...', '..###..', '.#.#.#.', '...#...', '...#...'],
+      elevador_carga: ['...#...', '..###..', '.#.#.#.', '...#...', '.#.#.#.', '..###..', '...#...'],
+    };
+    const g = G[key];
+    if (!g || !g.length) return;
+    const gh = g.length, gw = g[0].length;
+    const s = W >= 48 ? 2 : 1;
+    const gx = Math.round(W / 2 - (gw * s) / 2), gy = Math.round(oy - 12 + H / 2 - (gh * s) / 2 - 4);
+    x.fillStyle = 'rgba(10,12,16,0.85)';
+    x.fillRect(gx - 2, gy - 2, gw * s + 4, gh * s + 4);
+    x.fillStyle = '#fff2d0';
+    for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) if (g[j][i] === '#') x.fillRect(gx + i * s, gy + j * s, s, s);
   }
 
   // ---------------- PERSONAGEM ----------------

@@ -331,14 +331,17 @@ export class Game {
       for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
         const tx = px + dx, ty = py + dy, ox = tx - hw, oy = ty - hh;
-        // não cobrir o próprio jogador
-        if (px >= ox && px < ox + def.w && py >= oy && py < oy + def.h) continue;
+        // não cobrir nem encostar no jogador (evita prendê-lo)
+        if (px >= ox - 1 && px <= ox + def.w && py >= oy - 1 && py <= oy + def.h) continue;
         if (!this.machines.canPlace(def, ox, oy)) return [tx, ty];
       }
     }
     return [px + 2, py];
   }
-  exitBuild() { this.build.active = false; this.build.deconstruct = false; this.build.key = null; this.input.placeMode = false; }
+  exitBuild() {
+    // volta para o perfurador: senão o slot de construção continua ativo e nada minera
+    if (this.hotbar[this.selected]?.type === 'build') this.selected = 0;
+    this.build.active = false; this.build.deconstruct = false; this.build.key = null; this.input.placeMode = false; }
   confirmBuild() { if (this.build.active && !this.build.deconstruct && !this.ui.modalOpen()) this.buildAction(); }
 
   private buildAction() {
