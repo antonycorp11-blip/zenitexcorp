@@ -16,10 +16,12 @@ npm run build      # typecheck + build de produção em dist/
 
 ## Publicar no Cloudflare Workers
 
-O projeto já inclui `wrangler.jsonc` para servir o build estático. No Workers Builds, configure
-**Deploy command** como `npm run deploy`; esse script compila e chama o Wrangler. O **Build command**
-pode ficar vazio. Se preferir manter o Deploy command como `npx wrangler deploy`, configure também
-**Build command** como `npm run build`. O diretório de saída é `dist`.
+O projeto já inclui `wrangler.jsonc` para servir o build estático de `dist/`. Esse diretório está
+versionado para que o **Deploy command** atual, `npx wrangler deploy`, funcione mesmo sem um
+**Build command** no Workers Builds. Ao alterar o código, execute `npm run build` e inclua as
+mudanças de `dist/` no commit. Outra opção é configurar **Build command** como `npm run build`;
+nesse caso, o Cloudflare recompila a cada publicação. O script `npm run deploy` também compila
+antes de chamar o Wrangler.
 
 Modo de teste: `http://localhost:5280/?dev` (atalhos F2–F8) e `?dev&auto=new` (pula título e abertura).
 
