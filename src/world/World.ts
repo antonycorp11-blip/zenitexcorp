@@ -24,8 +24,8 @@ export class World {
   /** células removidas em setores de regeneração (necrocristais) */
   regrowQueue: { x: number; y: number; m: number; t: number }[] = [];
 
-  constructor(seed: number) {
-    this.gen = new WorldGen(seed);
+  constructor(seed: number, layer = 1) {
+    this.gen = new WorldGen(seed, layer);
     this.sectorTiles = this.gen.buildSectorTiles(WORLD_TILES);
     for (let i = 0; i < this.sectorTiles.length; i++) this.sectorTileTotal[this.sectorTiles[i]]++;
   }

@@ -1,3 +1,4 @@
+import { LAYER_COUNT } from '../data/sectors';
 import { CELL, TILE, TILE_CELLS, WORLD_TILES } from '../core/constants';
 import { DIRS } from '../core/math';
 import { MACHINE, COMPLEX_LEVELS, TECTONIC_RATE, MANTLE_RATE, COLLECTOR_RATE, type MachineDef } from '../data/machines';
@@ -79,7 +80,7 @@ export class Machines {
       if (cmd && Math.hypot(tx - (cmd.tx + 1), ty - (cmd.ty + 1)) > BASE_RADIUS) return `Armazéns só na base (até ${BASE_RADIUS} tiles do Centro de Comando)`;
     }
     if (def.phase9 && !this.g.sectors.certified(sec)) return 'Setor ainda não certificado (fase 8)';
-    if (def.sector12 && sec !== 12) return 'Apenas no Coração Planetário';
+    if (def.sector12 && sec !== LAYER_COUNT) return 'Apenas no Núcleo (última camada)';
     if (def.unique) {
       const k = def.key === 'cortador_planetario' || def.key === 'central_logistica' || def.key === 'comando';
       if (this.list.some(m => m.key === def.key && (k || m.sector === sec))) return 'Limite atingido';
@@ -100,6 +101,7 @@ export class Machines {
     };
     if (def.behavior === 'belt') m.belt = [];
     this.add(m);
+    if (def.behavior === 'dronepad') this.g.robots.spawnForPad(m);
     void free;
     return m;
   }
@@ -125,6 +127,7 @@ export class Machines {
     }
     this.list.splice(this.list.indexOf(m), 1);
     this.byId.delete(m.id);
+    if (m.def.behavior === 'dronepad') this.g.robots.removeForPad(m);
     if (m.belt) this.belts.splice(this.belts.indexOf(m), 1);
     // devolve conteúdo ao estoque
     for (const k in m.out) this.g.stock.add(k, m.out[k], false);
@@ -154,7 +157,7 @@ export class Machines {
     const rts = g.sectors.rt;
     const wearMult = 1 + g.research.eff('wearMult');
     // reset de agregados
-    for (let s = 1; s <= 12; s++) {
+    for (let s = 1; s <= LAYER_COUNT; s++) {
       const r = rts[s];
       r.gen = 0; r.heat = 0; r.cooling = 20; r.bufCap = 0; r.linkCap = 0; r.deepRate = 0; r.fields = {};
       r.use = r.demand; r.demand = 0;
@@ -167,34 +170,25 @@ export class Machines {
       const d = m.def;
       const ok = !m.broken && m.buried <= 0;
       if (d.behavior === 'storage') r.bufCap += d.capacity ?? 0;
-      if (d.behavior === 'command') { r.bufCap += 3000; if (ok) { r.linkCap += (d.capacity ?? 0) * logBonus; r.gen += d.power; } }
-      if (d.behavior === 'link') { r.bufCap += 500; if (ok && r.ratio > 0.05) r.linkCap += (d.capacity ?? 0) * (1 + 0.2 * Math.min(3, m.loaders)) * logBonus * Math.min(1, r.ratio) * this.condFactor(m); }
-      if ((d.behavior === 'terminal' || d.behavior === 'launchpad') && ok) shipCap += (d.capacity ?? 0) * (1 + 0.2 * Math.min(3, m.loaders)) * this.condFactor(m) * (r.ratio > 0.05 ? 1 : 0);
-      if (d.behavior === 'generator' && ok) r.gen += d.power * this.condFactor(m);
-      if (d.behavior === 'reactor' && ok) {
-        const need = (d.fuel!.perMin / 60) * dt;
-        const got = this.takeFuel(m.sector, d.fuel!.item, need);
-        m.working = got >= need * 0.99;
-        m.state = m.working ? 'ok' : 'Sem combustível: ' + ITEM[d.fuel!.item].name;
-        if (m.working) { r.gen += d.power * this.condFactor(m); r.heat += d.heat ?? 0; this.wear(m, dt, wearMult); }
-      }
-      if (d.behavior === 'field' && ok && r.ratio > 0.2) {
+      if (d.behavior === 'command') { r.bufCap += 3000; if (ok) r.linkCap += (d.capacity ?? 0) * logBonus; }
+      if (d.behavior === 'link') { r.bufCap += 500; if (ok) r.linkCap += (d.capacity ?? 0) * (1 + 0.2 * Math.min(3, m.loaders)) * logBonus * this.condFactor(m); }
+      if ((d.behavior === 'terminal' || d.behavior === 'launchpad') && ok) shipCap += (d.capacity ?? 0) * (1 + 0.2 * Math.min(3, m.loaders)) * this.condFactor(m);
+      if (d.behavior === 'field' && ok) {
         const f = d.field!;
         r.fields[f.hazard] = Math.min(60, (r.fields[f.hazard] ?? 0) + (f.sectorWide ?? 0));
-        if (f.hazard === 'calor') r.cooling += 30;
       }
     }
     this.shipCap = shipCap * (1 + g.research.eff('shipMult'));
-    for (let s = 1; s <= 12; s++) { const r = rts[s]; r.ratio = r.use <= 0 ? 1 : Math.min(1, r.gen / r.use); }
+    // sem rede de energia: tudo que está construído e inteiro funciona
+    for (let s = 1; s <= LAYER_COUNT; s++) { const r = rts[s]; r.ratio = 1; r.gen = 0; r.use = 0; }
 
     // passada 2: comportamento
     for (const m of this.list) this.behave(m, dt, wearMult);
 
-    // calor
-    for (let s = 1; s <= 12; s++) { const r = rts[s]; r.stress = Math.max(0, r.heat - r.cooling); }
+    for (let s = 1; s <= LAYER_COUNT; s++) rts[s].stress = 0;
 
     // logística setorial: buffer -> Estoque Central
-    for (let s = 1; s <= 12; s++) {
+    for (let s = 1; s <= LAYER_COUNT; s++) {
       const r = rts[s];
       let budget = (r.linkCap / 60) * dt;
       const total = bagTotal(r.buffer);
@@ -241,17 +235,11 @@ export class Machines {
   condFactor(m: Machine) { return m.cond > 25 ? 1 : 0.4 + m.cond / 25 * 0.6; }
 
   private wear(m: Machine, dt: number, mult: number) {
-    const stress = this.g.sectors.rt[m.sector].stress;
-    const w = (m.def.wear ?? 0.3) * mult * (1 + stress / 25) * dt / 60;
+    const w = (m.def.wear ?? 0.3) * mult * dt / 60;
     m.cond = Math.max(0, m.cond - w * 100 / 100);
     if (m.cond <= 0 && !m.broken) {
       m.broken = true;
       this.g.bus.emit('machine_broken', m);
-    }
-    // superaquecimento
-    if (stress > 0 && !m.overheat && Math.random() < stress * 0.00012 * dt * 10) {
-      m.overheat = true;
-      this.g.bus.emit('overheat', m);
     }
   }
 
@@ -264,17 +252,14 @@ export class Machines {
     const usesPower = d.power < 0;
     if (m.broken) { m.state = 'QUEBRADA — reparo manual'; m.working = false; return; }
     if (m.buried > 0) { m.state = 'Soterrada — remova o entulho'; m.working = false; return; }
-    if (m.overheat) { m.state = 'SUPERAQUECIDA — calibre'; m.working = false; return; }
-    const pr = usesPower ? r.ratio : 1;
+    m.overheat = false;
     const want = this.wantsWork(m);
-    if (usesPower) r.demand += want ? -d.power * this.levelPower(m) : -d.power * 0.1;
     if (!want) { m.working = false; if (m.state === 'ok' || m.state === 'Trabalhando') m.state = 'Ocioso'; return; }
-    if (pr < 0.05) { m.state = 'Sem energia'; m.working = false; return; }
-    const k = pr * this.condFactor(m) * m.boost;
+    const k = this.condFactor(m) * m.boost;
     m.working = true;
-    if (d.heat) r.heat += d.heat;
     this.wear(m, dt, wearMult);
-    m.state = pr < 0.99 ? 'Energia insuficiente' : 'Trabalhando';
+    m.state = 'Trabalhando';
+    void usesPower; void r;
 
     switch (d.behavior) {
       case 'drill': this.drill(m, dt * k); break;
@@ -329,7 +314,7 @@ export class Machines {
         let tw = 0; for (const o of common) tw += o.weight;
         let r = Math.random() * tw;
         for (const o of common) { r -= o.weight; if (r <= 0) { this.drillYield(m, matById(o.mat).item!, 3 * DRILL_DEPTH_MULT / 4); break; } }
-        this.g.planet.addTerrain(0.02 * DRILL_DEPTH_MULT);
+        this.g.planet.addUnits(DRILL_DEPTH_MULT * 0.5);
       }
       m.state = 'Perfurando em profundidade';
       return;
@@ -456,7 +441,7 @@ export class Machines {
     g.sectors.rt[m.sector].deepRate += (got / dt) * 60;
     // minério associado entra no buffer do setor
     const sd = SECTORS[m.sector - 1];
-    const kg = got * 0.25;
+    const kg = got * 3;
     const r = g.sectors.rt[m.sector];
     const room = r.bufCap - bagTotal(r.buffer);
     if (room > 0) {

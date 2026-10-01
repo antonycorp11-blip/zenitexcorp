@@ -1,7 +1,7 @@
 import { fmtInt, fmtShort, fmtTime, fmtMass } from '../core/math';
 import { TILE, WORLD_TILES, WORLD_PX, CELL } from '../core/constants';
 import { ITEM, ITEMS, itemName, type ItemCat } from '../data/items';
-import { MACHINES, MACHINE, MACHINE_CATS, COMPLEX_LEVELS, CANNON_SHOT_T, type MachineCat } from '../data/machines';
+import { MACHINES, MACHINE, MACHINE_CATS, COMPLEX_LEVELS, CANNON_SHOT_FRAC, type MachineCat } from '../data/machines';
 import { RESEARCH, RESEARCH_CATS, type ResearchCat } from '../data/research';
 import { RECIPE, RECIPES } from '../data/recipes';
 import { SECTORS, HAZARD_NAMES, type HazardKey } from '../data/sectors';
@@ -338,7 +338,7 @@ export class Panels {
         <div><small>BUFFER DO SETOR</small><b>${fmtShort(bagTotal(rt.buffer))} / ${fmtShort(rt.bufCap)} kg</b>${this.bar(bagTotal(rt.buffer), rt.bufCap, '#e8962a')}</div>
         <div><small>VAZÃO LOGÍSTICA</small><b>${fmtShort(rt.linkFlow)} / ${fmtShort(rt.linkCap)} kg/min</b>${this.bar(rt.linkFlow, rt.linkCap, '#3ab4ff')}</div>
         <div><small>EXTRAÇÃO PROFUNDA</small><b>${fmtShort(rt.deepRate)} t/min</b></div>
-        <div><small>RESERVA (CROSTA / MANTO)</small><b>${fmtShort(g.planet.crustMax[sel] - g.planet.crust[sel])} / ${fmtShort(g.planet.mantleMax[sel] - g.planet.mantle[sel])} t</b></div>
+        <div><small>CAMADA ESGOTADA</small><b>${(g.planet.layerFraction(sel) * 100).toFixed(1).replace('.', ',')}%</b></div>
         <div><small>EXPLORADO</small><b>${(g.world.exploredFrac(sel) * 100).toFixed(1).replace('.', ',')}%</b></div>
         <div><small>TEMPERATURA BASE</small><b>${sd.tempC} °C</b></div>
       </div>`;
@@ -605,11 +605,11 @@ export class Panels {
     const c = g.machines.list.find(m => m.def.behavior === 'cannon' && m.charged && !m.broken);
     if (!c) return;
     if (g.sectors.rt[c.sector].ratio < 0.9) { g.toast('Energia insuficiente para o disparo', '#ff8a3a'); return; }
-    const got = g.planet.cannonHit(s, CANNON_SHOT_T);
+    const got = g.planet.cannonHit(s, g.planet.def.target * CANNON_SHOT_FRAC);
     c.charged = false;
     g.audio.boom(); g.shake(10);
     g.fx.flashScreen([255, 120, 255], 0.4);
-    g.toast(`Disparo no ${SECTORS[s - 1].code}: ${fmtShort(got)} t arrancadas. Recarga manual necessária.`, '#ff8aff');
+    g.toast(`Disparo: ${fmtShort(got * g.planet.tPerUnit())} t arrancadas da camada. Recarga manual necessária.`, '#ff8aff');
     this.planetCache = null;
   }
 

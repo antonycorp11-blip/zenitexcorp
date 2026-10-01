@@ -65,7 +65,7 @@ export class Lore {
     if (demolish) {
       const val = Math.round(entry.massT * 15);
       g.stock.credits += val;
-      g.planet.addTerrain(entry.massT);
+      g.planet.addUnits(Math.max(1, entry.massT / 10));
       this.demolished++;
       g.dialogue.line('zena', `Demolição registrada. ${fmtInt(val)} créditos creditados. A história agradece a sua contribuição para o PIB.`);
       g.dialogue.line('sera', 'Eu... vou guardar as fotos. Pelo menos as fotos.');

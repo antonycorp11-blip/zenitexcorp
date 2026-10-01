@@ -89,7 +89,7 @@ export class Events {
         break;
       }
       case 'anomaly': {
-        const secs = [6, 9, 11, 12, 8].filter(s => g.sectors.s[s].discovered);
+        const secs = g.planet.layer >= 2 ? [g.planet.layer] : [];
         const s = secs[Math.floor(Math.random() * secs.length)];
         if (!s) break;
         for (let k = 0; k < 200; k++) {

@@ -14,7 +14,6 @@ export class Crafting {
 
   enqueue(key: string, n = 1): string | null {
     const r = RECIPE[key];
-    if (!this.g.machines.count('oficina')) return 'Construa uma Oficina';
     for (let i = 0; i < n; i++) {
       if (!this.g.stock.pay(r.in, this.g.pack.items)) return i ? null : 'Materiais insuficientes';
       this.queue.push({ key, t: 0 });
@@ -24,10 +23,8 @@ export class Crafting {
 
   update(dt: number) {
     if (!this.queue.length) return;
-    const shops = this.g.machines.list.filter(m => m.key === 'oficina' && !m.broken).length;
-    if (!shops) return;
     const job = this.queue[0];
-    job.t += dt * (1 + (shops - 1) * 0.5);
+    job.t += dt;
     const r = RECIPE[job.key];
     if (job.t >= r.time) {
       this.queue.shift();

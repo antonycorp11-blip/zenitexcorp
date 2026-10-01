@@ -1,10 +1,9 @@
 import { CHUNK, WORLD_CELLS, TILE_CELLS } from '../core/constants';
 import { fbm, ridged, valueNoise, worley } from '../core/noise';
 import { hash2, RNG } from '../core/rng';
-import { MAT, BARRIER_BY_TIER } from '../data/materials';
-import { SECTORS, type SectorDef } from '../data/sectors';
+import { MAT } from '../data/materials';
+import { SECTORS, LAYER_COUNT, type SectorDef } from '../data/sectors';
 
-export const PLANET_R = 0.485;      // raio do disco planetário (fração do mundo)
 export const SITE = 160;            // grade de sítios de ruína (células)
 
 export interface RuinSite {
@@ -24,53 +23,30 @@ export class WorldGen {
   readonly loose: LooseArtifact[] = [];
   readonly landing: { x: number; y: number };   // células
   readonly coreCenter: { x: number; y: number };
-  private seeds: { x: number; y: number; s: SectorDef }[];
 
-  constructor(seed: number) {
+  readonly layer: number;
+  readonly R: number;                 // raio do disco da camada (células)
+
+  constructor(seed: number, layer = 1) {
     this.seed = seed;
-    const rng = new RNG(seed);
-    // Sementes de setor levemente perturbadas por contrato
-    this.seeds = SECTORS.map(s => ({
-      x: (s.pos[0] + (s.id === 12 ? 0 : rng.range(-0.02, 0.02))) * WORLD_CELLS,
-      y: (s.pos[1] + (s.id === 12 ? 0 : rng.range(-0.02, 0.02))) * WORLD_CELLS,
-      s,
-    }));
-    const s1 = this.seeds[0];
-    // Pouso perto da "superfície" (borda do disco) dentro do Setor 1
-    const cx = WORLD_CELLS / 2;
-    const ang = Math.atan2(s1.y - cx, s1.x - cx);
-    this.landing = { x: Math.round(cx + Math.cos(ang) * WORLD_CELLS * 0.415), y: Math.round(cx + Math.sin(ang) * WORLD_CELLS * 0.415) };
-    this.coreCenter = { x: cx, y: cx };
+    this.layer = layer;
+    this.sd = SECTORS[layer - 1];
+    this.R = this.sd.radius * WORLD_CELLS;
+    const c = WORLD_CELLS / 2;
+    // pouso no centro (o poço de descida); no Núcleo o Coração ocupa o centro
+    this.landing = layer === LAYER_COUNT ? { x: c, y: Math.round(c - this.R * 0.5) } : { x: c, y: c };
+    this.coreCenter = { x: c, y: c };
     this.buildSites();
   }
+  private sd: SectorDef;
 
-  /** Coordenadas deformadas para fronteiras orgânicas entre setores. */
-  private warp(x: number, y: number): [number, number] {
-    const f = 0.0035;
-    const wx = (fbm(x * f, y * f, this.seed + 901, 3) - 0.5) * 260;
-    const wy = (fbm(x * f, y * f, this.seed + 902, 3) - 0.5) * 260;
-    return [x + wx, y + wy];
-  }
-
-  /** Retorna [setorMaisPróximo, segundo, d2-d1] */
-  voronoi(x: number, y: number): [number, number, number] {
-    const [wx, wy] = this.warp(x, y);
-    let d1 = 1e12, d2 = 1e12, a = 1, b = 1;
-    for (const sd of this.seeds) {
-      // o núcleo é menor: escala a distância
-      const k = sd.s.id === 12 ? 1.55 : 1;
-      const dx = wx - sd.x, dy = wy - sd.y;
-      const d = Math.sqrt(dx * dx + dy * dy) * k;
-      if (d < d1) { d2 = d1; b = a; d1 = d; a = sd.s.id; } else if (d < d2) { d2 = d; b = sd.s.id; }
-    }
-    return [a, b, d2 - d1];
-  }
+  /** Toda a camada é um único "setor": devolve [camada, camada, ∞]. */
+  voronoi(_x: number, _y: number): [number, number, number] { return [this.layer, this.layer, 1e9]; }
 
   insidePlanet(x: number, y: number): boolean {
     const c = WORLD_CELLS / 2;
-    const r = Math.hypot(x - c, y - c) / WORLD_CELLS;
-    const edge = PLANET_R - 0.012 * fbm(x * 0.01, y * 0.01, this.seed + 3, 2);
-    return r < edge;
+    const r = Math.hypot(x - c, y - c);
+    return r < this.R * (1 - 0.03 * fbm(x * 0.01, y * 0.01, this.seed + 3, 2));
   }
 
   private buildSites() {
@@ -116,18 +92,13 @@ export class WorldGen {
         const x = sx + i;
         const idx = y * stride + x;
         if (!this.insidePlanet(x, y)) { out[idx] = MAT.EDGE; continue; }
-        const [sec, sec2, border] = this.voronoi(x, y);
+        const sec = this.layer;
         const sd = SECTORS[sec - 1];
 
         // Área de pouso: clareira garantida
         const dl = Math.hypot(x - this.landing.x, y - this.landing.y);
         if (dl < 26 + valueNoise(x * 0.2, y * 0.2, S) * 4) { out[idx] = MAT.AIR; continue; }
 
-        // Barreiras de contenção entre setores de níveis diferentes
-        const t1 = sd.tier, t2 = SECTORS[sec2 - 1].tier;
-        const bt = Math.max(t1, t2);
-        if (bt >= 2 && t1 !== t2 && border < 13 + valueNoise(x * 0.05, y * 0.05, S + 5) * 8) { out[idx] = BARRIER_BY_TIER[bt]; continue; }
-        if (sec === 12 || sec2 === 12) { if (border < 16 + valueNoise(x * 0.05, y * 0.05, S + 6) * 8) { out[idx] = MAT.CONT6; continue; } }
 
         // Ruínas
         const gx = Math.floor(x / SITE), gy = Math.floor(y / SITE);
@@ -138,7 +109,7 @@ export class WorldGen {
         }
 
         // Coração planetário: anel de núcleo
-        if (sec === 12) {
+        if (sec === LAYER_COUNT) {
           const dc = Math.hypot(x - this.coreCenter.x, y - this.coreCenter.y);
           if (dc < 34) { out[idx] = MAT.AIR; continue; }
           if (dc < 44) { out[idx] = (hash2(x >> 1, y >> 1, S) < 0.6) ? MAT.NUCLEO : MAT.ANCIENT; continue; }

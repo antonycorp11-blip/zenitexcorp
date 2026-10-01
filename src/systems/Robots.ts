@@ -20,6 +20,7 @@ export interface Robot {
   target?: { x: number; y: number; m?: number; cell?: [number, number] };
   stuck: boolean; broken: boolean;
   priority?: string;
+  padId?: number;                       // estação de drone que mantém este robô
   repT: number;
   frame: number;
   thinkT: number;
@@ -51,6 +52,23 @@ export class Robots {
     this.g.bus.emit('robot_built', r);
     return r;
   }
+
+  /** Estação de drone construída: o robô nasce de graça, preso à estação. */
+  spawnForPad(m: Machine) {
+    const kind = m.def.robot as RobotKind;
+    const def = ROBOT[kind]; if (!def) return;
+    const [x, y] = this.g.machines.centerPx(m);
+    const firstCarry = kind === 'carry' && !this.list.some(r => r.kind === 'carry');
+    this.list.push({
+      id: this.nextId++, kind, name: firstCarry ? 'KILO' : `${def.name.split(' ')[0]}-${String(this.nextId).padStart(2, '0')}`,
+      x, y: y + TILE * 1.5, sector: m.sector, zx: x, zy: y, zr: 24, energy: 100, cond: 100, state: 'Iniciando', cargo: {},
+      path: [], task: 'idle', stuck: false, broken: false, repT: 0, frame: 0, thinkT: 0, workT: 0, padId: m.id,
+    });
+    this.g.stats.robots++;
+    this.g.bus.emit('robot_built', this.list[this.list.length - 1]);
+  }
+  removeForPad(m: Machine) { this.list = this.list.filter(r => r.padId !== m.id); }
+  forPad(m: Machine) { return this.list.find(r => r.padId === m.id); }
 
   hazardField(px: number, py: number): number {
     let v = 0;
@@ -141,7 +159,7 @@ export class Robots {
     if (r.energy <= 0) { r.state = 'Sem energia — recarregue (E)'; r.path = []; return; }
     r.sector = g.world.sectorAtPx(r.zx, r.zy) || r.sector;
     // recarga: centro robótico próximo
-    const rc = this.nearest(r, m => m.def.behavior === 'robotics' && !m.broken, 50);
+    const rc = (r.padId ? this.g.machines.byId.get(r.padId) : undefined) ?? this.nearest(r, m => m.def.behavior === 'robotics' && !m.broken, 50);
     if (r.energy < 18 && rc) {
       const [mx, my] = g.machines.centerPx(rc);
       if (Math.hypot(mx - r.x, my - r.y) < TILE * 3) { r.energy = Math.min(100, r.energy + 30 * dt); r.state = 'Recarregando'; r.path = []; return; }

@@ -6,7 +6,10 @@ export class Research {
   active: { key: string; t: number } | null = null;
   private effCache: Record<string, number> | null = null;
 
-  constructor(private g: Game) {}
+  constructor(private g: Game) {
+    // a rede de energia saiu do jogo: pesquisas de energia ficam concluídas para não travar a árvore
+    for (const r of RESEARCH) if (r.cat === 'energia') this.done.add(r.key);
+  }
 
   has(k: string) { return !k || this.done.has(k); }
   eff(name: string): number {
@@ -39,7 +42,6 @@ export class Research {
   start(key: string): string | null {
     const r = RESEARCH_BY_KEY[key];
     if (!r) return 'Inexistente';
-    if (!this.g.machines.count('laboratorio')) return 'Construa uma Estação de Pesquisa';
     if (this.active) return 'Já existe uma pesquisa em andamento';
     const b = this.blocked(r); if (b) return b;
     const c = this.cost(r);
@@ -53,9 +55,7 @@ export class Research {
 
   update(dt: number) {
     if (!this.active) return;
-    const labs = this.g.machines.list.filter(m => m.key === 'laboratorio' && !m.broken && m.working).length;
-    if (!labs) return;
-    this.active.t += dt * (1 + (labs - 1) * 0.5);
+    this.active.t += dt;
     const r = RESEARCH_BY_KEY[this.active.key];
     if (this.active.t >= r.time) {
       this.done.add(r.key);
@@ -69,5 +69,5 @@ export class Research {
   grant(key: string) { this.done.add(key); this.effCache = null; }
   list() { return RESEARCH; }
   serialize() { return { done: [...this.done], active: this.active }; }
-  load(s: any) { this.done = new Set(s.done); this.active = s.active; this.effCache = null; }
+  load(s: any) { this.done = new Set([...s.done, ...RESEARCH.filter(r => r.cat === 'energia').map(r => r.key)]); this.active = s.active; this.effCache = null; }
 }

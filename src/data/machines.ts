@@ -1,13 +1,13 @@
 import type { HazardKey } from './sectors';
 
-export type MachineCat = 'logistica' | 'extracao' | 'processamento' | 'energia' | 'base' | 'estabilizacao' | 'mega';
+export type MachineCat = 'logistica' | 'extracao' | 'processamento' | 'energia' | 'base' | 'estabilizacao' | 'mega' | 'drones';
 export type Behavior =
   | 'belt' | 'splitter' | 'storage' | 'link' | 'lift' | 'terminal' | 'launchpad'
   | 'drill' | 'pump' | 'complex' | 'tectonic' | 'mantle' | 'cannon' | 'cutter' | 'collector' | 'orbital'
   | 'crusher' | 'purifier' | 'refinery' | 'foundry' | 'synth'
   | 'generator' | 'reactor'
   | 'command' | 'workshop' | 'lab' | 'robotics' | 'archaeo' | 'logcenter'
-  | 'field' | 'lamp' | 'support' | 'platform' | 'surge';
+  | 'field' | 'lamp' | 'support' | 'platform' | 'surge' | 'dronepad';
 export type Look = 'belt' | 'splitter' | 'crate' | 'silo' | 'lift' | 'terminal' | 'pad' | 'drill' | 'pump' | 'complex' | 'mega' | 'cannon'
   | 'crusher' | 'refinery' | 'foundry' | 'tank' | 'generator' | 'reactor' | 'capsule' | 'bench' | 'lab' | 'robotics' | 'dish' | 'lamp' | 'support' | 'platform' | 'field';
 
@@ -36,6 +36,8 @@ export interface MachineDef {
   onLiquid?: boolean;            // só pode ser posto sobre líquido/abismo
   phase9?: boolean;              // exige setor certificado
   sector12?: boolean;
+  robot?: string;                // estações de drone: tipo de robô que a estação mantém
+  hidden?: boolean;              // fora do jogo atual (mantido só para saves antigos)
 }
 
 const D: MachineDef[] = [];
@@ -61,7 +63,7 @@ m({ key: 'perfuradora', name: 'Perfuradora Mk I', cat: 'extracao', behavior: 'dr
 m({ key: 'perfuradora2', name: 'Perfuradora Mk II', cat: 'extracao', behavior: 'drill', look: 'drill', w: 2, h: 2, rotatable: true, cost: { placa_ferronox: 16, broca: 2, motor: 2 }, power: -25, speed: 2.6, tier: 4, wear: 1.0, heat: 3, glow: [255, 170, 60], research: 'perfuradora2', desc: 'Perfuração pesada. Alcance maior.' });
 m({ key: 'perfuradora3', name: 'Perfuradora Mk III', cat: 'extracao', behavior: 'drill', look: 'drill', w: 2, h: 2, rotatable: true, cost: { liga_termo: 8, broca: 4, circuito: 2 }, power: -70, speed: 6, tier: 6, wear: 0.8, heat: 6, glow: [255, 120, 60], research: 'perfuradora3', desc: 'Atravessa rocha hiperdensa.' });
 m({ key: 'bomba', name: 'Bomba de Drenagem', cat: 'extracao', behavior: 'pump', look: 'pump', w: 2, h: 2, cost: { placa_ferronox: 8, motor: 2 }, power: -12, radius: 7, wear: 0.8, research: 'bomba', glow: [80, 200, 255], desc: 'Drena líquidos ao redor. Lagoas corrosivas rendem Solvex.' });
-m({ key: 'complexo', name: 'Complexo de Extração Profunda', cat: 'extracao', behavior: 'complex', look: 'complex', w: 4, h: 4, cost: { placa_ferronox: 60, motor: 8, componente: 16, celula_lumenita: 16 }, power: -60, wear: 0.6, heat: 8, phase9: true, glow: [255, 160, 50], desc: 'Extrai a reserva profunda do setor. Melhorável até Mk V. Exige calibração manual periódica.' });
+m({ key: 'complexo', name: 'Complexo de Extração', cat: 'extracao', behavior: 'complex', look: 'complex', w: 4, h: 4, cost: { placa_ferronox: 60, motor: 8, componente: 16, celula_lumenita: 16 }, power: -60, wear: 0.6, heat: 8, phase9: true, glow: [255, 160, 50], desc: 'Extrai a camada em escala industrial. Melhorável até Mk V. Perde calibração com o tempo: recalibre à mão.' });
 m({ key: 'broca_tectonica', name: 'Broca Tectônica', cat: 'mega', behavior: 'tectonic', look: 'mega', w: 5, h: 5, cost: { liga_termo: 60, liga_ancestral: 8, motor: 40, circuito: 20 }, power: -1200, wear: 0.5, heat: 30, research: 'tectonica', phase9: true, glow: [255, 90, 30], desc: 'Perfura o manto do setor. Única forma de passar da crosta.' });
 m({ key: 'extrator_manto', name: 'Extrator de Manto', cat: 'mega', behavior: 'mantle', look: 'mega', w: 5, h: 5, cost: { liga_ancestral: 20, celula_negra: 10, motor: 60, nucleo_ia: 4 }, power: -3000, wear: 0.5, heat: 40, research: 'extrator_manto', phase9: true, glow: [255, 60, 160], desc: 'Bombeia o manto planetário em escala continental.' });
 m({ key: 'uplink_orbital', name: 'Uplink de Plataforma Orbital', cat: 'mega', behavior: 'orbital', look: 'dish', w: 4, h: 4, cost: { nucleo_sinaptico: 30, circuito: 30, liga_termo: 30 }, power: -500, wear: 0.3, research: 'plataformas_orbitais', glow: [120, 200, 255], desc: 'Coordena plataformas em órbita: +50% em toda extração de manto (máx. 3).' });
@@ -104,23 +106,37 @@ m({ key: 'estabilizador', name: 'Estabilizador Gravitacional', cat: 'estabilizac
 m({ key: 'inibidor', name: 'Inibidor de Crescimento', cat: 'estabilizacao', behavior: 'field', look: 'field', w: 2, h: 2, cost: { fibra_verdanio: 6, chip_nexolita: 4, solvex_refinado: 4 }, power: -20, radius: 14, field: { hazard: 'anomalia', amount: 30, sectorWide: 8 }, research: 'inibicao', glow: [200, 255, 220], desc: 'Impede que necrocristais cresçam de volta.' });
 m({ key: 'protetor_surto', name: 'Protetor de Surto', cat: 'estabilizacao', behavior: 'surge', look: 'support', w: 1, h: 1, cost: { placa_ferronox: 2, celula_lumenita: 2 }, power: 0, radius: 12, research: 'surto', glow: [120, 200, 255], desc: 'Protege máquinas próximas contra picos energéticos.' });
 
+// ---------------- DRONES (cada estação mantém um robô que trabalha ao redor dela) ----------------
+m({ key: 'drone_coletor', name: 'Estação: Drone Coletor', cat: 'drones', behavior: 'dronepad', look: 'robotics', w: 2, h: 2, robot: 'carry', cost: { ferronox: 40, lumenita: 20 }, power: 0, research: 'robotica', glow: [255, 170, 60], desc: 'O drone recolhe minério parado em máquinas e no chão e leva ao armazém da base. Recarrega na estação.' });
+m({ key: 'drone_minerador', name: 'Estação: Drone Minerador', cat: 'drones', behavior: 'dronepad', look: 'robotics', w: 2, h: 2, robot: 'miner', cost: { ferronox: 50, lumenita: 30 }, power: 0, research: 'robo_minerador', glow: [255, 160, 40], desc: 'O drone extrai minério comum exposto ao redor da estação (não extrai variantes raras).' });
+m({ key: 'drone_reparo', name: 'Estação: Drone de Reparo', cat: 'drones', behavior: 'dronepad', look: 'robotics', w: 2, h: 2, robot: 'repair', cost: { ferronox: 40, lumenita: 30, pecas: 4 }, power: 0, research: 'robo_reparo', glow: [80, 200, 255], desc: 'Mantém máquinas próximas acima de 60%. Falhas críticas continuam sendo suas.' });
+m({ key: 'drone_batedor', name: 'Estação: Drone Batedor', cat: 'drones', behavior: 'dronepad', look: 'robotics', w: 2, h: 2, robot: 'scout', cost: { ferronox: 30, lumenita: 20 }, power: 0, research: 'robotica', glow: [255, 200, 80], desc: 'Explora a névoa ao redor da estação e revela o mapa.' });
+m({ key: 'drone_sonda', name: 'Estação: Drone Sonda', cat: 'drones', behavior: 'dronepad', look: 'robotics', w: 2, h: 2, robot: 'survey', cost: { ferronox: 40, nexolita: 20 }, power: 0, research: 'robo_survey', glow: [170, 100, 255], desc: 'Varre a área e marca depósitos e ruínas no mapa.' });
+m({ key: 'drone_ambiental', name: 'Estação: Drone Ambiental', cat: 'drones', behavior: 'dronepad', look: 'robotics', w: 2, h: 2, robot: 'hazard', cost: { ferronox: 50, crysalis: 10, verdanio: 20 }, power: 0, research: 'robo_hazard', glow: [120, 255, 140], desc: 'Reduz calor, frio e toxinas ao redor da estação.' });
+m({ key: 'drone_operador', name: 'Estação: Drone Operador', cat: 'drones', behavior: 'dronepad', look: 'robotics', w: 2, h: 2, robot: 'loader', cost: { ferronox: 60, motor: 2 }, power: 0, research: 'robo_loader', glow: [255, 220, 120], desc: 'Opera elevadores e terminais próximos: +20% de vazão.' });
+
+// Fora da versão atual (sem rede de energia; pesquisa e fabricação não exigem prédio): mantidos só para saves antigos
+for (const k of ['gerador', 'reator_lumenita', 'reator_pyroxis', 'reator_hibrido', 'receptor_orbital', 'nucleo_alienigena', 'protetor_surto', 'laboratorio', 'oficina', 'centro_robotico']) {
+  const d = D.find(x => x.key === k); if (d) d.hidden = true;
+}
+
 export const MACHINES: readonly MachineDef[] = D;
 export const MACHINE: Record<string, MachineDef> = Object.fromEntries(D.map(d => [d.key, d]));
 export const MACHINE_CATS: { key: MachineCat; name: string }[] = [
-  { key: 'logistica', name: 'Logística' }, { key: 'extracao', name: 'Extração' }, { key: 'processamento', name: 'Processamento' },
-  { key: 'energia', name: 'Energia' }, { key: 'base', name: 'Base' }, { key: 'estabilizacao', name: 'Segurança' }, { key: 'mega', name: 'Planetária' },
+  { key: 'extracao', name: 'Extração' }, { key: 'logistica', name: 'Logística' }, { key: 'processamento', name: 'Processamento' },
+  { key: 'drones', name: 'Drones' }, { key: 'estabilizacao', name: 'Segurança' }, { key: 'base', name: 'Base' }, { key: 'mega', name: 'Planetária' },
 ];
 
 // Níveis do Complexo de Extração Profunda (t/min de reserva removida)
 export const COMPLEX_LEVELS = [
-  { name: 'Mk I', rate: 400, power: 60, cost: {} as Record<string, number>, research: '' },
-  { name: 'Mk II', rate: 3000, power: 160, cost: { motor: 12, placa_ferronox: 60, chip_nexolita: 8 }, research: 'complexo2' },
-  { name: 'Mk III', rate: 20000, power: 450, cost: { liga_termo: 20, circuito: 8, refrigerante_bio: 6 }, research: 'complexo3' },
-  { name: 'Mk IV', rate: 120000, power: 1200, cost: { liga_termo: 40, nucleo_sinaptico: 16, nucleo_ia: 1 }, research: 'complexo4' },
-  { name: 'Mk V', rate: 600000, power: 3000, cost: { liga_ancestral: 8, celula_negra: 6, nucleo_ia: 3 }, research: 'complexo5' },
+  { name: 'Mk I', rate: 60, power: 60, cost: {} as Record<string, number>, research: '' },
+  { name: 'Mk II', rate: 300, power: 160, cost: { motor: 12, placa_ferronox: 60, chip_nexolita: 8 }, research: 'complexo2' },
+  { name: 'Mk III', rate: 1200, power: 450, cost: { liga_termo: 20, circuito: 8, refrigerante_bio: 6 }, research: 'complexo3' },
+  { name: 'Mk IV', rate: 4000, power: 1200, cost: { liga_termo: 40, nucleo_sinaptico: 16, nucleo_ia: 1 }, research: 'complexo4' },
+  { name: 'Mk V', rate: 12000, power: 3000, cost: { liga_ancestral: 8, celula_negra: 6, nucleo_ia: 3 }, research: 'complexo5' },
 ];
-export const TECTONIC_RATE = 1_800_000;  // t/min (camada de manto)
-export const MANTLE_RATE = 5_000_000;
-export const CANNON_SHOT_T = 30_000_000;
+export const TECTONIC_RATE = 25000;      // unidades/min
+export const MANTLE_RATE = 60000;
+export const CANNON_SHOT_FRAC = 0.06;    // fração da meta da camada por disparo
 export const CANNON_COOLDOWN = 45;
-export const COLLECTOR_RATE = 2_500_000;  // ativa a partir de 50% (fragmentos)
+export const COLLECTOR_RATE = 20000;     // ativa a partir de 50% (fragmentos)

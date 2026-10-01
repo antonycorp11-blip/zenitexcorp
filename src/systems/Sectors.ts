@@ -1,3 +1,4 @@
+import { LAYER_COUNT } from '../data/sectors';
 import { SECTORS, sectorById } from '../data/sectors';
 import { MACHINE } from '../data/machines';
 import { itemName } from '../data/items';
@@ -31,7 +32,7 @@ export class SectorSystem {
   private lastSector = 0;
 
   constructor(private g: Game) {
-    for (let i = 0; i <= 12; i++) {
+    for (let i = 0; i <= LAYER_COUNT; i++) {
       this.rt.push({ gen: 0, use: 0, ratio: 1, demand: 0, heat: 0, cooling: 20, stress: 0, buffer: {}, bufCap: 0, linkCap: 0, linkFlow: 0, linkedTotal: 0, drillOut: 0, deepRate: 0, fields: {} });
       this.s.push({ discovered: i === 1, phase: 0, counters: {}, base: {}, shipBase: {}, auditPassed: false, visitedT: 0 });
     }
@@ -39,7 +40,7 @@ export class SectorSystem {
 
   certified(s: number) { return this.s[s].phase >= 8; }
   automated(s: number) { return this.s[s].phase >= 9; }
-  certifiedCount() { let n = 0; for (let i = 1; i <= 12; i++) if (this.certified(i)) n++; return n; }
+  certifiedCount() { let n = 0; for (let i = 1; i <= LAYER_COUNT; i++) if (this.certified(i)) n++; return n; }
 
   counter(s: number, k: string, n: number) { const c = this.s[s].counters; c[k] = (c[k] ?? 0) + n; }
   private since(s: number, k: string) { return (this.s[s].counters[k] ?? 0) - (this.s[s].base[k] ?? 0); }
@@ -97,7 +98,7 @@ export class SectorSystem {
     }
     // avanço de fases (checagem leve)
     if (Math.floor(g.time * 2) !== Math.floor((g.time - dt) * 2)) {
-      for (let s = 1; s <= 12; s++) {
+      for (let s = 1; s <= LAYER_COUNT; s++) {
         const st = this.s[s];
         if (!st.discovered || st.phase >= 9) continue;
         const obj = this.objectives(s);
@@ -124,7 +125,7 @@ export class SectorSystem {
   /** Setor em foco no HUD: o atual se ativo, senão o mais avançado não automatizado. */
   focus(): number {
     if (this.s[this.current]?.discovered && this.s[this.current].phase < 9) return this.current;
-    for (let s = 1; s <= 12; s++) if (this.s[s].discovered && this.s[s].phase < 9) return s;
+    for (let s = 1; s <= LAYER_COUNT; s++) if (this.s[s].discovered && this.s[s].phase < 9) return s;
     return this.current;
   }
 

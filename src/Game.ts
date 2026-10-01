@@ -27,7 +27,7 @@ import { Hazards } from './systems/Hazards';
 import { Stats } from './systems/Stats';
 import { saveSlot, packBytes, unpackBytes } from './systems/Save';
 import { MACHINE } from './data/machines';
-import { SECTORS } from './data/sectors';
+import { SECTORS, LAYER_COUNT } from './data/sectors';
 import { ITEM } from './data/items';
 import type { UI } from './ui/UI';
 import type { LoreDef } from './data/lore';
@@ -35,7 +35,7 @@ import type { LoreDef } from './data/lore';
 export type HotSlot = { type: 'tool' | 'item' | 'build'; key: string } | null;
 export interface Hover { x: number; y: number; label: string; kind: 'machine' | 'artifact' | 'robot' | 'cargo' | 'anomaly' | 'stabilizer'; ref: any; hold?: number; }
 
-export interface GameOptions { seed: number; contract: number; massMult: number; keepResearch?: string[]; }
+export interface GameOptions { seed: number; contract: number; massMult: number; keepResearch?: string[]; layer?: number; }
 
 export class Game {
   bus: EventBus = bus;
@@ -88,7 +88,7 @@ export class Game {
 
   constructor(canvas: HTMLCanvasElement, opts: GameOptions) {
     this.opts = opts;
-    this.world = new World(opts.seed);
+    this.world = new World(opts.seed + (opts.layer ?? 1) * 7919, opts.layer ?? 1);
     this.terrain = new TerrainRenderer(this.world, this.sprites);
     this.input = new Input(canvas);
     this.renderer = new Renderer(this, canvas);
@@ -96,7 +96,7 @@ export class Game {
     this.machines = new Machines(this);
     this.robots = new Robots(this);
     this.sectors = new SectorSystem(this);
-    this.planet = new PlanetProgress(this, opts.massMult);
+    this.planet = new PlanetProgress(this, opts.massMult, opts.layer ?? 1);
     this.research = new Research(this);
     this.crafting = new Crafting(this);
     this.contracts = new Contracts(this);
@@ -111,15 +111,20 @@ export class Game {
   }
 
   /** Base inicial: cápsula, gerador e terminal orbital na clareira de pouso. */
-  setupNew() {
+  /** Cápsula (Centro de Comando) e terminal no poço de pouso da camada atual. */
+  setupBase() {
     const L = this.world.gen.landing;
     const tx = Math.floor((L.x * CELL) / TILE), ty = Math.floor((L.y * CELL) / TILE);
     this.world.ensureAroundPx(L.x * CELL, L.y * CELL, 400);
     this.machines.place('comando', tx - 1, ty - 1, 0);
-    this.machines.place('gerador', tx + 3, ty - 1, 0);
     this.machines.place('terminal_orbital', tx - 5, ty - 2, 0);
     this.player.x = (tx + 0.5) * TILE; this.player.y = (ty + 3) * TILE;
     this.camera.x = this.player.x; this.camera.y = this.player.y;
+    this.world.reveal(this.player.x, this.player.y, 14);
+  }
+
+  setupNew() {
+    this.setupBase();
     this.stock.add('ferronox', 20, false); this.stock.add('lumenita', 10, false);
     this.stock.credits = 120;
     this.pack.add('sinalizador', 3); this.pack.add('kit_reparo', 1);
@@ -170,6 +175,14 @@ export class Game {
     });
     b.on('sector_certified', (s: number) => this.ui.banner('SETOR CERTIFICADO', `${SECTORS[s - 1].name}: Complexo de Extração Profunda autorizado`));
     b.on('sector_automated', (s: number) => { this.say('complex_built'); this.ui.banner('AUTOMAÇÃO SETORIAL', `${SECTORS[s - 1].name} extraindo a reserva profunda — e gerando novos problemas`); });
+    b.on('layer_done', (l: number) => {
+      this.audio.success();
+      if (l < LAYER_COUNT) {
+        this.ui.banner(`${SECTORS[l - 1].name.toUpperCase()} ESGOTADA`, `Desça para a ${SECTORS[l].name} pelo Centro de Comando (botão DESCER)`);
+        this.dialogue.line('zena', `Camada ${l} esgotada. O planeta acaba de perder uma casca inteira. Próxima parada: ${SECTORS[l].name}. Sua base será empacotada sem custo.`);
+        this.dialogue.line('rocha', 'Lá embaixo é mais duro. Melhora o perfurador antes de descer, se der.');
+      }
+    });
     b.on('complex_upgraded', (m: Machine) => this.toast(`${m.def.name} atualizado`, '#9cff8a'));
   }
 
@@ -253,10 +266,10 @@ export class Game {
     const sec = this.world.sectorAtPx(p.x, p.y);
     if (Math.random() < 0.3) {
       const x = p.x + (Math.random() - 0.5) * 500, y = p.y + (Math.random() - 0.5) * 300;
-      if ([3, 10, 12].includes(sec)) this.fx.ember(x, y, [255, 120 + Math.random() * 80, 40]);
-      else if ([2, 5, 9].includes(sec)) this.fx.ember(x, y, sec === 5 ? [160, 255, 60] : sec === 9 ? [200, 255, 220] : [80, 255, 140]);
+      if ([3, 6, 7].includes(sec)) this.fx.ember(x, y, [255, 120 + Math.random() * 80, 40]);
+      else if ([1, 2, 5].includes(sec)) { if (sec !== 1 || Math.random() < 0.3) this.fx.ember(x, y, sec === 2 ? [160, 255, 60] : sec === 5 ? [200, 255, 220] : [80, 255, 140]); }
       else if (sec === 4) this.fx.ember(x, y, [200, 240, 255]);
-      else if (sec === 8 && Math.random() < 0.5) this.fx.ember(x, y, [180, 120, 255]);
+      else if (sec === 5 && Math.random() < 0.3) this.fx.ember(x, y, [180, 120, 255]);
     }
   }
 
@@ -518,7 +531,7 @@ export class Game {
   private tutorial() {
     const t = this.flags.tutorial;
     if (this.flags.intro) return;
-    if (t === 0 && this.planet.terrain >= 0.05) { this.flags.tutorial = 1; this.toast('50 kg removidos! Volte ao Centro de Comando e entregue a carga [E].', '#ffd04a'); }
+    if (t === 0 && this.stats.manualKg >= 50) { this.flags.tutorial = 1; this.toast('50 kg removidos! Volte ao Centro de Comando e entregue a carga [E].', '#ffd04a'); }
     if (t === 2 && this.machines.count('oficina')) { this.flags.tutorial = 3; this.audio.success(); }
     if (t === 3 && this.machines.count('laboratorio')) { this.flags.tutorial = 4; this.audio.success(); this.dialogue.line('zena', 'Infraestrutura mínima concluída. A partir de agora, siga a saga de automação do setor (G) e os contratos (J).'); }
     if (t === 2 && !this.flags.saidWorkshop && this.time - (this.flags.firstDeliver ?? 0) > 8) { this.flags.saidWorkshop = true; this.say('t_build_workshop'); }
@@ -527,7 +540,7 @@ export class Game {
   tutorialObjectives(): { text: string; done: boolean; cur?: string }[] | null {
     const t = this.flags.tutorial;
     if (t >= 4) return null;
-    const kg = Math.min(50, this.planet.terrain * 1000);
+    const kg = Math.min(50, this.stats.manualKg);
     return [
       { text: 'Remova 50 kg de material', done: t >= 1, cur: `${Math.floor(kg)} / 50 kg` },
       { text: 'Entregue a carga no Centro de Comando [E]', done: t >= 2 },
@@ -599,7 +612,7 @@ export class Game {
   // ---------------- save ----------------
   serialize() {
     return {
-      v: 1, opts: this.opts, time: this.time, flags: this.flags, selected: this.selected, hotbar: this.hotbar,
+      v: 2, opts: this.opts, time: this.time, flags: this.flags, selected: this.selected, hotbar: this.hotbar,
       chunks: this.world.serializeChunks(), explored: packBytes(this.world.explored),
       regrow: this.world.regrowQueue,
       player: this.player.serialize(), pack: { items: this.pack.items, level: this.pack.level },
@@ -614,7 +627,7 @@ export class Game {
   load(s: any) {
     this.time = s.time; this.flags = s.flags; this.selected = s.selected ?? 0; if (s.hotbar) this.hotbar = s.hotbar;
     this.world.loadChunks(s.chunks);
-    unpackBytes(s.explored, this.world.explored);
+    if (s.explored) unpackBytes(s.explored, this.world.explored);
     for (let i = 0; i < this.world.explored.length; i++) if (this.world.explored[i]) this.world.sectorTileExplored[this.world.sectorTiles[i]]++;
     this.world.regrowQueue = s.regrow ?? [];
     this.player.load(s.player); this.pack.items = s.pack.items; this.pack.level = s.pack.level;
@@ -624,10 +637,48 @@ export class Game {
     this.contracts.load(s.contracts); this.lore.load(s.lore); this.events.load(s.events); this.stats.load(s.stats);
     this.scanner.mapMarkers = s.markers ?? []; this.final = s.final ?? this.final; this.flares = s.flares ?? []; this.mining.drops = s.drops ?? [];
     this.flags.intro = false; this.flags.ending = false;
+    // camada nova (acabou de descer): monta a cápsula no poço central
+    if (!this.machines.list.some(m => m.def.behavior === 'command')) this.setupBase();
     this.camera.x = this.player.x; this.camera.y = this.player.y;
   }
 
+  canDescend() { return this.planet.layerDone() && this.planet.layer < LAYER_COUNT; }
+
+  /** Desce para a próxima camada: empacota a base (100% de reembolso) e gera o mapa de baixo. */
+  async descend() {
+    if (!this.canDescend()) return;
+    const s: any = this.serialize();
+    const next = this.planet.layer + 1;
+    // reembolso integral de todas as construções e do conteúdo delas
+    for (const m of this.machines.list) {
+      if (m.def.behavior !== 'command' && m.def.behavior !== 'terminal' || this.machines.list.filter(x => x.def.behavior === 'terminal').indexOf(m) > 0) for (const k in m.def.cost) this.stock.add(k, m.def.cost[k], false);
+      for (const k in m.out) this.stock.add(k, m.out[k], false);
+      for (const k in m.inb) this.stock.add(k, m.inb[k], false);
+      if (m.belt) for (const l of m.belt) this.stock.add(l.k, l.q, false);
+    }
+    for (const r of this.sectors.rt) for (const k in r.buffer) this.stock.add(k, r.buffer[k], false);
+    for (const r of this.robots.list) for (const k in r.cargo) this.stock.add(k, r.cargo[k], false);
+    const packed = this.machines.list.length - 1;
+    s.stock = { items: this.stock.items, credits: this.stock.credits };
+    s.opts = { ...this.opts, layer: next };
+    s.planet = { ...this.planet.serialize(), layer: next };
+    s.chunks = {}; s.explored = ''; s.regrow = [];
+    s.machines = { nextId: this.machines.nextId, shipList: this.machines.shipList, shipped: this.machines.shipped, list: [] };
+    s.robots = { nextId: this.robots.nextId, list: [] };
+    s.sectors.buffers = [];
+    s.markers = []; s.flares = []; s.drops = [];
+    s.player = { ...s.player, cargo: null };
+    s.events = { anomalies: [] };
+    s.lore = { ...s.lore, arts: [] };
+    s.flags = { ...s.flags, justDescended: next, packed };
+    this.leaving = true;
+    await saveSlot('slot1', s);
+    location.reload();
+  }
+
+  leaving = false;   // durante descida/NG+: nenhum autosave pode sobrescrever o save preparado
   async save() {
+    if (this.leaving) return;
     const ok = await saveSlot('slot1', this.serialize());
     if (ok) this.ui?.savedIndicator();
   }

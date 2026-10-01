@@ -6,21 +6,23 @@ import { MobileControls } from './input/MobileControls';
 import { loadSlot, deleteSlot } from './systems/Save';
 import { RESEARCH_BY_KEY } from './data/research';
 import { ITEMS } from './data/items';
-import { PLANET_MASS_T } from './core/constants';
+import { SECTORS } from './data/sectors';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const DEV = new URLSearchParams(location.search).has('dev');
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window || (DEV && new URLSearchParams(location.search).has('touch'));
 
 async function boot() {
-  const save = await loadSlot('slot1');
+  let save = await loadSlot('slot1');
+  // saves da versão por setores (v1) não são compatíveis com o mundo em camadas
+  if (save && save.v !== 2) { await deleteSlot('slot1'); save = null; }
   let pendingNG: GameOptions | null = null;
   try { const s = localStorage.getItem('zx_ng'); if (s) pendingNG = JSON.parse(s); } catch { /* */ }
   const title = document.getElementById('title')!;
   if (pendingNG) { localStorage.removeItem('zx_ng'); title.remove(); start(pendingNG, null); return; }
   const cont = title.querySelector<HTMLButtonElement>('[data-t="cont"]')!;
   if (save) {
-    const f = (save.planet ? (save.planet.terrain + save.planet.crust.reduce((a: number, b: number) => a + b, 0) + save.planet.mantle.reduce((a: number, b: number) => a + b, 0)) / (save.planet.total ?? PLANET_MASS_T) : 0) * 100;
+    const f = (save.planet?.units ? save.planet.units.reduce((a: number, u: number, i: number) => a + (i ? SECTORS[i - 1].share * Math.min(1, u / SECTORS[i - 1].target) : 0), 0) : 0) * 100;
     cont.innerHTML = `CONTINUAR CONTRATO <small>${f.toFixed(5).replace('.', ',')}% extraído</small>`;
   } else cont.style.display = 'none';
   cont.onclick = () => { title.remove(); start(save.opts, save); };
@@ -60,6 +62,13 @@ function start(opts: GameOptions, save: any) {
     g.flags.intro = false;
     g.dialogue.line('zena', 'Bem-vindo de volta. O planeta esperou por você. Ele não tinha escolha.');
     if (!g.flags.briefed) g.ui.mini.briefing(() => { g.flags.briefed = true; });
+    if (g.flags.justDescended) {
+      const L = SECTORS[g.flags.justDescended - 1];
+      g.ui.sectorTitle(L.id);
+      g.ui.banner(`${L.code.toUpperCase()} — ${L.name.toUpperCase()}`, `Base empacotada e reembolsada (${g.flags.packed ?? 0} construções). Remonte a operação.`);
+      g.dialogue.line('zena', L.desc);
+      g.flags.justDescended = 0;
+    }
   } else {
     g.setupNew();
     if (opts.contract > 1) g.dialogue.line('varren', `Contrato 7-K${36 + opts.contract}. Planeta maior. Mesma missão. Suas tecnologias corporativas foram transferidas — o resto foi "reciclado".`);
@@ -75,8 +84,10 @@ function start(opts: GameOptions, save: any) {
   document.addEventListener('visibilitychange', () => { if (document.hidden && !g.flags.intro) g.save(); });
   window.addEventListener('beforeunload', () => { if (!g.flags.intro) g.save(); });
 
-  (window as any).zenitexNewGame = async () => { await deleteSlot('slot1'); location.reload(); };
+  (window as any).zenitexNewGame = async () => {
+    g.leaving = true; await deleteSlot('slot1'); location.reload(); };
   (window as any).zenitexNewGamePlus = async () => {
+    g.leaving = true;
     const keep = [...g.research.done].filter(k => RESEARCH_BY_KEY[k]?.corporate);
     const ng: GameOptions = { seed: (Math.random() * 1e9) | 0, contract: opts.contract + 1, massMult: opts.massMult * 1.5, keepResearch: keep };
     localStorage.setItem('zx_ng', JSON.stringify(ng));

@@ -1,61 +1,69 @@
 import { PLANET_MASS_T } from '../core/constants';
-import { SECTORS } from '../data/sectors';
+import { SECTORS, LAYER_COUNT } from '../data/sectors';
 import type { Game } from '../Game';
 
-export const FINAL_LOCK = 0.99;   // extração automática para em 99%
+export const FINAL_LOCK = 0.99;   // a extração para em 99%: o resto é a operação final manual
 const MILESTONES = [1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99];
 
-/** MASSA PLANETÁRIA EXTRAÍDA — o número mais importante do jogo. */
+/**
+ * MASSA PLANETÁRIA por camadas. Cada camada tem uma meta em "unidades de extração"
+ * (uma célula minerada à mão = 1 unidade; máquinas rendem várias por segundo).
+ * Esgotar a camada atual libera a descida para a próxima: o planeta encolhe.
+ */
 export class PlanetProgress {
   total = PLANET_MASS_T;
-  terrain = 0;                       // t removidas do terreno explorável
-  crust: number[] = new Array(13).fill(0);   // t extraídas por setor
-  mantle: number[] = new Array(13).fill(0);
-  crustMax: number[] = new Array(13).fill(0);
-  mantleMax: number[] = new Array(13).fill(0);
+  layer = 1;                                    // camada atual
+  units: number[] = new Array(LAYER_COUNT + 1).fill(0);
   milestone = 0;
   finalDone = false;
-  bonus = 0;                         // canhão / operações finais
   private history: { t: number; v: number }[] = [];
 
-  constructor(private g: Game, massMult = 1) {
+  constructor(private g: Game, massMult = 1, layer = 1) {
     this.total = PLANET_MASS_T * massMult;
-    for (const s of SECTORS) {
-      let r = s.reserve * this.total;
-      if (s.id === 12) r -= this.total * (1 - FINAL_LOCK); // o núcleo final é reservado para o fim
-      this.crustMax[s.id] = r * 0.65;
-      this.mantleMax[s.id] = r * 0.35;
+    this.layer = layer;
+    // camadas acima da atual já foram esgotadas
+    for (let i = 1; i < layer; i++) this.units[i] = SECTORS[i - 1].target;
+  }
+
+  get def() { return SECTORS[this.layer - 1]; }
+  /** fração 0..1 da camada atual */
+  layerFraction(l = this.layer) { return Math.min(1, this.units[l] / SECTORS[l - 1].target); }
+  layerDone() { return this.units[this.layer] >= this.def.target - 1e-6; }
+  sectorFraction(s: number) { return this.layerFraction(s); }
+  /** toneladas por unidade nesta camada */
+  tPerUnit(l = this.layer) { const d = SECTORS[l - 1]; return (d.share * this.total) / d.target; }
+
+  fraction() {
+    if (this.finalDone) return 1;
+    let f = 0;
+    for (let i = 1; i <= LAYER_COUNT; i++) f += SECTORS[i - 1].share * this.layerFraction(i);
+    return Math.min(FINAL_LOCK, f);
+  }
+  extracted() { return this.fraction() * this.total; }
+
+  /** Adiciona unidades de extração à camada atual (respeita a meta e a trava final). */
+  addUnits(n: number): number {
+    if (this.finalDone || n <= 0) return 0;
+    const d = this.def;
+    let room = d.target - this.units[this.layer];
+    if (this.layer === LAYER_COUNT) {
+      // no Núcleo, só até a trava de 99% do planeta
+      const lockUnits = ((FINAL_LOCK - (1 - d.share)) / d.share) * d.target;
+      room = Math.min(room, lockUnits - this.units[this.layer]);
     }
-  }
-
-  extracted() {
-    let e = this.terrain + this.bonus;
-    for (let s = 1; s <= 12; s++) e += this.crust[s] + this.mantle[s];
-    return this.finalDone ? this.total : Math.min(this.total, e);
-  }
-  fraction() { return this.extracted() / this.total; }
-  sectorFraction(s: number) { return (this.crust[s] + this.mantle[s]) / Math.max(1, this.crustMax[s] + this.mantleMax[s]); }
-
-  addTerrain(t: number) { this.terrain += t; }
-
-  extractDeep(sector: number, layer: 'crust' | 'mantle', t: number): number {
-    if (this.finalDone) return 0;
-    const lockRoom = this.total * FINAL_LOCK - this.extracted();
-    if (lockRoom <= 0) return 0;
-    const arr = layer === 'crust' ? this.crust : this.mantle;
-    const max = layer === 'crust' ? this.crustMax : this.mantleMax;
-    const got = Math.max(0, Math.min(t, max[sector] - arr[sector], lockRoom));
-    arr[sector] += got;
+    const got = Math.max(0, Math.min(n, room));
+    this.units[this.layer] += got;
+    if (got > 0 && this.layerDone() && !this.g.flags['layerDone' + this.layer]) {
+      this.g.flags['layerDone' + this.layer] = true;
+      this.g.bus.emit('layer_done', this.layer);
+    }
     return got;
   }
-
-  /** Disparo do Canhão de Matéria: arranca parte do setor (crosta, depois manto). */
-  cannonHit(sector: number, t: number) {
-    let rem = t;
-    rem -= this.extractDeep(sector, 'crust', rem);
-    rem -= this.extractDeep(sector, 'mantle', rem);
-    return t - rem;
-  }
+  /** compatibilidade: massa de terreno em toneladas -> unidades */
+  addTerrain(t: number) { this.addUnits(t / this.tPerUnit()); }
+  /** extração por máquinas (complexos etc.) — em unidades */
+  extractDeep(_sector: number, _layer: 'crust' | 'mantle', u: number): number { return this.addUnits(u); }
+  cannonHit(_s: number, u: number) { return this.addUnits(u); }
 
   update(time: number) {
     const f = this.fraction();
@@ -64,19 +72,23 @@ export class PlanetProgress {
       this.milestone++;
     }
     if (!this.history.length || time - this.history[this.history.length - 1].t >= 5) {
-      this.history.push({ t: time, v: this.extracted() });
+      this.history.push({ t: time, v: this.units[this.layer] });
       if (this.history.length > 40) this.history.shift();
     }
   }
 
-  /** t/min médio recente */
-  rate(): number {
+  /** unidades/min recentes na camada atual */
+  rateUnits(): number {
     const h = this.history;
     if (h.length < 2) return 0;
     const a = h[Math.max(0, h.length - 13)], b = h[h.length - 1];
     return b.t > a.t ? ((b.v - a.v) / (b.t - a.t)) * 60 : 0;
   }
+  /** t/min recentes (para contratos e HUD) */
+  rate(): number { return this.rateUnits() * this.tPerUnit(); }
 
-  serialize() { return { terrain: this.terrain, crust: this.crust, mantle: this.mantle, milestone: this.milestone, finalDone: this.finalDone, bonus: this.bonus, total: this.total }; }
-  load(s: any) { Object.assign(this, { terrain: s.terrain, crust: s.crust, mantle: s.mantle, milestone: s.milestone, finalDone: s.finalDone, bonus: s.bonus ?? 0 }); }
+  serialize() { return { layer: this.layer, units: this.units, milestone: this.milestone, finalDone: this.finalDone, total: this.total }; }
+  load(s: any) {
+    if (s.units) { this.units = s.units; this.milestone = s.milestone ?? 0; this.finalDone = !!s.finalDone; }
+  }
 }

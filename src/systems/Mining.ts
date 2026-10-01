@@ -92,7 +92,9 @@ export class Mining {
     if (!IS_SOLID[mat] || def.kind === 'edge') return { kg: 0 };
     w.set(x, y, MAT.AIR);
     this.cracks.delete(y * WORLD_CELLS + x);
-    g.planet.addTerrain(def.massT * mult);
+    // cada célula vale 1 unidade da meta da camada (máquinas valem `mult`)
+    g.planet.addUnits(mult);
+    if (cause === 'player') g.stats.manualKg += def.massT * 1000;
     g.stats.cells++;
     g.lore.onCellRemoved(x, y, cause);
     if (def.regrow) w.regrowQueue.push({ x, y, m: mat, t: g.time + 90 + Math.random() * 120 });
@@ -105,7 +107,7 @@ export class Mining {
       let tw = 0; for (const o of common) tw += o.weight;
       let r = Math.random() * tw;
       for (const o of common) { r -= o.weight; if (r <= 0) { item = matById(o.mat).item; break; } }
-      if (item) { g.machines.drillYield(machine!, item, 1.5 * mult); g.planet.addTerrain(0); }
+      if (item) { g.machines.drillYield(machine!, item, 1.5 * mult); }
       return { item, kg: 1.5 * mult };
     }
     if (item) {
