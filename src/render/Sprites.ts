@@ -469,6 +469,19 @@ export class Sprites {
     });
   }
 
+  chest(): HTMLCanvasElement {
+    return this.memo('chest', () => {
+      const [c, x] = cv(14, 14);
+      const R = (a: number, b: number, w: number, h: number, cc: C3, al = 1) => { x.fillStyle = css(cc, al); x.fillRect(a, b, w, h); };
+      R(1, 12, 12, 2, [0, 0, 0], 0.5);
+      R(1, 5, 12, 8, [92, 64, 30]); R(1, 5, 12, 1, [150, 110, 50]);
+      R(1, 2, 12, 4, [120, 84, 40]); R(2, 1, 10, 1, [170, 126, 60]);
+      R(1, 5, 12, 1, [40, 30, 20]); R(3, 2, 1, 11, [210, 170, 70]); R(10, 2, 1, 11, [210, 170, 70]);
+      R(6, 5, 2, 3, [255, 220, 110]); R(6, 6, 2, 1, [60, 230, 240]);
+      return c;
+    });
+  }
+
   artifact(kind: number): HTMLCanvasElement {
     return this.memo(`art${kind}`, () => {
       const [c, x] = cv(12, 16);

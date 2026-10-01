@@ -2,6 +2,8 @@ import { CELL, TILE } from '../core/constants';
 import { MAT, IS_SOLID, matById } from '../data/materials';
 import { SECTORS } from '../data/sectors';
 import { POOLS } from '../data/dialogue';
+import { ITEM } from '../data/items';
+import { fmtInt } from '../core/math';
 import type { Game } from '../Game';
 
 export interface Anomaly { id: number; x: number; y: number; sector: number; t: number; }
@@ -35,7 +37,7 @@ export class Events {
   fire() {
     const g = this.g;
     const M = g.machines.list;
-    const opts: [string, number][] = [['memo', 2], ['contract', 1.5], ['deposit', 2]];
+    const opts: [string, number][] = [['memo', 1.2], ['contract', 1.2], ['deposit', 2], ['choice', 2.2]];
     if (M.length > 6) opts.push(['cavein', 2.5], ['failure', 2], ['surge', 1.5]);
     if (g.robots.list.length) opts.push(['robot', 1.2]);
     if (g.sectors.s[6].discovered || g.sectors.s[9].discovered) opts.push(['anomaly', 1.6], ['alien', 1]);
@@ -48,6 +50,7 @@ export class Events {
       case 'memo': { const l = POOLS.ev_memo; const line = l[Math.floor(Math.random() * l.length)]; g.dialogue.queue.push(line); break; }
       case 'contract': { const c = g.contracts.generate(); if (c) { g.contracts.available.unshift(c); g.toast('Novo contrato corporativo disponível (J)', '#ffd04a'); } break; }
       case 'deposit': this.deposit(); break;
+      case 'choice': this.choice(); break;
       case 'cavein': {
         const cands = M.filter(m => m.def.behavior !== 'platform' && !this.supported(m));
         if (!cands.length) break;
@@ -115,6 +118,44 @@ export class Events {
         this.record('Ruína localizada pela telemetria');
         break;
       }
+    }
+  }
+
+  /** Decisões rápidas com risco e recompensa. */
+  choice() {
+    const g = this.g, p = g.player;
+    if (g.ui.modalOpen() || g.build.active) { this.timer = 15; return; }
+    const L = g.planet.layer, mul = Math.pow(2.2, L - 1);
+    const pick = Math.floor(Math.random() * 3);
+    if (pick === 0) {
+      // bolsão instável perto do jogador
+      let wall: [number, number] | null = null;
+      for (let r = 20; r < 140 && !wall; r += 6) for (let a = 0; a < 16; a++) { const x = p.x + Math.cos(a / 16 * 6.283) * r, y = p.y + Math.sin(a / 16 * 6.283) * r; if (IS_SOLID[g.world.get(Math.floor(x / CELL), Math.floor(y / CELL))]) { wall = [x, y]; break; } }
+      if (!wall) return;
+      const [wx, wy] = wall;
+      g.ui.mini.choice('BOLSÃO INSTÁVEL DETECTADO', 'BR-7: "Há um bolsão de Pyroxis sob pressão na parede ao lado. Detonar libera muito minério de uma vez — e pode desabar o teto."',
+        [{ label: '💥 Detonar (minério + risco)', cls: 'orange', fn: () => { g.mining.detonate(wx, wy); g.mining.detonate(wx + 12, wy + 6); const sd = g.planet.def; for (const o of sd.ores.slice(0, 2)) g.mining.spawnDrop(wx, wy, matById(o.mat).item!, 60 * L); g.toast('Bolsão detonado: fragmentos de minério espalhados!', '#ffd04a'); } },
+         { label: 'Isolar com segurança', cls: 'ghost', fn: () => { const c = Math.round(60 * mul); g.stock.credits += c; g.toast(`Isolado. Bônus de segurança: +${c} ◆`, '#9cff8a'); } }]);
+    } else if (pick === 1) {
+      g.ui.mini.choice('CARGA EXTRAVIADA', 'ZENA: "Um cargueiro Zenitex perdeu uma cápsula de suprimentos na sua região. Recuperá-la é opcional, como tudo que é bom para você."',
+        [{ label: '📦 Ir buscar (marca no mapa)', cls: 'orange', fn: () => {
+            for (let k = 0; k < 60; k++) {
+              const a = Math.random() * 6.283, d = 160 + Math.random() * 200, x = p.x + Math.cos(a) * d, y = p.y + Math.sin(a) * d;
+              const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
+              if (IS_SOLID[g.world.get(cx, cy)] || !g.world.gen.insidePlanet(cx, cy)) continue;
+              const ch = { id: g.chests.list.length, x: cx * CELL + 2, y: cy * CELL + 2, cx, cy, opened: false };
+              g.chests.list.push(ch); g.scanner.addMarker(ch.x, ch.y, 'Carga extraviada', '#ffd04a', 'chest');
+              g.toast('Cápsula marcada no mapa (amarelo).', '#ffd04a'); return;
+            }
+          } },
+         { label: 'Ignorar', cls: 'ghost', fn: () => g.dialogue.line('zena', 'Recusa registrada. A cápsula será cobrada do seu bônus anual mesmo assim.') }]);
+    } else {
+      const top = Object.keys(g.stock.items).filter(k => g.stock.count(k) > 50).sort((a, b) => g.stock.count(b) - g.stock.count(a))[0];
+      if (!top) return;
+      const q = Math.floor(g.stock.count(top) * 0.25), price = Math.round(q * (ITEM[top]?.value ?? 1) * 3);
+      g.ui.mini.choice('OFERTA RELÂMPAGO', `DIRETOR VARREN: "Um cliente quer ${fmtInt(q)} kg de ${ITEM[top]?.name} AGORA. Pago o triplo. Decide rápido, que eu não tenho o dia todo."`,
+        [{ label: `Vender por ${fmtInt(price)} ◆`, cls: 'orange', fn: () => { g.stock.take(top, q); g.stock.credits += price; g.toast(`Vendido: +${fmtInt(price)} ◆`, '#ffd04a'); g.audio.success(); } },
+         { label: 'Recusar', cls: 'ghost', fn: () => g.dialogue.line('varren', 'Recusou? Interessante. Vou anotar isso em algum lugar importante.') }]);
     }
   }
 

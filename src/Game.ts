@@ -20,6 +20,7 @@ import { Crafting } from './systems/Crafting';
 import { Contracts } from './systems/Contracts';
 import { Dialogue } from './systems/Dialogue';
 import { Lore, type Artifact } from './systems/Lore';
+import { Chests, type Chest } from './systems/Chests';
 import { Events, type Anomaly } from './systems/Events';
 import { Scanner } from './systems/Scanner';
 import { Mining } from './systems/Mining';
@@ -33,7 +34,7 @@ import type { UI } from './ui/UI';
 import type { LoreDef } from './data/lore';
 
 export type HotSlot = { type: 'tool' | 'item' | 'build'; key: string } | null;
-export interface Hover { x: number; y: number; label: string; kind: 'machine' | 'artifact' | 'robot' | 'cargo' | 'anomaly' | 'stabilizer'; ref: any; hold?: number; }
+export interface Hover { x: number; y: number; label: string; kind: 'machine' | 'artifact' | 'robot' | 'cargo' | 'anomaly' | 'stabilizer' | 'chest'; ref: any; hold?: number; }
 
 export interface GameOptions { seed: number; contract: number; massMult: number; keepResearch?: string[]; layer?: number; }
 
@@ -61,6 +62,7 @@ export class Game {
   contracts: Contracts;
   dialogue: Dialogue;
   lore: Lore;
+  chests: Chests;
   events: Events;
   scanner: Scanner;
   mining: Mining;
@@ -102,6 +104,7 @@ export class Game {
     this.contracts = new Contracts(this);
     this.dialogue = new Dialogue(this);
     this.lore = new Lore(this);
+    this.chests = new Chests(this);
     this.events = new Events(this);
     this.scanner = new Scanner(this);
     this.mining = new Mining(this);
@@ -125,6 +128,7 @@ export class Game {
 
   setupNew() {
     this.setupBase();
+    this.markLayerStart();
     this.stock.add('ferronox', 20, false); this.stock.add('lumenita', 10, false);
     this.stock.credits = 300;
     this.pack.add('sinalizador', 3); this.pack.add('kit_reparo', 1);
@@ -177,6 +181,7 @@ export class Game {
     b.on('sector_automated', (s: number) => { this.say('complex_built'); this.ui.banner('AUTOMAÇÃO SETORIAL', `${SECTORS[s - 1].name} extraindo a reserva profunda — e gerando novos problemas`); });
     b.on('layer_done', (l: number) => {
       this.audio.success();
+      setTimeout(() => this.ui.layerSummary(l), 1800);
       if (l < LAYER_COUNT) {
         this.ui.banner(`${SECTORS[l - 1].name.toUpperCase()} ESGOTADA`, `Desça para a ${SECTORS[l].name} pelo Centro de Comando (botão DESCER)`);
         this.dialogue.line('zena', `Camada ${l} esgotada. O planeta acaba de perder uma casca inteira. Próxima parada: ${SECTORS[l].name}. Sua base será empacotada sem custo.`);
@@ -494,6 +499,7 @@ export class Game {
     };
     for (const a of this.events.anomalies) consider(a.x, a.y, { label: '[E] Estabilizar anomalia (segure)', kind: 'anomaly', ref: a });
     for (const a of this.lore.artifacts) if (this.lore.visible(a) && Math.abs(a.x - p.x) < 60 && Math.abs(a.y - p.y) < 60) consider(a.x, a.y, { label: '[E] Catalogar registro (segure)', kind: 'artifact', ref: a });
+    for (const c of this.chests.list) if (Math.abs(c.x - p.x) < 60 && Math.abs(c.y - p.y) < 60 && this.chests.visible(c)) consider(c.x, c.y, { label: '[E] Abrir baú de Khelos', kind: 'chest', ref: c });
     if (p.cargo) consider(p.cargo.x, p.cargo.y, { label: '[E] Recuperar carga', kind: 'cargo', ref: p.cargo });
     for (const r of this.robots.list) {
       if (Math.abs(r.x - p.x) > 50 || Math.abs(r.y - p.y) > 50) continue;
@@ -518,6 +524,7 @@ export class Game {
     const g = this;
     switch (h.kind) {
       case 'artifact': this.hold = { t: 0, dur: 1.6, label: 'Catalogando…', key: 'art', done: () => this.lore.catalog(h.ref as Artifact) }; break;
+      case 'chest': this.hold = { t: 0, dur: 0.7, label: 'Abrindo…', key: 'chest', done: () => this.chests.open(h.ref as Chest) }; break;
       case 'anomaly': this.hold = { t: 0, dur: 2.5, label: 'Estabilizando…', key: 'an', done: () => this.events.resolveAnomaly(h.ref as Anomaly) }; break;
       case 'cargo': {
         const c = this.player.cargo!;
@@ -646,7 +653,7 @@ export class Game {
       stock: { items: this.stock.items, credits: this.stock.credits },
       machines: this.machines.serialize(), robots: this.robots.serialize(), sectors: this.sectors.serialize(),
       planet: this.planet.serialize(), research: this.research.serialize(), crafting: this.crafting.serialize(),
-      contracts: this.contracts.serialize(), lore: this.lore.serialize(), events: this.events.serialize(), stats: this.stats.serialize(),
+      contracts: this.contracts.serialize(), lore: this.lore.serialize(), chests: this.chests.serialize(), events: this.events.serialize(), stats: this.stats.serialize(),
       markers: this.scanner.mapMarkers, final: this.final, flares: this.flares, drops: this.mining.drops,
     };
   }
@@ -661,13 +668,16 @@ export class Game {
     this.stock.items = s.stock.items; this.stock.credits = s.stock.credits;
     this.machines.load(s.machines); this.robots.load(s.robots); this.sectors.load(s.sectors);
     this.planet.load(s.planet); this.research.load(s.research); this.crafting.load(s.crafting);
-    this.contracts.load(s.contracts); this.lore.load(s.lore); this.events.load(s.events); this.stats.load(s.stats);
+    this.contracts.load(s.contracts); this.lore.load(s.lore); this.chests.load(s.chests); this.events.load(s.events); this.stats.load(s.stats);
     this.scanner.mapMarkers = s.markers ?? []; this.final = s.final ?? this.final; this.flares = s.flares ?? []; this.mining.drops = s.drops ?? [];
     this.flags.intro = false; this.flags.ending = false;
     // camada nova (acabou de descer): monta a cápsula no poço central
     if (!this.machines.list.some(m => m.def.behavior === 'command')) this.setupBase();
     this.camera.x = this.player.x; this.camera.y = this.player.y;
   }
+
+  /** Marca o início da camada atual (para o resumo e o recorde). */
+  markLayerStart() { this.flags.layerStart = { t: this.time, cells: this.stats.cells, chests: this.stats.chests, built: this.stats.built, lore: this.lore.unlocked.size }; }
 
   canDescend() { return this.planet.layerDone() && this.planet.layer < LAYER_COUNT; }
   descendBlocked() { return this.sectors.descendBlock(); }
@@ -700,6 +710,7 @@ export class Game {
     s.player = { ...s.player, cargo: null };
     s.events = { anomalies: [] };
     s.lore = { ...s.lore, arts: [] };
+    s.chests = [];
     s.flags = { ...s.flags, justDescended: next, packed };
     this.leaving = true;
     await saveSlot('slot1', s);

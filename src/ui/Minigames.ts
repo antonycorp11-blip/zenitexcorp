@@ -141,6 +141,16 @@ export class Minigames {
     render();
   }
 
+  /** Momento de melhoria: antes → depois, grande e claro. */
+  upgradeShow(title: string, rows: [string, string, string][], note = '') {
+    const el = this.mount(`<div class="upshow"><div class="ups-t">✚ MELHORIA</div><h2>${esc(title)}</h2>
+      <div class="ups-rows">${rows.map(([k, a, b]) => `<div><span>${esc(k)}</span><em>${esc(a)}</em><i>➜</i><b>${esc(b)}</b></div>`).join('')}</div>
+      ${note ? `<p class="muted">${esc(note)}</p>` : ''}<button class="btn orange big">ÓTIMO</button></div>`);
+    el.querySelector('button')!.addEventListener('click', () => this.close());
+    this.g.fx.flashScreen([255, 210, 120], 0.35);
+    this.g.audio.discover(true);
+  }
+
   choice(title: string, body: string, opts: { label: string; cls: string; fn: () => void }[]) {
     const el = this.mount(`<div class="mg-h">${esc(title)}</div><p class="choice-b">${body}</p><div class="row">${opts.map((o, i) => `<button class="btn ${o.cls}" data-i="${i}">${esc(o.label)}</button>`).join('')}</div>`);
     el.querySelectorAll<HTMLElement>('button[data-i]').forEach(b => b.addEventListener('click', () => { this.close(); opts[Number(b.dataset.i)].fn(); }));

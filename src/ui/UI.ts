@@ -1,4 +1,4 @@
-import { fmtInt, fmtShort, fmtMass } from '../core/math';
+import { fmtInt, fmtShort, fmtMass, fmtTime } from '../core/math';
 import { TILE, WORLD_TILES, WORLD_PX } from '../core/constants';
 import { SECTORS, HAZARD_NAMES, type HazardKey } from '../data/sectors';
 import { SPEAKERS } from '../data/dialogue';
@@ -66,6 +66,22 @@ export class UI {
         else if (action === 'cancel') g.exitBuild();
       });
     });
+  }
+
+  /** Resumo ao esgotar a camada, com recorde pessoal. */
+  layerSummary(l: number) {
+    const g = this.g, st = g.flags.layerStart ?? { t: 0, cells: 0, chests: 0, built: 0, lore: 0 };
+    const L = SECTORS[l - 1], secs = g.time - st.t;
+    let best = 0; try { best = Number(localStorage.getItem('zx_best_' + l)) || 0; } catch { /* */ }
+    const record = !best || secs < best;
+    if (record) try { localStorage.setItem('zx_best_' + l, String(Math.round(secs))); } catch { /* */ }
+    const rows: [string, string][] = [['Tempo na camada', fmtTime(secs)], ['Recorde', record ? '🏆 NOVO RECORDE' : fmtTime(best)], ['Células extraídas', fmtInt(g.stats.cells - st.cells)],
+      ['Minério entregue', fmtInt(g.sectors.s[l].counters.delivered ?? 0) + ' kg'], ['Baús abertos', String((g.stats.chests ?? 0) - (st.chests ?? 0))], ['Construções', String(g.stats.built - st.built)],
+      ['Registros de Khelos', String(g.lore.unlocked.size - (st.lore ?? 0))], ['Planeta extraído', PCT(g.planet.fraction())]];
+    const block = g.descendBlocked();
+    const next = SECTORS[l];
+    this.mini.choice(`${L.name.toUpperCase()} ESGOTADA`, `<div class="sumgrid">${rows.map(([k, v]) => `<div><small>${esc(k)}</small><b>${esc(v)}</b></div>`).join('')}</div>${next ? `<p>${block ? `<span class="warn">${esc(block)}</span>` : `Próxima: <b>${esc(next.name)}</b> — ${esc(next.desc)}`}</p>` : ''}`,
+      next && !block ? [{ label: 'Ficar mais um pouco', cls: 'ghost', fn: () => {} }, { label: '▼ DESCER AGORA', cls: 'orange', fn: () => g.descend() }] : [{ label: 'Continuar', cls: 'orange', fn: () => {} }]);
   }
 
   descendPrompt() {

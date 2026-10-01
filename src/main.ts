@@ -63,6 +63,7 @@ function start(opts: GameOptions, save: any) {
     g.dialogue.line('zena', 'Bem-vindo de volta. O planeta esperou por você. Ele não tinha escolha.');
     if (!g.flags.briefed) g.ui.mini.briefing(() => { g.flags.briefed = true; });
     if (g.flags.justDescended) {
+      g.markLayerStart();
       const L = SECTORS[g.flags.justDescended - 1];
       g.ui.sectorTitle(L.id);
       g.ui.banner(`${L.code.toUpperCase()} — ${L.name.toUpperCase()}`, `Base empacotada e reembolsada (${g.flags.packed ?? 0} construções). Remonte a operação.`);

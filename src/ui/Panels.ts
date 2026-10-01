@@ -330,6 +330,17 @@ export class Panels {
     }
     return h + '</div>';
   }
+  private upgradeStats(a: string): { title: string; rows: [string, string][]; note: string } {
+    const g = this.g, p = g.player;
+    if (a === 'drill') { const d = DRILLS[p.drillLevel]; return { title: d.name, rows: [['Classe de rocha', String(d.tier)], ['Potência', d.power + '×'], ['Raio do feixe', String(d.radius)], ['Alcance', d.range + ' px']], note: `Agora você quebra rocha de classe ${d.tier}${SECTORS.find(L => L.tier === d.tier) ? ` — inclusive a ${SECTORS.find(L => L.tier === d.tier)!.name}` : ''}.` }; }
+    if (a === 'scanner') { const s = SCANNERS[p.scannerLevel]; return { title: s.name, rows: [['Alcance', s.radius + ' tiles']], note: s.desc }; }
+    if (a === 'pack') { const k = PACKS[g.pack.level]; return { title: k.name, rows: [['Carga', k.weight + ' kg'], ['Slots especiais', `${k.contencao}/${k.frio}/${k.magnetico}`]], note: '' }; }
+    if (a === 'energy') return { title: 'Bateria do Traje', rows: [['Energia', String(p.maxEnergy)]], note: '' };
+    if (a === 'health') return { title: 'Blindagem Vital', rows: [['Vida', String(p.maxHp)]], note: '' };
+    const k = a.slice(5); const m = SUIT_MODULES.find(x => x.key === k)!; const lv = p.suit[k] ?? 0;
+    return { title: m.name, rows: [['Proteção', lv ? m.levels[lv - 1].prot + '%' : '0%']], note: m.desc };
+  }
+
   private doUpgrade(a: string) {
     const g = this.g, p = g.player;
     let cost: Record<string, number> | undefined; let apply: () => void = () => {};
@@ -341,9 +352,13 @@ export class Panels {
     if (a.startsWith('suit:')) { const k = a.slice(5); const m = SUIT_MODULES.find(x => x.key === k)!; const lv = p.suit[k] ?? 0; cost = m.levels[lv]?.cost; apply = () => (p.suit[k] = lv + 1); }
     if (!cost) return;
     if (!g.stock.pay(cost, g.pack.items)) { g.toast('Recursos insuficientes', '#ff8a3a'); g.audio.error(); return; }
-    apply(); g.audio.success(); g.toast('Equipamento melhorado', '#9cff8a');
+    // antes/depois para a tela de melhoria
+    const before = this.upgradeStats(a);
+    apply();
+    const after = this.upgradeStats(a);
+    this.close();
+    this.ui.mini.upgradeShow(after.title, before.rows.map(([k, v], i) => [k, v, after.rows[i][1]]), after.note);
     if (a === 'drill') g.dialogue.line('zena', `${DRILLS[p.drillLevel].name} entregue. O custo será descontado em suaves 400 parcelas.`);
-    this.render();
   }
 
   // =============== PESQUISA ===============

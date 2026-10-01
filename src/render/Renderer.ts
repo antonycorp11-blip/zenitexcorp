@@ -146,6 +146,15 @@ export class Renderer {
         g.lighting.add(a.x, a.y - 6, 40, [60, 230, 240], 0.75 + 0.2 * Math.sin(this.time * 3 + a.id));
       } });
     }
+    for (const c of g.chests.list) {
+      if (c.x < L - 20 || c.x > R + 20 || c.y < T - 20 || c.y > B + 20 || !g.chests.visible(c)) continue;
+      objs.push({ y: c.y + 4, draw: () => {
+        const bob = Math.sin(this.time * 2.5 + c.id) * 0.8;
+        ctx.drawImage(g.sprites.chest(), Math.round(c.x - 7), Math.round(c.y - 12 + bob));
+        g.lighting.add(c.x, c.y - 6, 46, [255, 210, 110], 0.8 + 0.15 * Math.sin(this.time * 3 + c.id));
+        if (Math.random() < 0.04) g.fx.ember(c.x + (Math.random() - 0.5) * 10, c.y - 8, [255, 220, 120]);
+      } });
+    }
     for (const an of g.events.anomalies) {
       if (an.x < L - 30 || an.x > R + 30 || an.y < T - 30 || an.y > B + 30) continue;
       objs.push({ y: an.y, draw: () => {
@@ -191,14 +200,17 @@ export class Renderer {
     if (g.mining.hitting) {
       const hx = g.mining.hitX, hy = g.mining.hitY;
       const sx = p.x + (p.facing === 0 ? 4 : p.facing === 2 ? -4 : 0), sy = p.y - 6;
+      // cor e largura do feixe mudam com a classe do perfurador: a melhoria se vê
+      const BEAM: [number, number, number][] = [[255, 170, 60], [255, 220, 70], [80, 220, 255], [90, 255, 160], [200, 110, 255], [255, 250, 210]];
+      const lv = Math.min(5, p.drillLevel), bc = BEAM[lv], bw = 2 + lv * 0.7;
       ctx.globalCompositeOperation = 'lighter';
-      ctx.strokeStyle = `rgba(255,170,60,${0.6 + Math.random() * 0.3})`; ctx.lineWidth = 2;
+      ctx.strokeStyle = `rgba(${bc[0]},${bc[1]},${bc[2]},${0.6 + Math.random() * 0.3})`; ctx.lineWidth = bw;
       ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(hx, hy); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,220,0.9)'; ctx.lineWidth = 0.8;
+      ctx.strokeStyle = 'rgba(255,255,230,0.9)'; ctx.lineWidth = 0.8 + lv * 0.25;
       ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(hx + (Math.random() - 0.5) * 2, hy + (Math.random() - 0.5) * 2); ctx.stroke();
-      ctx.fillStyle = 'rgba(255,230,160,0.9)'; ctx.fillRect(hx - 2, hy - 2, 4, 4);
+      const hs = 4 + lv; ctx.fillStyle = `rgba(${bc[0]},${bc[1]},${bc[2]},0.9)`; ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
       ctx.globalCompositeOperation = 'source-over';
-      g.lighting.add(hx, hy, 60, [255, 160, 60], 1);
+      g.lighting.add(hx, hy, 60 + lv * 10, bc, 1);
       g.lighting.add(sx, sy, 30, [255, 200, 120], 0.6);
     }
     g.fx.draw(ctx);

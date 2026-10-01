@@ -116,6 +116,12 @@ export class Mining {
         kg *= 1 + g.research.eff('oreBonus');
         const got = g.pack.add(item, kg);
         g.stats.mined[item] = (g.stats.mined[item] ?? 0) + kg;
+        if (def.rare) {
+          // veio raro: recompensa imediata e visível
+          const bonus = Math.round(kg * (ITEM[item]?.value ?? 10) * 2);
+          g.stock.credits += bonus;
+          g.fx.text(x * CELL + 2, y * CELL - 10, `+${bonus} ◆ RARO`, [255, 220, 90]);
+        }
         g.contracts.onMine(item, kg);
         if (got < kg - 0.01) {
           this.spawnDrop(x * CELL + 2, y * CELL + 2, item, kg - got);

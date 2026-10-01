@@ -572,3 +572,12 @@ body.touch .banner .t { font-size: 15px; } body.touch .banner .s { font-size: 10
 .ly-warn { display: none; margin-top: 5px; padding: 4px 7px; border-radius: 6px; background: #3a1d08; border: 1px solid #ff9a3a; color: #ffd27a; font-size: 12px; line-height: 1.25; animation: tutp 1.4s infinite; }
 body.touch .ly-warn { font-size: 9px; padding: 3px 5px; margin-top: 3px; }
 .objs .obj.cur { border-left: 3px solid #ffb84a; padding-left: 6px; } .objs .obj.later { opacity: .5; }
+
+.upshow { text-align: center; } .ups-t { color: #ffb84a; font-weight: 800; letter-spacing: 3px; font-size: 13px; } .upshow h2 { margin: 4px 0 10px; }
+.ups-rows { display: flex; flex-direction: column; gap: 6px; margin: 8px auto 10px; max-width: 420px; }
+.ups-rows div { display: grid; grid-template-columns: 1fr auto auto auto; gap: 10px; align-items: center; background: #0b1722; border: 1px solid #24465c; border-radius: 8px; padding: 6px 12px; font-size: 15px; }
+.ups-rows em { font-style: normal; color: #7e97a8; text-decoration: line-through; } .ups-rows i { color: #7dff9a; font-style: normal; } .ups-rows b { color: #7dff9a; font-size: 18px; }
+
+.sumgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin: 6px 0 10px; }
+.sumgrid div { background: #0b1722; border: 1px solid #24465c; border-radius: 8px; padding: 5px 9px; } .sumgrid small { display: block; font-size: 11px; color: #7e97a8; } .sumgrid b { font-size: 16px; }
+@media (max-height: 520px) { .sumgrid { grid-template-columns: repeat(4, 1fr); } .sumgrid b { font-size: 12px; } .sumgrid small { font-size: 9px; } }

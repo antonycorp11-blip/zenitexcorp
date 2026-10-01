@@ -24,6 +24,8 @@ export class Scanner {
     g.audio.scan();
     if (n > 0) g.sectors.counter(g.sectors.current, 'scans', 1);
     else g.toast('Nenhum depósito significativo no alcance.', '#9ab');
+    const found = g.chests.reveal(p.x, p.y, R * 16);
+    if (found) g.toast(`Scanner: ${found} baú(s) de Khelos por perto (marcados no mapa)`, '#ffd04a');
     if (lv >= 3) this.orbitalSweep();
   }
 
