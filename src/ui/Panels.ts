@@ -321,6 +321,8 @@ export class Panels {
     const sd = SECTORS[sel - 1], st = g.sectors.s[sel], rt = g.sectors.rt[sel];
     const disc = st.discovered;
     h += `<div class="col wide scroll tall"><div class="detail"><h2 style="color:${sd.accent}">${sd.code.toUpperCase()} — ${disc ? esc(sd.name.toUpperCase()) : '???'}</h2><p>${disc ? esc(sd.desc) : 'Setor não explorado. Barreira de contenção classe ' + sd.tier + '.'}</p>`;
+    const tutorial = g.tutorialObjectives();
+    if (tutorial) h += `<h4>OBJETIVO ATUAL</h4><div class="objs">${tutorial.map(o => `<div class="obj ${o.done ? 'ok' : ''}"><span>${o.done ? '■' : '□'} ${esc(o.text)}</span>${o.cur && !o.done ? `<b>${esc(o.cur)}</b>` : ''}</div>`).join('')}</div>`;
     if (disc) {
       h += `<div class="phases">${PHASES.map((p, i) => `<div class="ph ${i < st.phase ? 'done' : i === st.phase ? 'cur' : ''}"><b>${i + 1}</b><span>${p}</span></div>`).join('')}</div>`;
       if (st.phase < 9) {

@@ -89,7 +89,7 @@ kbd { font-family: var(--mono); background: #12202c; border: 1px solid var(--lin
 .oi { font-size: 13px; margin: 2px 0; } .oi small, .oc small { display: block; padding-left: 14px; color: var(--mut); font-family: var(--mono); font-size: 12px; }
 .oi.ok { color: #7f9; text-decoration: line-through; opacity: .7; }
 .oc { margin-top: 5px; border-top: 1px solid var(--line); padding-top: 4px; font-size: 13px; color: #ffd04a; }
-.corp { right: 12px; bottom: 150px; width: 300px; display: none; gap: 8px; align-items: center; font-size: 13px; }
+.corp { right: 12px; bottom: 150px; width: 300px; display: none; gap: 8px; align-items: center; font-size: 13px; pointer-events: none; }
 .corp small { display: block; color: var(--or2); font-size: 11px; font-weight: 700; }
 
 .dialog { position: absolute; left: 50%; top: 104px; transform: translateX(-50%) translateY(-10px); width: min(520px, 90vw); display: flex; gap: 10px; background: var(--panel2); border: 1px solid var(--line2); border-radius: 6px; padding: 8px; opacity: 0; transition: all .25s; box-shadow: 0 0 18px var(--glow); }
@@ -306,8 +306,13 @@ body.mobile-menu-open .hud { visibility: hidden; }
 .mobile-menu-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .mobile-menu-grid button { min-height: 42px; border: 1px solid var(--line2); border-radius: 6px; background: #11283a; color: #e8f4ff; font-size: 15px; text-align: left; padding: 7px 12px; touch-action: manipulation; }
 body.touch .hotbar { bottom: 8px; transform: translateX(-50%) scale(.82); transform-origin: bottom center; }
-body.touch .objective { right: 160px; width: 240px; font-size: 12px; }
-body.touch .corp, body.touch .toasts { right: 160px; }
+body.touch .objective { display: none !important; }
+body.touch .mm { display: block; right: max(6px, env(safe-area-inset-right)); top: 70px; width: 120px; padding: 3px; }
+body.touch .mm canvas { width: 112px; height: 79px; }
+body.touch .mmcap { font-size: 9px; padding-top: 2px; }
+body.touch .mmcap .scale { padding: 0 2px; }
+body.touch .corp { display: none !important; }
+body.touch .toasts { right: 160px; }
 body.touch .side { display: none; }
 body.touch .vitals { bottom: auto; top: 170px; left: 62px; width: 180px; }
 body.touch .env { display: none; }
@@ -335,14 +340,12 @@ body.touch .env { display: none; }
   body.touch .mass { transform: scale(.6); transform-origin: top left; left: 8px; top: 6px; }
   body.touch .depth, body.touch .quote, body.touch .mm, body.touch .corp { display: none; }
   body.touch .res { transform: scale(.58); transform-origin: top right; right: 6px; top: 6px; }
+  body.touch .mm { top: 52px; }
   body.touch .res .ri:nth-child(n+4):not(.cr) { display: none; }
   body.touch .vitals { top: 88px; left: 8px; bottom: auto; width: 180px; transform: scale(.72); transform-origin: top left; }
   body.touch .env { display: none; }
   body.touch .hotbar { bottom: 4px; left: 50%; transform: translateX(-50%) scale(.52); }
   body.touch .hotbar .hs em { display: none; }
-  body.touch .objective { right: auto; left: 50%; bottom: auto; top: 84px; width: 200px; transform: translateX(-50%); font-size: 11px; padding: 5px 7px; opacity: .93; }
-  body.touch .objective .oh, body.touch .objective .oi { font-size: 11px; }
-  body.touch .objective .oi small { font-size: 10px; }
   body.touch .dialog { top: 4px; transform: translateX(-50%) scale(.62) !important; transform-origin: top center; }
   body.touch .toasts { right: 110px; bottom: 60px; transform: scale(.7); transform-origin: bottom right; }
   body.touch .banner .t { font-size: 20px; } body.touch .banner .s { font-size: 13px; }

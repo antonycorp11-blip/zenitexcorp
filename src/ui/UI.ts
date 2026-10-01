@@ -250,7 +250,7 @@ export class UI {
       : `${esc(MACHINE[b.key!]?.name ?? '')} · clique: construir · R: girar · Q/botão direito: sair · custo: ${costStr(g, MACHINE[b.key!]?.cost ?? {})}`;
     // corp
     const ev = g.events.log[0];
-    this.el.corp.style.display = ev && g.time - ev.t < 40 ? 'flex' : 'none';
+    this.el.corp.style.display = !g.input.touch && ev && g.time - ev.t < 6 ? 'flex' : 'none';
     if (ev) this.el.corp.innerHTML = `<span class="logo">⬢</span><div><small>TELEMETRIA ZENITEX</small>${esc(ev.text)}</div>`;
     this.drawMinimap();
     this.panels.refresh();
