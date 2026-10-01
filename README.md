@@ -14,6 +14,13 @@ npm run dev        # http://localhost:5280
 npm run build      # typecheck + build de produção em dist/
 ```
 
+## Publicar no Cloudflare Workers
+
+O projeto já inclui `wrangler.jsonc` para servir o build estático. No Workers Builds, configure
+**Deploy command** como `npm run deploy`; esse script compila e chama o Wrangler. O **Build command**
+pode ficar vazio. Se preferir manter o Deploy command como `npx wrangler deploy`, configure também
+**Build command** como `npm run build`. O diretório de saída é `dist`.
+
 Modo de teste: `http://localhost:5280/?dev` (atalhos F2–F8) e `?dev&auto=new` (pula título e abertura).
 
 ## Controles
