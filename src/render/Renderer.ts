@@ -5,7 +5,7 @@ import { SECTORS } from '../data/sectors';
 import { ITEM } from '../data/items';
 import { MACHINE } from '../data/machines';
 import type { Game } from '../Game';
-import type { Machine } from '../systems/Machines';
+import { BASE_RADIUS, type Machine } from '../systems/Machines';
 
 type C3 = readonly number[];
 const rgba = (c: C3, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
@@ -324,6 +324,22 @@ export class Renderer {
     }
     const def = MACHINE[b.key!];
     if (!def) return;
+    if (def.behavior === 'belt') {
+      // linha de esteiras: cada tile com a seta da direção
+      for (const [px, py, dir] of g.beltPath()) {
+        const ex = g.machines.at(px, py);
+        const ok = ex?.belt || !g.machines.canPlace(def, px, py);
+        ctx.globalAlpha = 0.65; this.drawBelt({ ...(ex ?? {}), def, dir, broken: false, belt: [], state: '', key: def.key } as any, px * TILE, py * TILE); ctx.globalAlpha = 1;
+        ctx.fillStyle = ok ? 'rgba(80,255,120,0.22)' : 'rgba(255,60,40,0.35)';
+        ctx.fillRect(px * TILE, py * TILE, TILE, TILE);
+        const [dx, dy] = DIRS[dir];
+        ctx.strokeStyle = '#ffd04a'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(px * TILE + 8 - dx * 4, py * TILE + 8 - dy * 4); ctx.lineTo(px * TILE + 8 + dx * 5, py * TILE + 8 + dy * 5); ctx.stroke();
+        ctx.fillStyle = '#ffd04a'; ctx.fillRect(px * TILE + 7 + dx * 5, py * TILE + 7 + dy * 5, 3, 3);
+      }
+      if (b.anchor) { ctx.strokeStyle = '#ffd04a'; ctx.strokeRect(b.anchor[0] * TILE + 0.5, b.anchor[1] * TILE + 0.5, TILE - 1, TILE - 1); }
+      return;
+    }
     const ox = tx - Math.floor((def.w - 1) / 2), oy = ty - Math.floor((def.h - 1) / 2);
     const err = g.machines.canPlace(def, ox, oy);
     const tooFar = Math.hypot((ox + def.w / 2) * TILE - g.player.x, (oy + def.h / 2) * TILE - g.player.y) > 260;
@@ -334,6 +350,10 @@ export class Renderer {
     ctx.globalAlpha = 1;
     ctx.fillStyle = err || tooFar ? 'rgba(255,60,40,0.28)' : afford ? 'rgba(80,255,120,0.22)' : 'rgba(255,200,40,0.25)';
     ctx.fillRect(ox * TILE, oy * TILE, def.w * TILE, def.h * TILE);
+    if (def.behavior === 'storage') {
+      const cmd = g.machines.list.find(m => m.def.behavior === 'command');
+      if (cmd) { const [cx, cy] = g.machines.centerPx(cmd); ctx.strokeStyle = 'rgba(255,200,80,0.45)'; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(cx, cy, BASE_RADIUS * TILE, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+    }
     if (def.radius) {
       ctx.strokeStyle = 'rgba(120,220,255,0.35)'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.arc((ox + def.w / 2) * TILE, (oy + def.h / 2) * TILE, def.radius * TILE, 0, Math.PI * 2); ctx.stroke();

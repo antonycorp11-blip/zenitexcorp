@@ -52,7 +52,7 @@ export class MobileControls {
     const isStick = (t: Touch) => t.identifier === this.leftId || (this.leftId === null && t.clientX < window.innerWidth * 0.3 && t.clientY > window.innerHeight * 0.45);
     const start = (e: TouchEvent) => {
       for (const t of Array.from(e.changedTouches)) {
-        if (input.placeMode && !isStick(t)) { movePlacement(t); continue; }
+        if (input.placeMode && !isStick(t)) { movePlacement(t); input.placeStart = true; continue; }
         const left = t.clientX < window.innerWidth * 0.45;
         if (left && this.leftId === null) { this.leftId = t.identifier; this.lc = { x: t.clientX, y: t.clientY }; this.show(this.lb, this.lk, t.clientX, t.clientY); }
         else if (!left && this.rightId === null) { this.rightId = t.identifier; this.rc = { x: t.clientX, y: t.clientY }; this.show(this.rb, this.rk, t.clientX, t.clientY); input.aimActive = true; input.primary = false; }

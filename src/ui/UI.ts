@@ -269,7 +269,12 @@ export class UI {
         const reason = g.machines.canPlace(def, ox, oy)
           || (Math.hypot((ox + def.w / 2) * TILE - p.x, (oy + def.h / 2) * TILE - p.y) > 260 ? 'Muito longe para construir' : '')
           || (missing.length ? `Faltam ${missing.join(', ')}` : '');
-        this.el.buildHint.innerHTML = g.input.touch
+        if (def.behavior === 'belt') {
+          const path = g.beltPath();
+          const n = path.filter(([px, py]) => !g.machines.at(px, py)?.belt).length;
+          const tot: Record<string, number> = {}; for (const k in def.cost) tot[k] = def.cost[k] * Math.max(1, n);
+          this.el.buildHint.innerHTML = `${esc(def.name)} · ${b.anchor ? `${n} tile(s) · ${costStr(g, tot)}` : g.input.touch ? 'toque no início e arraste até o fim' : 'clique no início e arraste até o fim'} · CONFIRMAR instala a linha`;
+        } else this.el.buildHint.innerHTML = g.input.touch
           ? `${esc(def.name)} · ${costStr(g, def.cost)}${reason ? `<small>${esc(reason)}</small>` : ''}`
           : `${esc(def.name)} · mova o mouse para posicionar · confirme para construir · custo: ${costStr(g, def.cost)}${reason ? `<small>${esc(reason)}</small>` : ''}`;
       }

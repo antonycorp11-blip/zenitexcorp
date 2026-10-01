@@ -9,6 +9,7 @@ import { type Bag, bagAdd, bagTotal } from './Inventory';
 import type { Game } from '../Game';
 
 export const LOT = 5;            // kg por lote em esteira
+export const BASE_RADIUS = 40;   // tiles: área da base onde armazéns podem ser construídos
 const BELT_GAP = 0.5;            // espaçamento mínimo entre lotes
 const OUT_CAP = 200;             // kg de saída acumulada antes de travar
 const DRILL_DEPTH_MULT = 20;     // cada célula perfurada representa uma coluna de material
@@ -73,6 +74,10 @@ export class Machines {
     }
     const sec = w.sectorAtTile(tx, ty);
     if (!sec) return 'Fora do planeta';
+    if (def.behavior === 'storage') {
+      const cmd = this.list.find(m => m.def.behavior === 'command');
+      if (cmd && Math.hypot(tx - (cmd.tx + 1), ty - (cmd.ty + 1)) > BASE_RADIUS) return `Armazéns só na base (até ${BASE_RADIUS} tiles do Centro de Comando)`;
+    }
     if (def.phase9 && !this.g.sectors.certified(sec)) return 'Setor ainda não certificado (fase 8)';
     if (def.sector12 && sec !== 12) return 'Apenas no Coração Planetário';
     if (def.unique) {

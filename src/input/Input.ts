@@ -14,7 +14,7 @@ export class Input {
   aimActive = false; aimX = 0; aimY = 0;
   uiCapture = false;               // mouse sobre UI
   placeMode = false;
-  placeX = 0; placeY = 0; placeDirty = false;
+  placeX = 0; placeY = 0; placeDirty = false; placeStart = false;
 
   constructor(private canvas: HTMLCanvasElement) {
     window.addEventListener('keydown', e => {

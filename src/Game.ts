@@ -73,7 +73,7 @@ export class Game {
   flags: Record<string, any> = { intro: true, tutorial: 0 };
   hover: Hover | null = null;
   hold: { t: number; dur: number; label: string; key: string; done: () => void } | null = null;
-  build = { active: false, key: null as string | null, dir: 0, deconstruct: false, tx: 0, ty: 0 };
+  build = { active: false, key: null as string | null, dir: 0, deconstruct: false, tx: 0, ty: 0, anchor: null as [number, number] | null, dragging: false };
   hotbar: HotSlot[] = [
     { type: 'tool', key: 'drill' }, { type: 'tool', key: 'scanner' }, { type: 'item', key: 'explosivo' }, { type: 'item', key: 'sinalizador' },
     { type: 'item', key: 'kit_reparo' }, { type: 'build', key: 'esteira' }, { type: 'build', key: 'perfuradora' }, { type: 'build', key: 'armazem' },
@@ -193,13 +193,18 @@ export class Game {
       inp.worldY = cam.top() + (inp.mouseY * dpr) / cam.zoom;
     }
     if (this.build.active && !this.build.deconstruct) {
+      const b = this.build, line = this.isLineBuild();
       if (inp.touch && inp.placeDirty) {
-        this.build.tx = Math.floor((cam.left() + inp.placeX * dpr / cam.zoom) / TILE);
-        this.build.ty = Math.floor((cam.top() + inp.placeY * dpr / cam.zoom) / TILE);
-        inp.placeDirty = false;
-      } else if (!inp.touch && inp.mouseMoved && !inp.uiCapture) {
-        this.build.tx = Math.floor(inp.worldX / TILE);
-        this.build.ty = Math.floor(inp.worldY / TILE);
+        const tx = Math.floor((cam.left() + inp.placeX * dpr / cam.zoom) / TILE);
+        const ty = Math.floor((cam.top() + inp.placeY * dpr / cam.zoom) / TILE);
+        // esteira: o toque inicial fixa o começo da linha; arrastar estende até o dedo
+        if (line && inp.placeStart) b.anchor = [tx, ty];
+        b.tx = tx; b.ty = ty;
+        inp.placeDirty = false; inp.placeStart = false;
+      } else if (!inp.touch && !inp.uiCapture) {
+        if (line && inp.clickPrimary()) { b.anchor = [Math.floor(inp.worldX / TILE), Math.floor(inp.worldY / TILE)]; b.dragging = true; }
+        if (b.dragging && !inp.primary) b.dragging = false;
+        if (inp.mouseMoved && (!line || !b.anchor || b.dragging)) { b.tx = Math.floor(inp.worldX / TILE); b.ty = Math.floor(inp.worldY / TILE); }
       }
     }
     if (inp.wheel && !inp.uiCapture && !inp.down('Control')) { cam.targetZoom = Math.max(1, Math.min(4, cam.targetZoom - inp.wheel * 0.25)); this.flags.userZoom = true; }
@@ -316,7 +321,7 @@ export class Game {
   canBuildKey(k: string) { const d = MACHINE[k]; return !!d && (!d.research || this.research.has(d.research)) && d.behavior !== 'command'; }
   startBuild(k: string) {
     const [tx, ty] = this.freeSpotFor(k);
-    this.build = { active: true, key: k, dir: this.build.dir, deconstruct: false, tx, ty };
+    this.build = { active: true, key: k, dir: this.build.dir, deconstruct: false, tx, ty, anchor: null, dragging: false };
     this.input.placeMode = true;
     this.input.placeDirty = false;
     this.input.mouseMoved = false;
@@ -341,7 +346,45 @@ export class Game {
   exitBuild() {
     // volta para o perfurador: senão o slot de construção continua ativo e nada minera
     if (this.hotbar[this.selected]?.type === 'build') this.selected = 0;
-    this.build.active = false; this.build.deconstruct = false; this.build.key = null; this.input.placeMode = false; }
+    this.build.active = false; this.build.deconstruct = false; this.build.key = null; this.build.anchor = null; this.build.dragging = false; this.input.placeMode = false; }
+  isLineBuild() { const d = this.build.key ? MACHINE[this.build.key] : null; return !!d && d.behavior === 'belt'; }
+
+  /** Linha de esteiras em L (horizontal, depois vertical), cada uma apontando para a próxima. */
+  beltPath(): [number, number, number][] {
+    const b = this.build;
+    if (!b.anchor) return [[b.tx, b.ty, b.dir]];
+    const [ax, ay] = b.anchor, ex = b.tx, ey = b.ty;
+    const pts: [number, number][] = [];
+    let x = ax, y = ay;
+    pts.push([x, y]);
+    while (x !== ex) { x += Math.sign(ex - x); pts.push([x, y]); }
+    while (y !== ey) { y += Math.sign(ey - y); pts.push([x, y]); }
+    if (pts.length > 120) pts.length = 120;
+    const dirOf = (dx: number, dy: number) => (dx > 0 ? 0 : dy > 0 ? 1 : dx < 0 ? 2 : 3);
+    return pts.map(([px, py], i) => {
+      if (pts.length === 1) return [px, py, b.dir];
+      const [nx, ny] = i < pts.length - 1 ? pts[i + 1] : [px * 2 - pts[i - 1][0], py * 2 - pts[i - 1][1]];
+      return [px, py, dirOf(nx - px, ny - py)];
+    });
+  }
+
+  private placeBeltLine() {
+    const def = MACHINE[this.build.key!];
+    let placed = 0, turned = 0, blocked = 0, poor = false;
+    for (const [tx, ty, dir] of this.beltPath()) {
+      const ex = this.machines.at(tx, ty);
+      if (ex?.belt) { if (ex.dir !== dir) { ex.dir = dir; turned++; } continue; } // reaproveita esteira existente
+      if (this.machines.canPlace(def, tx, ty)) { blocked++; continue; }
+      if (!this.stock.pay(def.cost, this.pack.items)) { poor = true; break; }
+      if (this.machines.place(def.key, tx, ty, dir)) { placed++; this.stats.built++; }
+    }
+    if (placed || turned) { this.audio.click(); this.toast(`${placed} esteira(s) instalada(s)${turned ? `, ${turned} girada(s)` : ''}`, '#9cff8a'); }
+    if (blocked) this.toast(`${blocked} trecho(s) obstruído(s) foram pulados`, '#ffd04a');
+    if (poor) { this.toast('Recursos acabaram no meio da linha', '#ff8a3a'); this.audio.error(); }
+    // continua no modo esteira, começando do fim da linha
+    this.build.anchor = null;
+  }
+
   confirmBuild() { if (this.build.active && !this.build.deconstruct && !this.ui.modalOpen()) this.buildAction(); }
 
   private buildAction() {
@@ -361,6 +404,7 @@ export class Game {
     }
     const def = MACHINE[this.build.key!];
     if (!def) return;
+    if (def.behavior === 'belt') { this.placeBeltLine(); return; }
     const ox = tx - Math.floor((def.w - 1) / 2), oy = ty - Math.floor((def.h - 1) / 2);
     const err = this.machines.canPlace(def, ox, oy);
     if (err) { this.toast(err, '#ff8a3a'); this.audio.error(); return; }

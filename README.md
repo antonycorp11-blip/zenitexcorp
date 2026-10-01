@@ -37,12 +37,17 @@ Modo de teste: `http://localhost:5280/?dev` (atalhos F2–F8) e `?dev&auto=new` 
 | Tab · B · U · K · G · Y · J · L · M | inventário/fabricação · construção · melhorias · pesquisa · setores · robôs · contratos · arquivo · mapa |
 | R · X · Q | girar · desmontar · sair do modo construção |
 | Construção | selecione a peça, mova a prévia com o mouse e clique em CONFIRMAR (ou Enter) |
+| Esteiras | clique no início e arraste até o fim (faz curva em L); CONFIRMAR instala a linha inteira |
 | Roda | zoom · Espaço pula fala · Esc menu |
 
 Mobile (paisagem): joystick esquerdo move, joystick direito mira e usa a ferramenta. Os botões à direita
 servem para interagir e escanear; o menu ☰ à esquerda abre construção, inventário, pesquisa, setores e os
 demais painéis. A barra rápida na parte inferior permite selecionar ferramentas e consumíveis.
 Para construir, selecione a peça, toque ou arraste a prévia até o local e aperte CONFIRMAR.
+Esteiras: toque no início, arraste até o fim e confirme — a linha inteira é instalada já apontando na direção certa.
+
+Logística: perfuradoras mineram sozinhas e despejam na esteira que sai delas; a esteira leva até um armazém
+(só na base, até 40 tiles do Centro de Comando) ou passa por separadores para bifurcar até refinarias e trituradores.
 
 ## Documentação
 
