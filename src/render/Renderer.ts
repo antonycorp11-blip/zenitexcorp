@@ -313,7 +313,8 @@ export class Renderer {
     const g = this.g, ctx = this.ctx;
     const b = g.build;
     if (!b.active) return;
-    const tx = Math.floor(g.input.worldX / TILE), ty = Math.floor(g.input.worldY / TILE);
+    const tx = b.deconstruct ? Math.floor(g.input.worldX / TILE) : b.tx;
+    const ty = b.deconstruct ? Math.floor(g.input.worldY / TILE) : b.ty;
     if (b.deconstruct) {
       const m = g.machines.at(tx, ty);
       ctx.strokeStyle = 'rgba(255,80,60,0.9)'; ctx.lineWidth = 1;
@@ -325,12 +326,13 @@ export class Renderer {
     if (!def) return;
     const ox = tx - Math.floor((def.w - 1) / 2), oy = ty - Math.floor((def.h - 1) / 2);
     const err = g.machines.canPlace(def, ox, oy);
+    const tooFar = Math.hypot((ox + def.w / 2) * TILE - g.player.x, (oy + def.h / 2) * TILE - g.player.y) > 260;
     const afford = g.stock.has(def.cost, g.pack.items);
     const { img, oy: ex } = g.sprites.machine(def, b.dir);
     ctx.globalAlpha = 0.6;
     ctx.drawImage(img, ox * TILE, oy * TILE - ex);
     ctx.globalAlpha = 1;
-    ctx.fillStyle = err ? 'rgba(255,60,40,0.28)' : afford ? 'rgba(80,255,120,0.22)' : 'rgba(255,200,40,0.25)';
+    ctx.fillStyle = err || tooFar ? 'rgba(255,60,40,0.28)' : afford ? 'rgba(80,255,120,0.22)' : 'rgba(255,200,40,0.25)';
     ctx.fillRect(ox * TILE, oy * TILE, def.w * TILE, def.h * TILE);
     if (def.radius) {
       ctx.strokeStyle = 'rgba(120,220,255,0.35)'; ctx.lineWidth = 1;

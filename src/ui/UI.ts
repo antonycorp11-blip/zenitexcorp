@@ -2,7 +2,7 @@ import { fmtInt, fmtShort, fmtMass } from '../core/math';
 import { TILE, WORLD_TILES, WORLD_PX } from '../core/constants';
 import { SECTORS, HAZARD_NAMES, type HazardKey } from '../data/sectors';
 import { SPEAKERS } from '../data/dialogue';
-import { ITEM, TOP_BAR_ITEMS } from '../data/items';
+import { ITEM, TOP_BAR_ITEMS, itemName } from '../data/items';
 import { SLOGANS } from '../data/slogans';
 import { MACHINE } from '../data/machines';
 import { PHASES } from '../systems/Sectors';
@@ -55,6 +55,14 @@ export class UI {
     this.root.addEventListener('mouseout', () => { g.input.uiCapture = false; });
     this.minimap.addEventListener('click', () => this.open('map'));
     this.el.objective.addEventListener('click', () => this.open('sectors'));
+    this.el.buildControls.querySelectorAll<HTMLButtonElement>('[data-build-action]').forEach(button => {
+      button.addEventListener('click', () => {
+        const action = button.dataset.buildAction;
+        if (action === 'confirm') g.confirmBuild();
+        else if (action === 'rotate') g.build.dir = (g.build.dir + 1) % 4;
+        else if (action === 'cancel') g.exitBuild();
+      });
+    });
   }
 
   private template() {
@@ -75,7 +83,7 @@ export class UI {
       <div class="side ui-block">${sideBtns.map(([id, ic, t]) => `<button class="sbtn" data-open="${id}" title="${t}"><span>${ic}</span><b class="badge" data-id="badge_${id}"></b></button>`).join('')}</div>
       <div class="ui-block panel res" data-id="res"></div>
       <div class="ui-block panel mm"><canvas data-id="minimap" width="240" height="170"></canvas><div class="mmcap"><span data-id="mmName"></span><span class="scale">50 m</span></div></div>
-      <div class="ui-block panel vitals"><div class="vb hp"><span>❤</span><div class="bar"><i data-id="hpBar"></i><em data-id="hpTxt"></em></div></div><div class="vb en"><span>⚡</span><div class="bar"><i data-id="enBar"></i><em data-id="enTxt"></em></div></div></div>
+      <div class="ui-block panel vitals"><div class="vb hp"><span>❤</span><div class="bar"><i data-id="hpBar"></i><em data-id="hpTxt"></em></div></div><div class="vb en"><span>⚡</span><div class="bar"><i data-id="enBar"></i><em data-id="enTxt"></em></div></div><div class="vb pack"><span title="Mochila">▣</span><div class="bar"><i data-id="packBar"></i><em data-id="packTxt"></em></div></div></div>
       <div class="ui-block panel env" data-id="env"></div>
       <div class="ui-block hotbar" data-id="hotbar"></div>
       <div class="ui-block panel objective" data-id="objective"></div>
@@ -87,6 +95,7 @@ export class UI {
       <div class="flashname" data-id="flashname"></div>
       <div class="sectortitle" data-id="sectortitle"></div>
       <div class="build-hint" data-id="buildHint"></div>
+      <div class="build-controls ui-block" data-id="buildControls"><button data-build-action="cancel">CANCELAR</button><button data-build-action="rotate">GIRAR</button><button class="confirm" data-build-action="confirm">CONFIRMAR</button></div>
       <div class="popups" data-id="popups"></div>
       <div class="saved" data-id="saved">✔ salvo</div>
       <div class="vignette" data-id="vignette"></div>
@@ -220,6 +229,9 @@ export class UI {
     this.el.hpTxt.textContent = `${Math.ceil(p.hp)}/${p.maxHp}`;
     (this.el.enBar as HTMLElement).style.width = (p.energy / p.maxEnergy) * 100 + '%';
     this.el.enTxt.textContent = `${Math.floor(p.energy)}/${p.maxEnergy}`;
+    const load = g.pack.weight(), capacity = g.pack.maxWeight();
+    (this.el.packBar as HTMLElement).style.width = Math.min(100, load / capacity * 100) + '%';
+    this.el.packTxt.textContent = `${fmtInt(load)}/${fmtInt(capacity)} kg`;
     // ambiente
     const t = g.hazards.tempC;
     const tox = g.hazards.levels.toxico ?? 0;
@@ -246,8 +258,22 @@ export class UI {
     // dica de construção
     const b = g.build;
     this.el.buildHint.style.display = b.active ? 'block' : 'none';
-    if (b.active) this.el.buildHint.innerHTML = b.deconstruct ? 'MODO DESMONTAR · clique: desmontar (75% de reembolso) · Q/botão direito: sair'
-      : `${esc(MACHINE[b.key!]?.name ?? '')} · clique: construir · R: girar · Q/botão direito: sair · custo: ${costStr(g, MACHINE[b.key!]?.cost ?? {})}`;
+    this.el.buildControls.style.display = b.active && !b.deconstruct ? 'flex' : 'none';
+    if (b.active) {
+      if (b.deconstruct) this.el.buildHint.textContent = 'MODO DESMONTAR · clique: desmontar (75% de reembolso) · Q/botão direito: sair';
+      else {
+        const def = MACHINE[b.key!];
+        const ox = b.tx - Math.floor((def.w - 1) / 2), oy = b.ty - Math.floor((def.h - 1) / 2);
+        const missing = Object.entries(def.cost).filter(([k, n]) => g.stock.count(k) + g.pack.count(k) < n)
+          .map(([k, n]) => `${fmtInt(n - g.stock.count(k) - g.pack.count(k))} ${itemName(k)}`);
+        const reason = g.machines.canPlace(def, ox, oy)
+          || (Math.hypot((ox + def.w / 2) * TILE - p.x, (oy + def.h / 2) * TILE - p.y) > 260 ? 'Muito longe para construir' : '')
+          || (missing.length ? `Faltam ${missing.join(', ')}` : '');
+        this.el.buildHint.innerHTML = g.input.touch
+          ? `${esc(def.name)} · ${costStr(g, def.cost)}${reason ? `<small>${esc(reason)}</small>` : ''}`
+          : `${esc(def.name)} · mova o mouse para posicionar · confirme para construir · custo: ${costStr(g, def.cost)}${reason ? `<small>${esc(reason)}</small>` : ''}`;
+      }
+    }
     // corp
     const ev = g.events.log[0];
     this.el.corp.style.display = !g.input.touch && ev && g.time - ev.t < 6 ? 'flex' : 'none';
@@ -280,6 +306,16 @@ export class UI {
       if (c) html += `<div class="oc">◆ ${esc(c.title)} <small>${fmtShort(c.progress)} / ${fmtShort(c.target)}</small></div>`;
     }
     this.el.objective.innerHTML = html;
+    if (g.input.touch) {
+      const pending = Array.from(this.el.objective.querySelectorAll<HTMLElement>('.oi:not(.ok)')).slice(0, 2);
+      const lines = pending.length ? pending : Array.from(this.el.objective.querySelectorAll<HTMLElement>('.oi')).slice(0, 1);
+      const label = (o: HTMLElement) => {
+        const small = o.querySelector('small')?.textContent?.trim();
+        const main = Array.from(o.childNodes).filter(n => n.nodeName !== 'SMALL').map(n => n.textContent).join('').trim();
+        return small ? `${main} (${small})` : main;
+      };
+      this.el.objective.innerHTML = `<div class="oh">◎ OBJETIVOS · TOQUE PARA VER TODOS</div>${lines.map(o => `<div class="oi">${esc(label(o))}</div>`).join('')}`;
+    }
   }
 
   private updateDialog() {

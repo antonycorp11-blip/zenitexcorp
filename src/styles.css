@@ -69,6 +69,8 @@ kbd { font-family: var(--mono); background: #12202c; border: 1px solid var(--lin
 .vb { display: flex; gap: 6px; align-items: center; margin: 3px 0; }
 .vb span { width: 20px; font-size: 18px; text-align: center; }
 .vb.hp span { color: #ff4a4a; } .vb.en span { color: #4ab4ff; }
+.vb.pack span { color: var(--or2); } .vb.pack .bar i { background: linear-gradient(90deg, #ad6615, #ffc85a); box-shadow: 0 0 8px #e8962a; }
+.vb.pack em { font-size: 15px; }
 .vb .bar { flex: 1; height: 16px; }
 .vb.hp .bar i { background: linear-gradient(90deg, #a01818, #ff3a3a); box-shadow: 0 0 8px #ff3a3a; }
 .vb em { position: absolute; right: 6px; top: -1px; font-style: normal; font-size: 13px; font-weight: 700; text-shadow: 0 1px 2px #000; }
@@ -116,7 +118,11 @@ kbd { font-family: var(--mono); background: #12202c; border: 1px solid var(--lin
 .sectortitle { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); text-align: center; opacity: 0; }
 .sectortitle.show { animation: ban 4.5s forwards; }
 .sectortitle .c { font-size: 15px; letter-spacing: 6px; color: #b9cad6; } .sectortitle .n { font-size: 40px; font-weight: 700; letter-spacing: 4px; text-shadow: 0 0 20px currentColor, 0 2px 4px #000; }
-.build-hint { position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%); background: var(--panel2); border: 1px solid var(--or); padding: 5px 12px; border-radius: 4px; font-size: 14px; display: none; white-space: nowrap; }
+.build-hint { position: absolute; bottom: 145px; left: 50%; transform: translateX(-50%); background: var(--panel2); border: 1px solid var(--or); padding: 5px 12px; border-radius: 4px; font-size: 14px; display: none; white-space: nowrap; max-width: 90vw; text-align: center; }
+.build-hint small { display: block; color: #ff8a3a; font-size: 12px; }
+.build-controls { position: absolute; bottom: 88px; left: 50%; transform: translateX(-50%); display: none; gap: 6px; pointer-events: auto; }
+.build-controls button { min-width: 85px; height: 42px; border-radius: 6px; border: 1px solid var(--line2); background: #10283b; color: #e8f4ff; font-size: 14px; font-weight: 700; touch-action: manipulation; }
+.build-controls button.confirm { background: #d98716; border-color: #ffc85a; color: #1a0e00; }
 .saved { position: absolute; right: 16px; top: 270px; color: var(--gr); font-size: 12px; opacity: 0; } .saved.show { animation: fn 2s; }
 .vignette { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 rgba(255,0,0,0); }
 .vignette.hit { animation: hit .5s; }
@@ -306,7 +312,9 @@ body.mobile-menu-open .hud { visibility: hidden; }
 .mobile-menu-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .mobile-menu-grid button { min-height: 42px; border: 1px solid var(--line2); border-radius: 6px; background: #11283a; color: #e8f4ff; font-size: 15px; text-align: left; padding: 7px 12px; touch-action: manipulation; }
 body.touch .hotbar { bottom: 8px; transform: translateX(-50%) scale(.82); transform-origin: bottom center; }
-body.touch .objective { display: none !important; }
+body.touch .objective { display: block; left: 50%; right: auto; top: 74px; bottom: auto; width: min(235px, 34vw); transform: translateX(-50%); padding: 4px 7px; opacity: .92; }
+body.touch .objective .oh { font-size: 10px; line-height: 1.1; }
+body.touch .objective .oi { font-size: 11px; line-height: 1.1; margin: 2px 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 body.touch .mm { display: block; right: max(6px, env(safe-area-inset-right)); top: 70px; width: 120px; padding: 3px; }
 body.touch .mm canvas { width: 112px; height: 79px; }
 body.touch .mmcap { font-size: 9px; padding-top: 2px; }
@@ -317,6 +325,8 @@ body.touch .side { display: none; }
 body.touch .vitals { bottom: auto; top: 170px; left: 62px; width: 180px; }
 body.touch .env { display: none; }
 .hud.collapsed .mm, .hud.collapsed .quote, .hud.collapsed .depth, .hud.collapsed .side, .hud.collapsed .objective, .hud.collapsed .res, .hud.collapsed .env { display: none; }
+body.touch .hud.collapsed .mm { display: block; }
+body.touch .hud.collapsed .objective { display: block; }
 @media (max-height: 800px) { .side { transform: scale(.86); transform-origin: top left; } }
 @media (max-width: 1250px) { .hotbar { transform: translateX(-50%) scale(.86); transform-origin: bottom center; } }
 @media (max-width: 1100px) {
@@ -338,11 +348,11 @@ body.touch .env { display: none; }
 /* ---------- layout compacto para celulares em modo paisagem ---------- */
 @media (max-height: 520px) {
   body.touch .mass { transform: scale(.6); transform-origin: top left; left: 8px; top: 6px; }
-  body.touch .depth, body.touch .quote, body.touch .mm, body.touch .corp { display: none; }
+  body.touch .depth, body.touch .quote, body.touch .corp { display: none; }
   body.touch .res { transform: scale(.58); transform-origin: top right; right: 6px; top: 6px; }
   body.touch .mm { top: 52px; }
   body.touch .res .ri:nth-child(n+4):not(.cr) { display: none; }
-  body.touch .vitals { top: 88px; left: 8px; bottom: auto; width: 180px; transform: scale(.72); transform-origin: top left; }
+  body.touch .vitals { top: 88px; left: 62px; bottom: auto; width: 180px; transform: scale(.72); transform-origin: top left; }
   body.touch .env { display: none; }
   body.touch .hotbar { bottom: 4px; left: 50%; transform: translateX(-50%) scale(.52); }
   body.touch .hotbar .hs em { display: none; }
@@ -351,7 +361,9 @@ body.touch .env { display: none; }
   body.touch .banner .t { font-size: 20px; } body.touch .banner .s { font-size: 13px; }
   body.touch .sectortitle .n { font-size: 24px; } body.touch .flashname { font-size: 22px; }
   body.touch .popups { transform: scale(.6); transform-origin: top right; top: 50px; }
-  body.touch .build-hint { bottom: 46px; font-size: 11px; white-space: normal; max-width: 60vw; }
+  body.touch .build-hint { bottom: 92px; font-size: 10px; padding: 3px 8px; white-space: normal; max-width: 52vw; opacity: .9; }
+  body.touch .build-controls { bottom: 53px; }
+  body.touch .build-controls button { min-width: 70px; height: 36px; font-size: 11px; }
   .mobile-menu-toggle { top: 150px; width: 46px; height: 46px; }
   .mobile-actions button { width: 64px; height: 48px; }
   #mobile .left .base, #mobile .left .knob { left: 80px; top: calc(100% - 90px); }

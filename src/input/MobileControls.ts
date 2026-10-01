@@ -47,7 +47,9 @@ export class MobileControls {
       closeMenu(); onButton(b.dataset.b!);
     }));
     const canvas = document.getElementById('game')!;
+    const movePlacement = (t: Touch) => { input.placeX = t.clientX; input.placeY = t.clientY; input.placeDirty = true; };
     const start = (e: TouchEvent) => {
+      if (input.placeMode) { for (const t of Array.from(e.changedTouches)) movePlacement(t); e.preventDefault(); return; }
       for (const t of Array.from(e.changedTouches)) {
         const left = t.clientX < window.innerWidth * 0.45;
         if (left && this.leftId === null) { this.leftId = t.identifier; this.lc = { x: t.clientX, y: t.clientY }; this.show(this.lb, this.lk, t.clientX, t.clientY); }
@@ -56,6 +58,7 @@ export class MobileControls {
       e.preventDefault();
     };
     const move = (e: TouchEvent) => {
+      if (input.placeMode) { for (const t of Array.from(e.changedTouches)) movePlacement(t); e.preventDefault(); return; }
       for (const t of Array.from(e.changedTouches)) {
         if (t.identifier === this.leftId) {
           const [x, y] = this.clamp(t.clientX - this.lc.x, t.clientY - this.lc.y);

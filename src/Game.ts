@@ -73,7 +73,7 @@ export class Game {
   flags: Record<string, any> = { intro: true, tutorial: 0 };
   hover: Hover | null = null;
   hold: { t: number; dur: number; label: string; key: string; done: () => void } | null = null;
-  build = { active: false, key: null as string | null, dir: 0, deconstruct: false };
+  build = { active: false, key: null as string | null, dir: 0, deconstruct: false, tx: 0, ty: 0 };
   hotbar: HotSlot[] = [
     { type: 'tool', key: 'drill' }, { type: 'tool', key: 'scanner' }, { type: 'item', key: 'explosivo' }, { type: 'item', key: 'sinalizador' },
     { type: 'item', key: 'kit_reparo' }, { type: 'build', key: 'esteira' }, { type: 'build', key: 'perfuradora' }, { type: 'build', key: 'armazem' },
@@ -192,6 +192,16 @@ export class Game {
       inp.worldX = cam.left() + (inp.mouseX * dpr) / cam.zoom;
       inp.worldY = cam.top() + (inp.mouseY * dpr) / cam.zoom;
     }
+    if (this.build.active && !this.build.deconstruct) {
+      if (inp.touch && inp.placeDirty) {
+        this.build.tx = Math.floor((cam.left() + inp.placeX * dpr / cam.zoom) / TILE);
+        this.build.ty = Math.floor((cam.top() + inp.placeY * dpr / cam.zoom) / TILE);
+        inp.placeDirty = false;
+      } else if (!inp.touch && inp.mouseMoved && !inp.uiCapture) {
+        this.build.tx = Math.floor(inp.worldX / TILE);
+        this.build.ty = Math.floor(inp.worldY / TILE);
+      }
+    }
     if (inp.wheel && !inp.uiCapture && !inp.down('Control')) { cam.targetZoom = Math.max(1, Math.min(4, cam.targetZoom - inp.wheel * 0.25)); this.flags.userZoom = true; }
 
     if (!this.flags.intro && !this.flags.ending) this.controls(dt);
@@ -263,7 +273,7 @@ export class Game {
     if (inp.pressed('u')) ui.open('upgrades');
     if (inp.pressed('h') || inp.pressed('F1')) ui.open('help');
     if (inp.pressed('f')) this.scanner.pulse();
-    if (inp.pressed('x')) { this.build.active = true; this.build.deconstruct = true; this.build.key = null; }
+    if (inp.pressed('x')) { this.exitBuild(); this.build.active = true; this.build.deconstruct = true; }
     if (inp.pressed('r')) this.build.dir = (this.build.dir + 1) % 4;
     if (inp.pressed('q') && this.build.active) this.exitBuild();
     if (inp.pressed(' ')) this.dialogue.skip();
@@ -271,7 +281,8 @@ export class Game {
     // construção
     if (this.build.active) {
       if (inp.clickSecondary()) this.exitBuild();
-      else if (inp.primary && !inp.uiCapture) this.buildAction();
+      else if (this.build.deconstruct && inp.clickPrimary() && !inp.uiCapture) this.buildAction();
+      else if (!this.build.deconstruct && inp.pressed('Enter')) this.confirmBuild();
       this.hover = null; this.hold = null;
       return;
     }
@@ -298,18 +309,25 @@ export class Game {
   selectSlot(i: number) {
     this.selected = i;
     const s = this.hotbar[i];
-    if (s?.type === 'build') { if (this.canBuildKey(s.key)) { this.build = { active: true, key: s.key, dir: this.build.dir, deconstruct: false }; } else this.toast('Ainda não desbloqueado', '#ff8a3a'); }
+    if (s?.type === 'build') { if (this.canBuildKey(s.key)) this.startBuild(s.key); else this.toast('Ainda não desbloqueado', '#ff8a3a'); }
     else this.exitBuild();
     this.audio.click();
   }
   canBuildKey(k: string) { const d = MACHINE[k]; return !!d && (!d.research || this.research.has(d.research)) && d.behavior !== 'command'; }
-  startBuild(k: string) { this.build = { active: true, key: k, dir: this.build.dir, deconstruct: false }; }
-  exitBuild() { this.build.active = false; this.build.deconstruct = false; this.build.key = null; }
+  startBuild(k: string) {
+    this.build = { active: true, key: k, dir: this.build.dir, deconstruct: false,
+      tx: Math.floor(this.player.x / TILE) + 3, ty: Math.floor(this.player.y / TILE) };
+    this.input.placeMode = true;
+    this.input.placeDirty = false;
+    this.input.mouseMoved = false;
+  }
+  exitBuild() { this.build.active = false; this.build.deconstruct = false; this.build.key = null; this.input.placeMode = false; }
+  confirmBuild() { if (this.build.active && !this.build.deconstruct && !this.ui.modalOpen()) this.buildAction(); }
 
-  private buildCool = 0;
   private buildAction() {
     const inp = this.input;
-    const tx = Math.floor(inp.worldX / TILE), ty = Math.floor(inp.worldY / TILE);
+    const tx = this.build.deconstruct ? Math.floor(inp.worldX / TILE) : this.build.tx;
+    const ty = this.build.deconstruct ? Math.floor(inp.worldY / TILE) : this.build.ty;
     if (this.build.deconstruct) {
       if (!inp.clickPrimary()) return;
       const m = this.machines.at(tx, ty) ?? this.machines.list.find(x => x.def.behavior === 'platform' && x.tx === tx && x.ty === ty);
@@ -323,14 +341,11 @@ export class Game {
     }
     const def = MACHINE[this.build.key!];
     if (!def) return;
-    const isBelt = def.behavior === 'belt' || def.behavior === 'platform' || def.behavior === 'support' || def.behavior === 'lamp';
-    if (!isBelt && !inp.clickPrimary()) return;
-    if (isBelt && this.time < this.buildCool) return;
     const ox = tx - Math.floor((def.w - 1) / 2), oy = ty - Math.floor((def.h - 1) / 2);
     const err = this.machines.canPlace(def, ox, oy);
-    if (err) { if (inp.clickPrimary()) { this.toast(err, '#ff8a3a'); this.audio.error(); } return; }
-    if (Math.hypot((ox + def.w / 2) * TILE - this.player.x, (oy + def.h / 2) * TILE - this.player.y) > 260) { if (inp.clickPrimary()) this.toast('Muito longe para construir', '#ff8a3a'); return; }
-    if (!this.stock.pay(def.cost, this.pack.items)) { if (inp.clickPrimary()) { this.toast('Recursos insuficientes (Estoque Central + mochila)', '#ff8a3a'); this.audio.error(); } return; }
+    if (err) { this.toast(err, '#ff8a3a'); this.audio.error(); return; }
+    if (Math.hypot((ox + def.w / 2) * TILE - this.player.x, (oy + def.h / 2) * TILE - this.player.y) > 260) { this.toast('Muito longe para construir', '#ff8a3a'); this.audio.error(); return; }
+    if (!this.stock.pay(def.cost, this.pack.items)) { this.toast('Recursos insuficientes (Estoque Central + mochila)', '#ff8a3a'); this.audio.error(); return; }
     const m = this.machines.place(def.key, ox, oy, this.build.dir);
     if (m) {
       this.stats.built++;
@@ -343,7 +358,7 @@ export class Game {
         if (def.behavior === 'complex') this.say('complex_built');
         if (def.behavior === 'lab') this.say('t_lab');
       }
-      this.buildCool = this.time + 0.06;
+      this.exitBuild();
     }
   }
 

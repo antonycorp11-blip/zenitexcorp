@@ -219,7 +219,7 @@ export class Panels {
   r_build() {
     const g = this.g;
     const cat = this.st.buildCat as MachineCat;
-    let h = this.tabs('buildCat', MACHINE_CATS) + `<p class="muted">Clique para construir. 📌 fixa no slot selecionado da barra (${(g.selected + 1) % 10}). <b>X</b> = desmontar. Custos são pagos do Estoque Central + mochila.</p>`;
+    let h = this.tabs('buildCat', MACHINE_CATS) + `<p class="muted">Selecione a peça, posicione a prévia no mapa e aperte CONFIRMAR. 📌 fixa no slot selecionado da barra (${(g.selected + 1) % 10}). <b>X</b> = desmontar. Custos são pagos do Estoque Central + mochila.</p>`;
     h += `<div class="cards scroll tall">${MACHINES.filter(m => m.cat === cat && m.behavior !== 'command').map(d => {
       const locked = d.research && !g.research.has(d.research);
       const req = locked ? `🔒 Pesquisa: ${esc(RESEARCH.find(r => r.key === d.research)?.name ?? d.research!)}` : d.phase9 ? '◈ Exige setor certificado' : d.sector12 ? '◈ Apenas no Coração' : '';
@@ -227,7 +227,7 @@ export class Panels {
       return `<div class="card ${locked ? 'locked' : afford ? '' : 'poor'}">
         <div class="ch"><img src="${g.sprites.machineUrl(d)}"><div><b>${esc(d.name)}</b><small>${d.w}×${d.h} · ${d.power > 0 ? `<span class="gen">+${fmtShort(d.power)} kW</span>` : d.power < 0 ? `${fmtShort(-d.power)} kW` : 'sem energia'}${d.heat ? ` · 🔥${d.heat}` : ''}${d.capacity ? ` · ${fmtShort(d.capacity)} ${d.behavior === 'storage' ? 'kg' : 'kg/min'}` : ''}</small></div></div>
         <p>${esc(d.desc)}</p><div class="cost">${costStr(g, d.cost)}</div>${req ? `<div class="req">${req}</div>` : ''}
-        <div class="row">${locked ? '' : `<button class="btn" data-act="build" data-arg="${d.key}">CONSTRUIR</button><button class="btn ghost" data-act="pin" data-arg="${d.key}">📌</button>`}<span class="count">${g.machines.count(d.key) ? `Ativas: ${g.machines.count(d.key)}` : ''}</span></div></div>`;
+        <div class="row">${locked ? '' : `<button class="btn" data-act="build" data-arg="${d.key}">POSICIONAR</button><button class="btn ghost" data-act="pin" data-arg="${d.key}">📌</button>`}<span class="count">${g.machines.count(d.key) ? `Ativas: ${g.machines.count(d.key)}` : ''}</span></div></div>`;
     }).join('')}</div>`;
     return h;
   }

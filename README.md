@@ -36,11 +36,13 @@ Modo de teste: `http://localhost:5280/?dev` (atalhos F2–F8) e `?dev&auto=new` 
 | E (segurar) | interagir, reparar, catalogar, resgatar |
 | Tab · B · U · K · G · Y · J · L · M | inventário/fabricação · construção · melhorias · pesquisa · setores · robôs · contratos · arquivo · mapa |
 | R · X · Q | girar · desmontar · sair do modo construção |
+| Construção | selecione a peça, mova a prévia com o mouse e clique em CONFIRMAR (ou Enter) |
 | Roda | zoom · Espaço pula fala · Esc menu |
 
 Mobile (paisagem): joystick esquerdo move, joystick direito mira e usa a ferramenta. Os botões à direita
 servem para interagir e escanear; o menu ☰ à esquerda abre construção, inventário, pesquisa, setores e os
 demais painéis. A barra rápida na parte inferior permite selecionar ferramentas e consumíveis.
+Para construir, selecione a peça, toque ou arraste a prévia até o local e aperte CONFIRMAR.
 
 ## Documentação
 
