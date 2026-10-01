@@ -74,7 +74,7 @@ kbd { font-family: var(--mono); background: #12202c; border: 1px solid var(--lin
 .vb .bar { flex: 1; height: 16px; }
 .vb.hp .bar i { background: linear-gradient(90deg, #a01818, #ff3a3a); box-shadow: 0 0 8px #ff3a3a; }
 .vb em { position: absolute; right: 6px; top: -1px; font-style: normal; font-size: 13px; font-weight: 700; text-shadow: 0 1px 2px #000; }
-.env { left: 12px; bottom: 78px; width: 220px; padding: 5px 10px; display: flex; gap: 10px; justify-content: space-between; }
+.env { left: 12px; bottom: 102px; width: 220px; padding: 5px 10px; display: flex; gap: 10px; justify-content: space-between; }
 .ev { display: flex; gap: 8px; align-items: center; } .ev small { display: block; font-size: 10px; color: var(--mut); } .ev b { font-size: 14px; }
 .evi { font-size: 18px; width: 22px; text-align: center; }
 
@@ -373,4 +373,40 @@ body.touch .hud.collapsed .objective { display: block; }
   body.touch .modal-layer.show { background: #05080e; }
   body.touch .pnl { background: #0c1622; }
   .cards { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+}
+
+/* ---------- tutorial guiado ---------- */
+.tut-box { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); width: min(480px, 92vw); z-index: 60; pointer-events: auto;
+  background: rgba(8, 18, 30, .96); border: 2px solid var(--or2); border-radius: 8px; padding: 8px 12px; box-shadow: 0 0 24px rgba(255,184,74,.35); display: none; }
+.tut-box.over-panel { bottom: auto; top: 6px; }
+.tut-h { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.tut-h span { font-size: 11px; color: var(--or2); letter-spacing: 1px; }
+.tut-h b { flex: 1; font-size: 15px; }
+.tut-h button { background: none; border: 1px solid var(--line2); color: var(--mut); border-radius: 4px; padding: 2px 8px; font-size: 12px; cursor: pointer; }
+.tut-t { font-size: 14px; line-height: 1.3; } .tut-t b { color: var(--or2); }
+.tut-ok { margin-top: 6px; }
+.tut-ring { position: fixed; z-index: 70; pointer-events: none; display: none; border: 3px solid var(--or2); border-radius: 10px;
+  box-shadow: 0 0 0 4px rgba(255,184,74,.25), 0 0 24px var(--or2); animation: tutp 1s ease-in-out infinite; }
+.tut-arrow { position: fixed; z-index: 70; pointer-events: none; display: none; color: var(--or2); font-size: 34px; text-shadow: 0 0 12px var(--or2), 0 2px 3px #000; animation: tutb .8s ease-in-out infinite alternate; }
+@keyframes tutp { 50% { transform: scale(1.06); box-shadow: 0 0 0 7px rgba(255,184,74,.12), 0 0 34px var(--or2); } }
+@keyframes tutb { to { margin-top: -8px; } }
+body.touch.tut-on .objective { display: none !important; }
+
+/* ---------- rolagem dos painéis ---------- */
+.cols > .col { overflow-y: auto; scrollbar-width: thin; }
+.tabs { scrollbar-width: none; }
+@media (max-height: 560px), (max-width: 900px) {
+  .pnl-b { overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; display: block; }
+  .tabs { flex-wrap: nowrap; overflow-x: auto; touch-action: pan-x; padding-bottom: 2px; }
+  .tabs button { flex: none; }
+  .cols { flex-direction: column; flex: none; }
+  .cols > .col, .col.list, .col.wide { flex: none; overflow: visible; max-height: none; }
+  .tall { max-height: none; flex: none; }
+  .col.list.scroll { max-height: 40vh; overflow-y: auto; }
+  .tree { flex-wrap: nowrap; overflow-x: auto; touch-action: pan-x; }
+  .tut-box { bottom: 54px; width: min(420px, 60vw); padding: 6px 10px; }
+  .tut-box.over-panel { top: auto; bottom: 4px; left: auto; right: 4px; transform: none; width: min(360px, 48vw); opacity: .95; }
+  .pnl-b .cols > .col.tree { display: flex; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; overflow-y: visible; align-items: flex-start; }
+  .pnl-b .tcol { flex: none; }
+  .tut-t { font-size: 12px; } .tut-h b { font-size: 13px; }
 }

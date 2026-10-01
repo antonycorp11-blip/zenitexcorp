@@ -13,6 +13,7 @@ import { Panels, type PanelId } from './Panels';
 import { Minigames } from './Minigames';
 import { Cinematics } from './Cinematics';
 import { esc, h } from './dom';
+import { Tutorial } from './Tutorial';
 
 const PCT = (f: number) => {
   const p = f * 100;
@@ -25,6 +26,7 @@ export class UI {
   panels: Panels;
   mini: Minigames;
   cine: Cinematics;
+  tutorial: Tutorial;
   private el: Record<string, HTMLElement> = {};
   private minimap: HTMLCanvasElement;
   private mctx: CanvasRenderingContext2D;
@@ -43,6 +45,7 @@ export class UI {
     this.panels = new Panels(g, this);
     this.mini = new Minigames(g, this);
     this.cine = new Cinematics(g, this);
+    this.tutorial = new Tutorial(g, this.el.hud);
     // botões laterais
     this.root.querySelectorAll<HTMLElement>('[data-open]').forEach(b => b.addEventListener('click', () => { g.audio.click(); this.open(b.dataset.open as PanelId); }));
     // hotbar
@@ -183,6 +186,7 @@ export class UI {
     this.hudT -= dt;
     this.updateDialog();
     this.updateHold();
+    this.tutorial.update();
     this.el.hud.classList.toggle('hidden', g.flags.intro || g.flags.ending);
     if (this.hudT > 0) return;
     this.hudT = 0.15;

@@ -136,6 +136,7 @@ export class Panels {
     resume: () => this.ui.toggleMenu(),
     settings: () => { this.id = 'settings'; this.render(); },
     help: () => { this.id = 'help'; this.render(); },
+    tutorial: () => { this.ui.tutorial.restart(); this.close(); if (this.ui.menuOpen) this.ui.toggleMenu(); },
     newgame: () => { if (confirm('Iniciar um novo contrato? O progresso atual será perdido.')) (window as any).zenitexNewGame(); },
     quit: () => { this.g.save().then(() => location.reload()); },
     collapse: () => this.ui.toggleCollapse(),
@@ -529,7 +530,7 @@ export class Panels {
       <h3>INTERFACE</h3><button class="btn ghost" data-act="collapse">Recolher/expandir HUD</button><button class="btn" data-act="resume">VOLTAR</button></div>`;
   }
   r_help() {
-    return `<div class="help scroll tall"><div class="cols"><div class="col"><h3>CONTROLES (PC)</h3><table>
+    return `<div class="help scroll tall"><button class="btn orange" data-act="tutorial">▶ REFAZER O TUTORIAL GUIADO</button><div class="cols"><div class="col"><h3>CONTROLES (PC)</h3><table>
       ${[['WASD', 'Mover (Shift: correr)'], ['Mouse', 'Mirar'], ['Botão esquerdo', 'Usar ferramenta (minerar / item)'], ['Botão direito', 'Scanner rápido · cancelar construção'], ['1–0 / Ctrl+roda', 'Barra rápida'], ['E (segurar)', 'Interagir · reparar · catalogar'], ['F', 'Pulso de scanner'], ['Tab', 'Inventário e fabricação'], ['B', 'Construção'], ['R', 'Girar construção'], ['X', 'Desmontar'], ['U', 'Melhorias'], ['K', 'Pesquisa'], ['G', 'Setores'], ['Y', 'Robôs'], ['J', 'Contratos'], ['L', 'Arquivo de Khelos'], ['M', 'Mapa / visão orbital'], ['Roda', 'Zoom'], ['Espaço', 'Pular fala'], ['Esc', 'Menu']].map(([a, b]) => `<tr><td><kbd>${a}</kbd></td><td>${b}</td></tr>`).join('')}</table>
       <h3>MOBILE</h3><p>Joystick esquerdo move. Joystick direito mira e usa a ferramenta. Botões grandes: interagir, scanner, ferramenta, construção, inventário, mapa, recolher HUD.</p></div>
       <div class="col wide"><h3>COMO A ZENITEX FUNCIONA</h3>
