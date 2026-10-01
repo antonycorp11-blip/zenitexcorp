@@ -1,0 +1,120 @@
+import './styles.css';
+import { Game, type GameOptions } from './Game';
+import { UI } from './ui/UI';
+import type { PanelId } from './ui/Panels';
+import { MobileControls } from './input/MobileControls';
+import { loadSlot, deleteSlot } from './systems/Save';
+import { RESEARCH_BY_KEY } from './data/research';
+import { ITEMS } from './data/items';
+import { PLANET_MASS_T } from './core/constants';
+
+const canvas = document.getElementById('game') as HTMLCanvasElement;
+const DEV = new URLSearchParams(location.search).has('dev');
+const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window || (DEV && new URLSearchParams(location.search).has('touch'));
+
+async function boot() {
+  const save = await loadSlot('slot1');
+  let pendingNG: GameOptions | null = null;
+  try { const s = localStorage.getItem('zx_ng'); if (s) pendingNG = JSON.parse(s); } catch { /* */ }
+  const title = document.getElementById('title')!;
+  if (pendingNG) { localStorage.removeItem('zx_ng'); title.remove(); start(pendingNG, null); return; }
+  const cont = title.querySelector<HTMLButtonElement>('[data-t="cont"]')!;
+  if (save) {
+    const f = (save.planet ? (save.planet.terrain + save.planet.crust.reduce((a: number, b: number) => a + b, 0) + save.planet.mantle.reduce((a: number, b: number) => a + b, 0)) / (save.planet.total ?? PLANET_MASS_T) : 0) * 100;
+    cont.innerHTML = `CONTINUAR CONTRATO <small>${f.toFixed(5).replace('.', ',')}% extraído</small>`;
+  } else cont.style.display = 'none';
+  cont.onclick = () => { title.remove(); start(save.opts, save); };
+  const auto = new URLSearchParams(location.search).get('auto');
+  if (DEV && auto !== null) { title.remove(); if (save && auto !== 'new') start(save.opts, save); else { await deleteSlot('slot1'); start({ seed: Number(auto) || 12345, contract: 1, massMult: 1 }, null); } return; }
+  title.querySelector<HTMLButtonElement>('[data-t="new"]')!.onclick = async () => {
+    if (save && !confirm('Já existe um contrato em andamento. Começar outro descarta o atual. Continuar?')) return;
+    await deleteSlot('slot1');
+    title.remove();
+    start({ seed: (Math.random() * 1e9) | 0, contract: 1, massMult: 1 }, null);
+  };
+}
+
+function start(opts: GameOptions, save: any) {
+  const g = new Game(canvas, opts);
+  g.ui = new UI(g);
+  (window as any).game = g;
+  try { const v = localStorage.getItem('zx_vol'); if (v) Object.assign(g.audio.volume, JSON.parse(v)); } catch { /* */ }
+  g.audio.init();
+  g.renderer.resize();
+  window.addEventListener('resize', () => g.renderer.resize());
+  if (isTouch) {
+    g.input.touch = true;
+    document.body.classList.add('touch');
+    new MobileControls(g.input, b => {
+      g.audio.init();
+      if (b === 'interact') { if (g.hover) { g.input.press('e'); g.input.keys.add('e'); setTimeout(() => g.input.keys.delete('e'), (g.hover.kind === 'machine' && (g.hover.ref as any).broken) || g.hover.kind === 'artifact' || g.hover.kind === 'anomaly' ? 2800 : 100); } }
+      if (b === 'scan') g.scanner.pulse();
+      if (b === 'tool2') g.selectSlot(g.selected === 0 ? 1 : 0);
+      const panel = ({ inv: 'inventory', build: 'build', upgrades: 'upgrades', research: 'research', sectors: 'sectors', robots: 'robots', contracts: 'contracts', archive: 'archive', map: 'map', help: 'help' } as Record<string, PanelId>)[b];
+      if (panel) g.ui.open(panel);
+      if (b === 'hud') g.ui.toggleCollapse();
+    });
+  }
+  if (save) {
+    g.load(save);
+    g.flags.intro = false;
+    g.dialogue.line('zena', 'Bem-vindo de volta. O planeta esperou por você. Ele não tinha escolha.');
+  } else {
+    g.setupNew();
+    if (opts.contract > 1) g.dialogue.line('varren', `Contrato 7-K${36 + opts.contract}. Planeta maior. Mesma missão. Suas tecnologias corporativas foram transferidas — o resto foi "reciclado".`);
+    const afterIntro = () => {
+      g.flags.intro = false;
+      g.ui.flashMass();
+      g.ui.sectorTitle(1);
+      g.dialogue.sayAll('t_start');
+    };
+    if (DEV && new URLSearchParams(location.search).has('auto')) afterIntro(); else g.ui.cine.intro(afterIntro);
+  }
+  canvas.addEventListener('mousedown', () => g.audio.init());
+  document.addEventListener('visibilitychange', () => { if (document.hidden && !g.flags.intro) g.save(); });
+  window.addEventListener('beforeunload', () => { if (!g.flags.intro) g.save(); });
+
+  (window as any).zenitexNewGame = async () => { await deleteSlot('slot1'); location.reload(); };
+  (window as any).zenitexNewGamePlus = async () => {
+    const keep = [...g.research.done].filter(k => RESEARCH_BY_KEY[k]?.corporate);
+    const ng: GameOptions = { seed: (Math.random() * 1e9) | 0, contract: opts.contract + 1, massMult: opts.massMult * 1.5, keepResearch: keep };
+    localStorage.setItem('zx_ng', JSON.stringify(ng));
+    await deleteSlot('slot1');
+    location.reload();
+  };
+
+  if (DEV) devTools(g);
+
+  let last = performance.now();
+  const frame = (now: number) => {
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    g.update(dt);
+    g.renderer.draw(dt);
+    g.ui.update(dt);
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
+
+/** Ferramentas de teste: ?dev na URL. */
+function devTools(g: Game) {
+  (window as any).step = (n: number, fn?: (i: number) => void) => {
+    for (let i = 0; i < n; i++) { fn?.(i); g.update(1 / 60); }
+    g.renderer.draw(1 / 60); g.ui.update(1);
+    return [g.time.toFixed(1), g.player.x | 0, g.player.y | 0];
+  };
+  g.toast('MODO DEV: F2 recursos · F3 +massa · F4 avança fase · F5 invencível · F6 revela mapa · F7 pesquisa tudo · F8 drill máx', '#ff8aff');
+  window.addEventListener('keydown', e => {
+    if (e.key === 'F2') { for (const i of ITEMS) g.stock.add(i.key, 500, false); g.stock.credits += 1e6; g.toast('+recursos', '#ff8aff'); }
+    if (e.key === 'F3') { const s = g.world.sectorAtPx(g.player.x, g.player.y) || 1; g.planet.cannonHit(s, g.planet.total * 0.05); }
+    if (e.key === 'F4') { const s = g.sectors.focus(); g.sectors.advance(s); if (g.sectors.s[s].phase === 7) g.sectors.s[s].auditPassed = true; }
+    if (e.key === 'F5') { g.flags.godMode = !g.flags.godMode; g.toast('god ' + g.flags.godMode, '#ff8aff'); }
+    if (e.key === 'F6') { g.world.explored.fill(1); }
+    if (e.key === 'F7') { for (const k of Object.keys(RESEARCH_BY_KEY)) g.research.grant(k); }
+    if (e.key === 'F8') { g.player.drillLevel = 5; g.player.scannerLevel = 3; g.pack.level = 4; for (const k of ['termico', 'crio', 'filtro', 'blindagem', 'gravidade', 'pressao', 'sintonia']) g.player.suit[k] = 3; }
+    if (e.key.startsWith('F') && e.key.length <= 3 && Number(e.key.slice(1)) >= 2 && Number(e.key.slice(1)) <= 8) e.preventDefault();
+  });
+}
+
+boot();

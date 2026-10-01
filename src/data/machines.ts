@@ -1,0 +1,126 @@
+import type { HazardKey } from './sectors';
+
+export type MachineCat = 'logistica' | 'extracao' | 'processamento' | 'energia' | 'base' | 'estabilizacao' | 'mega';
+export type Behavior =
+  | 'belt' | 'splitter' | 'storage' | 'link' | 'lift' | 'terminal' | 'launchpad'
+  | 'drill' | 'pump' | 'complex' | 'tectonic' | 'mantle' | 'cannon' | 'cutter' | 'collector' | 'orbital'
+  | 'crusher' | 'purifier' | 'refinery' | 'foundry' | 'synth'
+  | 'generator' | 'reactor'
+  | 'command' | 'workshop' | 'lab' | 'robotics' | 'archaeo' | 'logcenter'
+  | 'field' | 'lamp' | 'support' | 'platform' | 'surge';
+export type Look = 'belt' | 'splitter' | 'crate' | 'silo' | 'lift' | 'terminal' | 'pad' | 'drill' | 'pump' | 'complex' | 'mega' | 'cannon'
+  | 'crusher' | 'refinery' | 'foundry' | 'tank' | 'generator' | 'reactor' | 'capsule' | 'bench' | 'lab' | 'robotics' | 'dish' | 'lamp' | 'support' | 'platform' | 'field';
+
+export interface MachineDef {
+  key: string;
+  name: string;
+  cat: MachineCat;
+  behavior: Behavior;
+  look: Look;
+  w: number; h: number;          // em tiles de 16px
+  cost: Record<string, number>;
+  power: number;                 // kW (+ gera, - consome)
+  desc: string;
+  research?: string;             // pesquisa que desbloqueia
+  rotatable?: boolean;
+  wear?: number;                 // % de condição perdida por minuto trabalhando
+  heat?: number;                 // calor adicionado ao setor
+  speed?: number;                // belts: tiles/s; processos: ciclos/s; drills: potência
+  capacity?: number;             // armazenamento (kg) / throughput (kg/min)
+  radius?: number;               // em tiles (efeitos de área)
+  field?: { hazard: HazardKey; amount: number; sectorWide?: number };
+  glow?: [number, number, number];
+  tier?: number;                 // drills: nível de rocha que conseguem perfurar
+  fuel?: { item: string; perMin: number };
+  unique?: boolean;              // um por setor
+  onLiquid?: boolean;            // só pode ser posto sobre líquido/abismo
+  phase9?: boolean;              // exige setor certificado
+  sector12?: boolean;
+}
+
+const D: MachineDef[] = [];
+const m = (d: MachineDef) => D.push(d);
+
+// ---------------- LOGÍSTICA ----------------
+m({ key: 'esteira', name: 'Esteira Mk I', cat: 'logistica', behavior: 'belt', look: 'belt', w: 1, h: 1, rotatable: true, cost: { ferronox: 2 }, power: 0, speed: 1.4, wear: 0.02, desc: 'Transporta itens. Alimenta máquinas apontando para elas.' });
+m({ key: 'esteira2', name: 'Esteira Mk II', cat: 'logistica', behavior: 'belt', look: 'belt', w: 1, h: 1, rotatable: true, cost: { placa_ferronox: 1, ferronox: 1 }, power: 0, speed: 2.8, wear: 0.02, research: 'esteira2', desc: 'Dobro da velocidade. Dobro dos gargalos em outros lugares.' });
+m({ key: 'esteira3', name: 'Esteira Mk III', cat: 'logistica', behavior: 'belt', look: 'belt', w: 1, h: 1, rotatable: true, cost: { placa_ferronox: 1, polimero_solvex: 1 }, power: 0, speed: 5.5, wear: 0.02, research: 'esteira3', desc: 'Transporte de alta vazão.' });
+m({ key: 'separador', name: 'Separador', cat: 'logistica', behavior: 'splitter', look: 'splitter', w: 1, h: 1, rotatable: true, cost: { placa_ferronox: 2, lumenita: 4 }, power: -1, speed: 6, research: 'separador', desc: 'Envia o item filtrado para frente; o resto sai pelas laterais.' });
+m({ key: 'armazem', name: 'Armazém', cat: 'logistica', behavior: 'storage', look: 'crate', w: 2, h: 2, cost: { ferronox: 30, lumenita: 8 }, power: 0, capacity: 2500, desc: 'Recebe itens de esteiras e robôs. Compõe o buffer do setor.' });
+m({ key: 'armazem_grande', name: 'Silo Industrial', cat: 'logistica', behavior: 'storage', look: 'silo', w: 3, h: 3, cost: { placa_ferronox: 30, componente: 8 }, power: 0, capacity: 30000, research: 'silos', desc: 'Buffer setorial de grande capacidade.' });
+m({ key: 'elevador_carga', name: 'Elevador de Carga', cat: 'logistica', behavior: 'link', look: 'lift', w: 2, h: 2, cost: { ferronox: 50, lumenita: 25 }, power: -6, capacity: 600, wear: 0.15, desc: 'Leva o buffer do setor ao Estoque Central. 600 kg/min.' });
+m({ key: 'elevador_industrial', name: 'Elevador Industrial', cat: 'logistica', behavior: 'link', look: 'lift', w: 3, h: 3, cost: { componente: 16, motor: 6, placa_ferronox: 20 }, power: -25, capacity: 6000, wear: 0.15, research: 'elev_industrial', desc: '6.000 kg/min de vazão setorial.' });
+m({ key: 'elevador_profundo', name: 'Elevador Profundo', cat: 'logistica', behavior: 'link', look: 'lift', w: 3, h: 3, cost: { liga_termo: 16, motor: 12, circuito: 4 }, power: -80, capacity: 40000, wear: 0.15, research: 'elev_profundo', desc: '40.000 kg/min. Atravessa o manto.' });
+m({ key: 'elevador_planetario', name: 'Elevador Planetário', cat: 'logistica', behavior: 'link', look: 'lift', w: 4, h: 4, cost: { liga_ancestral: 6, nucleo_sinaptico: 16, circuito: 16 }, power: -300, capacity: 300000, wear: 0.1, research: 'elev_planetario', desc: '300.000 kg/min. Conecta camadas planetárias inteiras.' });
+m({ key: 'elevador_pessoal', name: 'Elevador Pessoal', cat: 'logistica', behavior: 'lift', look: 'lift', w: 1, h: 1, cost: { ferronox: 25, lumenita: 15 }, power: -2, research: 'elev_pessoal', desc: 'Rede de transporte pessoal. Viaje entre elevadores pessoais.' });
+m({ key: 'terminal_orbital', name: 'Terminal Orbital', cat: 'logistica', behavior: 'terminal', look: 'terminal', w: 3, h: 3, cost: { ferronox: 80, lumenita: 60 }, power: -10, capacity: 400, wear: 0.05, desc: 'Envia itens do Estoque Central para a Zenitex em troca de créditos. 400 kg/min.' });
+m({ key: 'plataforma_lancamento', name: 'Plataforma de Lançamento', cat: 'logistica', behavior: 'launchpad', look: 'pad', w: 4, h: 4, cost: { placa_ferronox: 60, motor: 10, pyroxis_estabilizado: 20 }, power: -40, capacity: 5000, wear: 0.1, research: 'lancamento', desc: '+5.000 kg/min de envio orbital.' });
+
+// ---------------- EXTRAÇÃO ----------------
+m({ key: 'perfuradora', name: 'Perfuradora Mk I', cat: 'extracao', behavior: 'drill', look: 'drill', w: 2, h: 2, rotatable: true, cost: { ferronox: 30, lumenita: 15 }, power: -8, speed: 1, tier: 2, wear: 1.2, heat: 1, glow: [255, 170, 60], desc: 'Perfura o terreno à frente e despeja minério pela traseira. Esgota o veio com o tempo.' });
+m({ key: 'perfuradora2', name: 'Perfuradora Mk II', cat: 'extracao', behavior: 'drill', look: 'drill', w: 2, h: 2, rotatable: true, cost: { placa_ferronox: 16, broca: 2, motor: 2 }, power: -25, speed: 2.6, tier: 4, wear: 1.0, heat: 3, glow: [255, 170, 60], research: 'perfuradora2', desc: 'Perfuração pesada. Alcance maior.' });
+m({ key: 'perfuradora3', name: 'Perfuradora Mk III', cat: 'extracao', behavior: 'drill', look: 'drill', w: 2, h: 2, rotatable: true, cost: { liga_termo: 8, broca: 4, circuito: 2 }, power: -70, speed: 6, tier: 6, wear: 0.8, heat: 6, glow: [255, 120, 60], research: 'perfuradora3', desc: 'Atravessa rocha hiperdensa.' });
+m({ key: 'bomba', name: 'Bomba de Drenagem', cat: 'extracao', behavior: 'pump', look: 'pump', w: 2, h: 2, cost: { placa_ferronox: 8, motor: 2 }, power: -12, radius: 7, wear: 0.8, research: 'bomba', glow: [80, 200, 255], desc: 'Drena líquidos ao redor. Lagoas corrosivas rendem Solvex.' });
+m({ key: 'complexo', name: 'Complexo de Extração Profunda', cat: 'extracao', behavior: 'complex', look: 'complex', w: 4, h: 4, cost: { placa_ferronox: 60, motor: 8, componente: 16, celula_lumenita: 16 }, power: -60, wear: 0.6, heat: 8, phase9: true, glow: [255, 160, 50], desc: 'Extrai a reserva profunda do setor. Melhorável até Mk V. Exige calibração manual periódica.' });
+m({ key: 'broca_tectonica', name: 'Broca Tectônica', cat: 'mega', behavior: 'tectonic', look: 'mega', w: 5, h: 5, cost: { liga_termo: 60, liga_ancestral: 8, motor: 40, circuito: 20 }, power: -1200, wear: 0.5, heat: 30, research: 'tectonica', phase9: true, glow: [255, 90, 30], desc: 'Perfura o manto do setor. Única forma de passar da crosta.' });
+m({ key: 'extrator_manto', name: 'Extrator de Manto', cat: 'mega', behavior: 'mantle', look: 'mega', w: 5, h: 5, cost: { liga_ancestral: 20, celula_negra: 10, motor: 60, nucleo_ia: 4 }, power: -3000, wear: 0.5, heat: 40, research: 'extrator_manto', phase9: true, glow: [255, 60, 160], desc: 'Bombeia o manto planetário em escala continental.' });
+m({ key: 'uplink_orbital', name: 'Uplink de Plataforma Orbital', cat: 'mega', behavior: 'orbital', look: 'dish', w: 4, h: 4, cost: { nucleo_sinaptico: 30, circuito: 30, liga_termo: 30 }, power: -500, wear: 0.3, research: 'plataformas_orbitais', glow: [120, 200, 255], desc: 'Coordena plataformas em órbita: +50% em toda extração de manto (máx. 3).' });
+m({ key: 'canhao_materia', name: 'Canhão de Matéria', cat: 'mega', behavior: 'cannon', look: 'cannon', w: 4, h: 4, cost: { celula_negra: 20, liga_ancestral: 12, nucleo_ia: 4 }, power: -2000, wear: 0, research: 'canhao', glow: [255, 80, 255], desc: 'Disparado MANUALMENTE pelo mapa orbital. Cada disparo arranca um pedaço de setor.' });
+m({ key: 'coletor_gravitacional', name: 'Coletor Gravitacional', cat: 'mega', behavior: 'collector', look: 'dish', w: 4, h: 4, cost: { celula_negra: 16, nucleo_sinaptico: 30, liga_ancestral: 10 }, power: -1500, wear: 0.6, research: 'coletor', glow: [200, 120, 255], desc: 'Recolhe fragmentos orbitais. Precisa de resintonia manual frequente.' });
+m({ key: 'cortador_planetario', name: 'Cortador Planetário', cat: 'mega', behavior: 'cutter', look: 'cannon', w: 6, h: 6, cost: { liga_ancestral: 40, celula_negra: 40, nucleo_ia: 12, fragmento_nucleo: 120 }, power: -8000, research: 'cortador', sector12: true, unique: true, glow: [255, 220, 120], desc: 'A ferramenta final. Opera o último 1%.' });
+
+// ---------------- PROCESSAMENTO ----------------
+m({ key: 'triturador', name: 'Triturador', cat: 'processamento', behavior: 'crusher', look: 'crusher', w: 2, h: 2, cost: { ferronox: 35, lumenita: 15 }, power: -8, speed: 6, wear: 0.8, research: 'triturador', glow: [255, 170, 60], desc: 'Minério bruto → britado (rende o dobro no refino).' });
+m({ key: 'refinaria', name: 'Refinaria', cat: 'processamento', behavior: 'refinery', look: 'refinery', w: 3, h: 3, cost: { ferronox: 50, lumenita: 30 }, power: -15, speed: 3, wear: 0.6, heat: 2, research: 'refino', glow: [255, 140, 50], desc: '2 brutos ou 1 britado → 1 refinado.' });
+m({ key: 'purificador', name: 'Purificador', cat: 'processamento', behavior: 'purifier', look: 'tank', w: 2, h: 2, cost: { placa_ferronox: 12, celula_lumenita: 6 }, power: -20, speed: 1, wear: 0.6, research: 'purificador', glow: [120, 255, 230], desc: 'Estabiliza variantes raras em refinados de alto rendimento.' });
+m({ key: 'fundidor', name: 'Fundidor Alienígena', cat: 'processamento', behavior: 'foundry', look: 'foundry', w: 3, h: 3, cost: { placa_ferronox: 30, chip_nexolita: 6, artefato: 2 }, power: -50, speed: 1.2, wear: 0.5, heat: 6, research: 'fundidor', glow: [80, 240, 255], desc: 'Combina materiais complementares. Projeto baseado em ruínas de Khelos.' });
+m({ key: 'sintetizador', name: 'Sintetizador', cat: 'processamento', behavior: 'synth', look: 'refinery', w: 3, h: 3, cost: { placa_ferronox: 30, motor: 4, chip_nexolita: 4 }, power: -40, speed: 1, wear: 0.5, research: 'sintetizador', glow: [190, 120, 255], desc: 'Fabrica componentes automaticamente a partir da esteira.' });
+
+// ---------------- ENERGIA ----------------
+m({ key: 'gerador', name: 'Gerador Básico', cat: 'energia', behavior: 'generator', look: 'generator', w: 2, h: 2, cost: { ferronox: 20, lumenita: 12 }, power: 20, wear: 0.2, glow: [255, 200, 80], desc: '+20 kW. Sem combustível. Sem ambição.' });
+m({ key: 'reator_lumenita', name: 'Reator de Lumenita', cat: 'energia', behavior: 'reactor', look: 'reactor', w: 3, h: 3, cost: { placa_ferronox: 20, celula_lumenita: 10 }, power: 140, fuel: { item: 'lumenita', perMin: 30 }, wear: 0.3, heat: 4, research: 'reator_lumenita', glow: [80, 160, 255], desc: '+140 kW. Consome Lumenita do Estoque Central.' });
+m({ key: 'reator_pyroxis', name: 'Reator Pyroxis', cat: 'energia', behavior: 'reactor', look: 'reactor', w: 3, h: 3, cost: { placa_ferronox: 30, pyroxis_estabilizado: 12, motor: 2 }, power: 600, fuel: { item: 'pyroxis', perMin: 30 }, wear: 0.4, heat: 30, research: 'reator_pyroxis', glow: [255, 80, 40], desc: '+600 kW. Aquece MUITO o setor.' });
+m({ key: 'reator_hibrido', name: 'Reator Híbrido', cat: 'energia', behavior: 'reactor', look: 'reactor', w: 3, h: 3, cost: { liga_termo: 16, refrigerante_bio: 8, circuito: 4 }, power: 2500, fuel: { item: 'celula_lumenita', perMin: 12 }, wear: 0.3, heat: 10, research: 'reator_hibrido', glow: [120, 255, 200], desc: '+2.500 kW. Refrigerado biologicamente.' });
+m({ key: 'receptor_orbital', name: 'Receptor de Energia Orbital', cat: 'energia', behavior: 'generator', look: 'dish', w: 3, h: 3, cost: { nucleo_sinaptico: 12, placa_ferronox: 40, circuito: 6 }, power: 4000, wear: 0.2, research: 'energia_orbital', glow: [255, 230, 120], desc: '+4.000 kW transmitidos da órbita.' });
+m({ key: 'nucleo_alienigena', name: 'Núcleo Alienígena', cat: 'energia', behavior: 'generator', look: 'reactor', w: 3, h: 3, cost: { liga_ancestral: 10, cristal_memoria: 20, celula_negra: 4 }, power: 20000, wear: 0.1, research: 'nucleo_alien', glow: [80, 255, 240], desc: '+20.000 kW. Ele funciona. Ninguém sabe exatamente com o quê.' });
+
+// ---------------- BASE ----------------
+m({ key: 'comando', name: 'Centro de Comando', cat: 'base', behavior: 'command', look: 'capsule', w: 3, h: 3, cost: { ferronox: 999 }, power: 15, capacity: 300, unique: true, glow: [255, 170, 60], desc: 'Cápsula de pouso. Estoque Central, energia básica e link de 300 kg/min.' });
+m({ key: 'oficina', name: 'Oficina', cat: 'base', behavior: 'workshop', look: 'bench', w: 3, h: 2, cost: { ferronox: 25, lumenita: 10 }, power: -3, glow: [255, 180, 80], desc: 'Fabricação manual de componentes e equipamentos.' });
+m({ key: 'laboratorio', name: 'Estação de Pesquisa', cat: 'base', behavior: 'lab', look: 'lab', w: 3, h: 3, cost: { ferronox: 40, lumenita: 40 }, power: -10, glow: [80, 180, 255], desc: 'Habilita a árvore de pesquisa.' });
+m({ key: 'centro_robotico', name: 'Centro Robótico', cat: 'base', behavior: 'robotics', look: 'robotics', w: 3, h: 3, cost: { placa_ferronox: 20, celula_lumenita: 10, motor: 2 }, power: -20, research: 'robotica', radius: 30, glow: [255, 170, 60], desc: 'Constrói, recarrega e reprograma robôs.' });
+m({ key: 'centro_arqueologico', name: 'Centro Arqueológico', cat: 'base', behavior: 'archaeo', look: 'lab', w: 3, h: 3, cost: { placa_ferronox: 20, sensor: 4 }, power: -8, research: 'arqueologia', glow: [60, 230, 240], desc: 'Analisa achados de Khelos. Cada descoberta reduz custos de pesquisa alienígena.' });
+m({ key: 'central_logistica', name: 'Central Logística', cat: 'base', behavior: 'logcenter', look: 'terminal', w: 3, h: 3, cost: { circuito: 6, placa_ferronox: 30, sensor: 4 }, power: -30, research: 'central_logistica', unique: true, glow: [120, 220, 255], desc: '+25% vazão de todos os elevadores do planeta.' });
+
+// ---------------- ESTABILIZAÇÃO / SEGURANÇA ----------------
+m({ key: 'holofote', name: 'Holofote', cat: 'estabilizacao', behavior: 'lamp', look: 'lamp', w: 1, h: 1, cost: { ferronox: 3, lumenita: 2 }, power: -1, glow: [255, 190, 100], desc: 'Ilumina. Mantém o jogador psicologicamente produtivo.' });
+m({ key: 'suporte', name: 'Suporte Estrutural', cat: 'estabilizacao', behavior: 'support', look: 'support', w: 1, h: 1, cost: { ferronox: 10 }, power: 0, radius: 9, desc: 'Previne desabamentos num raio de 9 tiles.' });
+m({ key: 'plataforma', name: 'Plataforma', cat: 'estabilizacao', behavior: 'platform', look: 'platform', w: 1, h: 1, cost: { ferronox: 6 }, power: 0, onLiquid: true, desc: 'Permite caminhar e construir sobre líquidos e abismos.' });
+m({ key: 'refrigerador', name: 'Refrigerador', cat: 'estabilizacao', behavior: 'field', look: 'field', w: 2, h: 2, cost: { placa_ferronox: 6, celula_lumenita: 3, crysalis: 6 }, power: -10, radius: 10, field: { hazard: 'calor', amount: 45, sectorWide: 12 }, research: 'refrigeracao', glow: [120, 220, 255], desc: 'Reduz calor local e do setor.' });
+m({ key: 'aquecedor', name: 'Aquecedor', cat: 'estabilizacao', behavior: 'field', look: 'field', w: 2, h: 2, cost: { placa_ferronox: 6, pyroxis: 20 }, power: -10, radius: 10, field: { hazard: 'frio', amount: 45, sectorWide: 12 }, research: 'aquecimento', glow: [255, 140, 60], desc: 'Combate o frio extremo.' });
+m({ key: 'filtro_ar', name: 'Filtro de Ar', cat: 'estabilizacao', behavior: 'field', look: 'field', w: 2, h: 2, cost: { placa_ferronox: 4, verdanio: 20 }, power: -6, radius: 10, field: { hazard: 'toxico', amount: 50, sectorWide: 10 }, research: 'filtragem', glow: [100, 255, 120], desc: 'Filtra gases tóxicos e corrosivos.' });
+m({ key: 'escudo_rad', name: 'Escudo de Radiação', cat: 'estabilizacao', behavior: 'field', look: 'field', w: 2, h: 2, cost: { placa_ferronox: 10, matriz_umbrium: 2 }, power: -25, radius: 11, field: { hazard: 'radiacao', amount: 50, sectorWide: 12 }, research: 'blindagem', glow: [255, 240, 80], desc: 'Absorve radiação com Umbrium.' });
+m({ key: 'estabilizador', name: 'Estabilizador Gravitacional', cat: 'estabilizacao', behavior: 'field', look: 'field', w: 2, h: 2, cost: { placa_ferronox: 10, chip_nexolita: 4, celula_lumenita: 4 }, power: -30, radius: 12, field: { hazard: 'gravidade', amount: 60, sectorWide: 12 }, research: 'gravitacao', glow: [190, 120, 255], desc: 'Normaliza a gravidade local.' });
+m({ key: 'inibidor', name: 'Inibidor de Crescimento', cat: 'estabilizacao', behavior: 'field', look: 'field', w: 2, h: 2, cost: { fibra_verdanio: 6, chip_nexolita: 4, solvex_refinado: 4 }, power: -20, radius: 14, field: { hazard: 'anomalia', amount: 30, sectorWide: 8 }, research: 'inibicao', glow: [200, 255, 220], desc: 'Impede que necrocristais cresçam de volta.' });
+m({ key: 'protetor_surto', name: 'Protetor de Surto', cat: 'estabilizacao', behavior: 'surge', look: 'support', w: 1, h: 1, cost: { placa_ferronox: 2, celula_lumenita: 2 }, power: 0, radius: 12, research: 'surto', glow: [120, 200, 255], desc: 'Protege máquinas próximas contra picos energéticos.' });
+
+export const MACHINES: readonly MachineDef[] = D;
+export const MACHINE: Record<string, MachineDef> = Object.fromEntries(D.map(d => [d.key, d]));
+export const MACHINE_CATS: { key: MachineCat; name: string }[] = [
+  { key: 'logistica', name: 'Logística' }, { key: 'extracao', name: 'Extração' }, { key: 'processamento', name: 'Processamento' },
+  { key: 'energia', name: 'Energia' }, { key: 'base', name: 'Base' }, { key: 'estabilizacao', name: 'Segurança' }, { key: 'mega', name: 'Planetária' },
+];
+
+// Níveis do Complexo de Extração Profunda (t/min de reserva removida)
+export const COMPLEX_LEVELS = [
+  { name: 'Mk I', rate: 400, power: 60, cost: {} as Record<string, number>, research: '' },
+  { name: 'Mk II', rate: 3000, power: 160, cost: { motor: 12, placa_ferronox: 60, chip_nexolita: 8 }, research: 'complexo2' },
+  { name: 'Mk III', rate: 20000, power: 450, cost: { liga_termo: 20, circuito: 8, refrigerante_bio: 6 }, research: 'complexo3' },
+  { name: 'Mk IV', rate: 120000, power: 1200, cost: { liga_termo: 40, nucleo_sinaptico: 16, nucleo_ia: 1 }, research: 'complexo4' },
+  { name: 'Mk V', rate: 600000, power: 3000, cost: { liga_ancestral: 8, celula_negra: 6, nucleo_ia: 3 }, research: 'complexo5' },
+];
+export const TECTONIC_RATE = 1_800_000;  // t/min (camada de manto)
+export const MANTLE_RATE = 5_000_000;
+export const CANNON_SHOT_T = 30_000_000;
+export const CANNON_COOLDOWN = 45;
+export const COLLECTOR_RATE = 2_500_000;  // ativa a partir de 50% (fragmentos)
