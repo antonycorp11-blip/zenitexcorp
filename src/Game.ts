@@ -315,11 +315,28 @@ export class Game {
   }
   canBuildKey(k: string) { const d = MACHINE[k]; return !!d && (!d.research || this.research.has(d.research)) && d.behavior !== 'command'; }
   startBuild(k: string) {
-    this.build = { active: true, key: k, dir: this.build.dir, deconstruct: false,
-      tx: Math.floor(this.player.x / TILE) + 3, ty: Math.floor(this.player.y / TILE) };
+    const [tx, ty] = this.freeSpotFor(k);
+    this.build = { active: true, key: k, dir: this.build.dir, deconstruct: false, tx, ty };
     this.input.placeMode = true;
     this.input.placeDirty = false;
     this.input.mouseMoved = false;
+  }
+  /** Local livre mais próximo do jogador para a prévia (evita nascer sobre máquinas ou rocha). */
+  private freeSpotFor(k: string): [number, number] {
+    const def = MACHINE[k];
+    const px = Math.floor(this.player.x / TILE), py = Math.floor(this.player.y / TILE);
+    if (!def) return [px + 2, py];
+    const hw = Math.floor((def.w - 1) / 2), hh = Math.floor((def.h - 1) / 2);
+    for (let r = 1; r <= 12; r++) {
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const tx = px + dx, ty = py + dy, ox = tx - hw, oy = ty - hh;
+        // não cobrir o próprio jogador
+        if (px >= ox && px < ox + def.w && py >= oy && py < oy + def.h) continue;
+        if (!this.machines.canPlace(def, ox, oy)) return [tx, ty];
+      }
+    }
+    return [px + 2, py];
   }
   exitBuild() { this.build.active = false; this.build.deconstruct = false; this.build.key = null; this.input.placeMode = false; }
   confirmBuild() { if (this.build.active && !this.build.deconstruct && !this.ui.modalOpen()) this.buildAction(); }

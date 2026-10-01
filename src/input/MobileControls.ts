@@ -48,9 +48,11 @@ export class MobileControls {
     }));
     const canvas = document.getElementById('game')!;
     const movePlacement = (t: Touch) => { input.placeX = t.clientX; input.placeY = t.clientY; input.placeDirty = true; };
+    // no modo construção o joystick esquerdo continua andando; o resto da tela posiciona a peça
+    const isStick = (t: Touch) => t.identifier === this.leftId || (this.leftId === null && t.clientX < window.innerWidth * 0.3 && t.clientY > window.innerHeight * 0.45);
     const start = (e: TouchEvent) => {
-      if (input.placeMode) { for (const t of Array.from(e.changedTouches)) movePlacement(t); e.preventDefault(); return; }
       for (const t of Array.from(e.changedTouches)) {
+        if (input.placeMode && !isStick(t)) { movePlacement(t); continue; }
         const left = t.clientX < window.innerWidth * 0.45;
         if (left && this.leftId === null) { this.leftId = t.identifier; this.lc = { x: t.clientX, y: t.clientY }; this.show(this.lb, this.lk, t.clientX, t.clientY); }
         else if (!left && this.rightId === null) { this.rightId = t.identifier; this.rc = { x: t.clientX, y: t.clientY }; this.show(this.rb, this.rk, t.clientX, t.clientY); input.aimActive = true; input.primary = false; }
@@ -58,8 +60,8 @@ export class MobileControls {
       e.preventDefault();
     };
     const move = (e: TouchEvent) => {
-      if (input.placeMode) { for (const t of Array.from(e.changedTouches)) movePlacement(t); e.preventDefault(); return; }
       for (const t of Array.from(e.changedTouches)) {
+        if (input.placeMode && t.identifier !== this.leftId) { movePlacement(t); continue; }
         if (t.identifier === this.leftId) {
           const [x, y] = this.clamp(t.clientX - this.lc.x, t.clientY - this.lc.y);
           input.moveX = x / 50; input.moveY = y / 50;
