@@ -12,7 +12,7 @@ export const LOT = 5;            // kg por lote em esteira
 export const BASE_RADIUS = 40;   // tiles: área da base onde armazéns podem ser construídos
 const BELT_GAP = 0.5;            // espaçamento mínimo entre lotes
 const OUT_CAP = 200;             // kg de saída acumulada antes de travar
-const DRILL_DEPTH_MULT = 20;     // cada célula perfurada representa uma coluna de material
+const DRILL_DEPTH_MULT = 4;      // cada célula perfurada representa uma pequena coluna de material
 
 export interface BeltLot { k: string; q: number; p: number; }
 export interface Machine {
@@ -299,7 +299,7 @@ export class Machines {
   private wantsWork(m: Machine): boolean {
     const d = m.def;
     switch (d.behavior) {
-      case 'drill': if (m.exhausted) { m.state = 'Veio esgotado — realoque'; return false; } if (bagTotal(m.out) >= OUT_CAP) { m.state = 'Saída cheia'; return false; } return true;
+      case 'drill': if (bagTotal(m.out) >= OUT_CAP) { m.state = 'Saída cheia'; return false; } return true;
       case 'pump': return !m.exhausted;
       case 'crusher': case 'refinery': case 'purifier': case 'foundry': case 'synth':
         if (bagTotal(m.out) >= OUT_CAP) { m.state = 'Saída cheia'; return false; }
@@ -314,20 +314,36 @@ export class Machines {
     }
   }
 
-  // ---- perfuradora: come o terreno à frente ----
+  // ---- perfuradora: limpa a região à frente; depois perfura para baixo ----
   private drill(m: Machine, dt: number) {
     const w = this.g.world;
     const d = m.def;
+    const sp = d.speed ?? 1;
+    if (m.exhausted) {
+      // região à frente já limpa: segue perfurando em profundidade, com rendimento menor e contínuo
+      m.prog += dt * sp * 0.35;
+      while (m.prog >= 1) {
+        m.prog -= 1;
+        const sd = SECTORS[m.sector - 1];
+        const common = sd.ores.filter(o => !matById(o.mat).rare);
+        let tw = 0; for (const o of common) tw += o.weight;
+        let r = Math.random() * tw;
+        for (const o of common) { r -= o.weight; if (r <= 0) { this.drillYield(m, matById(o.mat).item!, 3 * DRILL_DEPTH_MULT / 4); break; } }
+        this.g.planet.addTerrain(0.02 * DRILL_DEPTH_MULT);
+      }
+      m.state = 'Perfurando em profundidade';
+      return;
+    }
     const [dx, dy] = DIRS[m.dir];
     const range = d.key === 'perfuradora' ? 28 : d.key === 'perfuradora2' ? 40 : 56;
-    const width = 8 + 4; // 2 tiles + margem
-    // origem: borda frontal da máquina, em células
+    const width = d.w * TILE_CELLS + 4;
     const cx0 = m.tx * TILE_CELLS + (dx > 0 ? d.w * TILE_CELLS : dx < 0 ? -1 : 0);
     const cy0 = m.ty * TILE_CELLS + (dy > 0 ? d.h * TILE_CELLS : dy < 0 ? -1 : 0);
-    const power = (d.speed ?? 1) * 0.016 * dt;
-    // procura a célula sólida mais próxima a partir da camada atual
+    // cabeça de corte larga: trabalha até 4 células da camada ao mesmo tempo
+    const power = sp * 0.09 * dt;
     while (m.depth < range) {
-      for (let i = 0; i < width; i++) {
+      let hits = 0, name = '';
+      for (let i = 0; i < width && hits < 4; i++) {
         const off = i - 2;
         const x = dx !== 0 ? cx0 + dx * m.depth : cx0 + off;
         const y = dy !== 0 ? cy0 + dy * m.depth : cy0 + off;
@@ -335,13 +351,14 @@ export class Machines {
         if (!IS_SOLID[mat]) continue;
         const md = matById(mat);
         if (md.tier > (d.tier ?? 1) || md.kind === 'edge') continue;
+        hits++; name = md.name;
         if (w.damage(x, y, power)) this.g.mining.removeCell(x, y, 'drill', DRILL_DEPTH_MULT, m);
-        m.state = 'Perfurando ' + md.name;
-        return;
       }
+      if (hits) { m.state = 'Perfurando ' + name; return; }
       m.depth++;
     }
-    if (!m.exhausted) { m.exhausted = true; this.g.bus.emit('drill_exhausted', m); }
+    m.exhausted = true;
+    this.g.bus.emit('drill_exhausted', m);
   }
 
   /** chamada pela mineração quando uma perfuradora remove uma célula */

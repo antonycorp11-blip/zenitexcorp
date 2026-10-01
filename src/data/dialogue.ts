@@ -73,7 +73,7 @@ export const POOLS: Record<string, Pool> = {
 
   // Construção / máquinas
   build_first: [['br7', 'Primeira estrutura registrada. Ela já está se desgastando. É o ciclo natural das coisas.']],
-  drill_exhausted: [['br7', 'Perfuradora sem material no alcance. Veio esgotado. Ela precisa ser realocada — por você, naturalmente.'], ['rocha', 'A perfuradora comeu tudo o que tinha na frente. Agora tem que mudar ela de lugar. Robô não faz isso, não adianta pedir.']],
+  drill_exhausted: [['br7', 'Faixa à frente da perfuradora limpa. Ela segue perfurando em profundidade, rendendo menos. Gire-a para outra parede ou mude de veio para render mais.'], ['rocha', 'A broca comeu tudo na frente e agora tá cavando pra baixo. Funciona, mas rende pouco. Bota ela de cara num veio novo.']],
   machine_broken: [['br7', 'Falha crítica em máquina. Robôs de reparo não estão autorizados a lidar com falhas críticas. Ninguém está. Exceto você.'], ['zena', 'Uma máquina parou. Cada minuto parado custa créditos. Seus créditos, inclusive.']],
   overheat: [['br7', 'Superaquecimento detectado. Temperatura do setor acima da tolerância das máquinas. Recomendo refrigeração ou fé.'], ['rocha', 'Tá tudo fervendo aqui. Você ligou reator demais sem refrigerar. Clássico.']],
   low_power: [['br7', 'Demanda energética acima da geração. As máquinas estão operando em modo "triste". Construa geradores.'], ['zena', 'Energia insuficiente no setor. A Zenitex sugere gerar mais energia ou consumir menos ambição. Recomendamos a primeira.']],

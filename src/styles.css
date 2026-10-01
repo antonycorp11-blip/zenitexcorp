@@ -379,6 +379,7 @@ body.touch .hud.collapsed .objective { display: block; }
 .tut-box { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); width: min(480px, 92vw); z-index: 60; pointer-events: auto;
   background: rgba(8, 18, 30, .96); border: 2px solid var(--or2); border-radius: 8px; padding: 8px 12px; box-shadow: 0 0 24px rgba(255,184,74,.35); display: none; }
 .tut-box.over-panel { bottom: auto; top: 6px; }
+.tut-box.top { bottom: auto; top: 96px; }
 .tut-h { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
 .tut-h span { font-size: 11px; color: var(--or2); letter-spacing: 1px; }
 .tut-h b { flex: 1; font-size: 15px; }
@@ -406,7 +407,18 @@ body.touch.tut-on .objective { display: none !important; }
   .tree { flex-wrap: nowrap; overflow-x: auto; touch-action: pan-x; }
   .tut-box { bottom: 54px; width: min(420px, 60vw); padding: 6px 10px; }
   .tut-box.over-panel { top: auto; bottom: 4px; left: auto; right: 4px; transform: none; width: min(360px, 48vw); opacity: .95; }
+  .tut-box.top { top: 4px; bottom: auto; }
   .pnl-b .cols > .col.tree { display: flex; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; overflow-y: visible; align-items: flex-start; }
   .pnl-b .tcol { flex: none; }
   .tut-t { font-size: 12px; } .tut-h b { font-size: 13px; }
 }
+
+/* ---------- briefing do contrato ---------- */
+.brief { width: min(640px, 94vw); }
+.brief .bp { display: flex; gap: 14px; align-items: flex-start; min-height: 150px; }
+.brief .bp img { width: 72px; height: 72px; image-rendering: pixelated; border-radius: 6px; flex: none; }
+.brief .bt { font-size: 15px; line-height: 1.4; } .brief .bt b { color: var(--or2); }
+.brief .bt ul { margin: 6px 0 0 18px; padding: 0; } .brief .bt li { margin: 3px 0; }
+.brief .bnav { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+.brief .dots i { display: inline-block; width: 8px; height: 8px; border-radius: 4px; background: #234; margin: 0 3px; } .brief .dots i.on { background: var(--or2); }
+@media (max-height: 520px) { .brief .bt { font-size: 12px; } .brief .bp { min-height: 0; } .brief .bp img { width: 48px; height: 48px; } .mg { padding: 10px; } }

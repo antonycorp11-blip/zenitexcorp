@@ -62,7 +62,7 @@ const STEPS: Step[] = [
       if (g.ui.panels.st.resSel !== 'refino') return '[data-arg="resSel:refino"]';
       return '[data-act="research"][data-arg="refino"]';
     }, done: g => !!g.research.active || g.research.has('refino') },
-  { id: 'drill', title: 'Perfuradora automática', text: () => 'Toque no slot <b>7</b> da barra (Perfuradora). Gire com <b>GIRAR</b> até a broca apontar para uma parede (de preferência com cristais) e confirme. Ela minera sozinha.',
+  { id: 'drill', title: 'Perfuradora automática', text: () => 'Slot <b>7</b> da barra (Perfuradora). Encoste-a numa parede, de preferência com cristais, e use <b>GIRAR</b> até a broca (o cone) apontar para a rocha. Confirme: ela quebra sozinha toda a faixa à frente e, quando termina, continua perfurando para baixo. O minério sai pelas laterais dela.',
     target: g => g.build.active && g.build.key === 'perfuradora' ? '[data-build-action="confirm"]' : '.hotbar [data-slot="6"]', done: g => g.machines.countBehavior('drill') > 0 },
   { id: 'storage', title: 'Armazém na base', text: () => 'Slot <b>8</b> (Armazém). Armazéns só podem ficar perto do Centro de Comando (círculo tracejado). Posicione e confirme.',
     target: g => g.build.active && g.build.key === 'armazem' ? '[data-build-action="confirm"]' : '.hotbar [data-slot="7"]', done: g => g.machines.countBehavior('storage') > 0 },
@@ -95,7 +95,7 @@ export class Tutorial {
     });
   }
 
-  get active() { return !this.g.flags.tutDone && !this.g.flags.intro && !this.g.flags.ending; }
+  get active() { return !this.g.flags.tutDone && !this.g.flags.intro && !this.g.flags.ending && !!this.g.flags.briefed; }
   restart() { this.g.flags.tutDone = false; this.g.flags.tutStep = 0; this.lastStep = -1; }
   private advance() { this.g.flags.tutStep = (this.g.flags.tutStep ?? 0) + 1; this.g.audio.success(); }
 
@@ -119,6 +119,8 @@ export class Tutorial {
     // painéis cobrem o jogo: a caixa sobe para não tampar o alvo
     this.box.style.display = 'block';
     this.box.classList.toggle('over-panel', g.ui.modalOpen() || document.body.classList.contains('mobile-menu-open'));
+    // no modo construção a caixa sobe para nunca cobrir CONFIRMAR / GIRAR / CANCELAR
+    this.box.classList.toggle('top', g.build.active && !g.ui.modalOpen());
     const tg = st.target(g, touch);
     this.ring.style.display = 'none'; this.arrow.style.display = 'none';
     if (typeof tg === 'string') {

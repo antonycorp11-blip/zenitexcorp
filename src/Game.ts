@@ -156,7 +156,7 @@ export class Game {
     b.on('sector_discovered', (s: number) => this.toast(`Novo setor descoberto: ${SECTORS[s - 1].name}`, SECTORS[s - 1].accent));
     b.on('machine_broken', (m: Machine) => { this.say('machine_broken', 45); this.scanner.addMarker(...this.machines.centerPx(m), `${m.def.name} quebrada`, '#ff4a3a', 'broken'); });
     b.on('overheat', () => this.say('overheat', 60));
-    b.on('drill_exhausted', (m: Machine) => { this.say('drill_exhausted', 60); this.toast(`${m.def.name}: veio esgotado. Realoque-a.`, '#ffd04a'); });
+    b.on('drill_exhausted', (m: Machine) => { this.say('drill_exhausted', 60); this.toast(`${m.def.name}: faixa limpa, agora perfurando em profundidade (rende menos).`, '#ffd04a'); });
     b.on('repaired', () => { this.say('repaired', 60); this.scanner.mapMarkers = this.scanner.mapMarkers.filter(x => x.kind !== 'broken' || this.machines.list.some(m => m.broken && Math.hypot(this.machines.centerPx(m)[0] - x.x, this.machines.centerPx(m)[1] - x.y) < 4)); });
     b.on('calibrated', () => this.say('calibrated', 30));
     b.on('complex_drift', () => this.say('complex_drift', 240));

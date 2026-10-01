@@ -187,7 +187,7 @@ export class UI {
     this.updateDialog();
     this.updateHold();
     this.tutorial.update();
-    this.el.hud.classList.toggle('hidden', g.flags.intro || g.flags.ending);
+    this.el.hud.classList.toggle('hidden', !!(g.flags.intro || g.flags.ending));
     if (this.hudT > 0) return;
     this.hudT = 0.15;
     const p = g.player;

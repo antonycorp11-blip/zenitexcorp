@@ -59,6 +59,7 @@ function start(opts: GameOptions, save: any) {
     g.load(save);
     g.flags.intro = false;
     g.dialogue.line('zena', 'Bem-vindo de volta. O planeta esperou por você. Ele não tinha escolha.');
+    if (!g.flags.briefed) g.ui.mini.briefing(() => { g.flags.briefed = true; });
   } else {
     g.setupNew();
     if (opts.contract > 1) g.dialogue.line('varren', `Contrato 7-K${36 + opts.contract}. Planeta maior. Mesma missão. Suas tecnologias corporativas foram transferidas — o resto foi "reciclado".`);
@@ -66,7 +67,7 @@ function start(opts: GameOptions, save: any) {
       g.flags.intro = false;
       g.ui.flashMass();
       g.ui.sectorTitle(1);
-      g.dialogue.sayAll('t_start');
+      g.ui.mini.briefing(() => { g.flags.briefed = true; g.dialogue.sayAll('t_start'); });
     };
     if (DEV && new URLSearchParams(location.search).has('auto')) afterIntro(); else g.ui.cine.intro(afterIntro);
   }

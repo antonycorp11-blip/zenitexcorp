@@ -119,6 +119,28 @@ export class Minigames {
     render();
   }
 
+  /** Briefing do contrato: quem você é, o objetivo e o ciclo de jogo. */
+  briefing(onDone: () => void) {
+    const P: [string, string, string][] = [
+      ['zenitex', 'QUEM VOCÊ É', 'Você é um <b>minerador contratado pela ZENITEX Planetary Resources</b>, uma corporação que compra planetas "improdutivos" para desmontá-los e vender a matéria. Seu contrato é com o planeta <b>K-37</b>.'],
+      ['zena', 'O OBJETIVO', 'Extrair <b>100% da massa do planeta</b>. O número no canto superior esquerdo, <b>MASSA PLANETÁRIA EXTRAÍDA</b>, é o seu placar. Cada pedra que você remove conta. Quando chegar a 100%, o planeta deixa de existir e o contrato termina.'],
+      ['rocha', 'COMO SE AVANÇA', '<ul><li><b>Minere</b> com o perfurador: o minério vai para a mochila.</li><li><b>Entregue</b> no Centro de Comando (cápsula laranja): vira o seu Estoque Central.</li><li>Com o estoque você <b>constrói</b> máquinas e <b>pesquisa</b> tecnologias.</li><li><b>Automatize</b>: perfuradoras quebram a rocha sozinhas e esteiras levam o minério até o armazém da base.</li></ul>'],
+      ['br7', 'A ESCALA', 'O planeta tem <b>12 setores</b>. Cada setor passa por 9 fases até ser <b>certificado</b> e liberar os Complexos de Extração, que drenam milhões de toneladas. Setores mais fundos exigem perfuradores melhores e proteção contra calor, frio e toxinas.<br><br><b>Nenhuma automação é total:</b> máquinas quebram, perfuradoras precisam de outro lugar, robôs travam. Você sempre terá trabalho manual.'],
+      ['sera', 'O QUE NINGUÉM TE CONTOU', 'A Zenitex diz que o planeta é abandonado. Mas há <b>ruínas com brilho ciano</b> pelo caminho. Pare perto delas e segure <b>E</b> para catalogar os registros no Arquivo. Talvez você descubra quem morava aqui.'],
+    ];
+    let i = 0;
+    const render = () => {
+      const [sp, t, body] = P[i];
+      const el = this.mount(`<div class="brief"><div class="mg-h">📋 BRIEFING DO CONTRATO <small>${i + 1}/${P.length} · ${t}</small></div>
+        <div class="bp"><img src="${this.g.sprites.portraitUrl(sp as any)}"><div class="bt">${body}</div></div>
+        <div class="bnav"><button class="btn ghost" data-b="prev" ${i === 0 ? 'disabled' : ''}>‹ Voltar</button><span class="dots">${P.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</span>
+        <button class="btn orange" data-b="next">${i === P.length - 1 ? 'COMEÇAR O TRABALHO' : 'Próximo ›'}</button></div></div>`);
+      el.querySelector('[data-b="prev"]')!.addEventListener('click', () => { i = Math.max(0, i - 1); render(); });
+      el.querySelector('[data-b="next"]')!.addEventListener('click', () => { if (i < P.length - 1) { i++; render(); } else { this.close(); onDone(); } });
+    };
+    render();
+  }
+
   choice(title: string, body: string, opts: { label: string; cls: string; fn: () => void }[]) {
     const el = this.mount(`<div class="mg-h">${esc(title)}</div><p class="choice-b">${body}</p><div class="row">${opts.map((o, i) => `<button class="btn ${o.cls}" data-i="${i}">${esc(o.label)}</button>`).join('')}</div>`);
     el.querySelectorAll<HTMLElement>('button[data-i]').forEach(b => b.addEventListener('click', () => { this.close(); opts[Number(b.dataset.i)].fn(); }));
