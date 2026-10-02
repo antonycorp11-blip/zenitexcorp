@@ -4,6 +4,7 @@ import { hash2 } from '../core/rng';
 import { MAT, MATERIALS, IS_SOLID, matById } from '../data/materials';
 import { SECTORS } from '../data/sectors';
 import type { World } from '../world/World';
+import { PAD_R } from '../world/WorldGen';
 import { Sprites } from './Sprites';
 
 export interface Emitter { x: number; y: number; r: number; c: [number, number, number]; a: number; flicker?: number; }
@@ -174,7 +175,7 @@ export class TerrainRenderer {
         }
         if (def.glow && h < 0.06) lights.push({ x: x * CELL + 2, y: y * CELL, r: 26 + h * 200, c: def.glow, a: 0.55, flicker: h });
       } else if (m === MAT.AIR) {
-        if (h < 0.02 && IS_SOLID[w.peek(x, y - 1)]) {
+        if (h < 0.02 && IS_SOLID[w.peek(x, y - 1)] && this.padDist(x * CELL, y * CELL) > PAD_R * CELL) {
           const deco = this.sprites.decor(secId, Math.floor(h * 10000) % 4);
           if (deco) {
             ctx.drawImage(deco, i * CELL - deco.width / 2 + 2, j * CELL - deco.height + 4);
@@ -252,8 +253,43 @@ export class TerrainRenderer {
     return [fr * s * 1.15, fg * s * 1.15, fb * s * 1.15];
   }
 
+  /** distância (px) ao centro do poço de pouso */
+  private padDist(wx: number, wy: number) {
+    const L = this.world.gen.landing;
+    return Math.hypot(wx - (L.x * CELL + 2), wy - (L.y * CELL + 2));
+  }
+
+  /** Piso de concreto da base: placas com juntas, rebites e faixa de segurança na borda. */
+  private padColor(sd: (typeof SECTORS)[number], wx: number, wy: number, d: number): [number, number, number] {
+    const R = PAD_R * CELL;
+    const n = this.fb.at(wx * 2, wy * 2), f = this.fine.at(wx, wy);
+    // concreto levemente tingido pela camada
+    let r = 84 + sd.floor[0] * 0.18, g = 84 + sd.floor[1] * 0.18, b = 86 + sd.floor[2] * 0.18;
+    const k = 0.9 + n * 0.16 + (f > 0.97 ? 0.08 : f < 0.03 ? -0.08 : 0);
+    r *= k; g *= k; b *= k;
+    // faixa de segurança amarela/preta
+    if (d > R - 9) {
+      if (d > R - 2) return [r * 0.55, g * 0.55, b * 0.55];
+      const stripe = Math.floor((wx + wy) / 6) % 2 === 0;
+      return stripe ? [212 * k, 160 * k, 40 * k] : [34, 32, 30];
+    }
+    // placas 32 px com juntas e rebites
+    const px = ((wx % 32) + 32) % 32, py = ((wy % 32) + 32) % 32;
+    if (px === 0 || py === 0) return [r * 0.62, g * 0.62, b * 0.64];
+    if (px === 1 || py === 1) { r *= 1.12; g *= 1.12; b *= 1.12; }
+    if ((px === 4 || px === 28) && (py === 4 || py === 28)) return [r * 1.35, g * 1.35, b * 1.35];
+    // anel pintado ao redor do pouso
+    const ring = Math.abs(d - R * 0.42);
+    if (ring < 1.5) return [200, 140, 50];
+    // marcas de pneu/desgaste
+    if (this.wEdge.at(wx * 0.6, wy * 0.6) < 0.05) { r *= 0.85; g *= 0.85; b *= 0.85; }
+    return [r, g, b];
+  }
+
   private floorColor(sec: number, wx: number, wy: number): [number, number, number] {
     const sd = SECTORS[sec - 1];
+    const pd = this.padDist(wx, wy);
+    if (pd < PAD_R * CELL) return this.padColor(sd, wx, wy, pd);
     const n = this.fb.at(wx, wy);
     const t = Math.min(1, Math.max(0, (n - 0.3) * 1.6));
     let r = sd.floor[0] + (sd.floor2[0] - sd.floor[0]) * t;

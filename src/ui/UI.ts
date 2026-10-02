@@ -51,7 +51,7 @@ export class UI {
     // hotbar
     this.el.hotbar.addEventListener('click', e => {
       const s = (e.target as HTMLElement).closest<HTMLElement>('[data-slot]');
-      if (s) g.selectSlot(Number(s.dataset.slot));
+      if (s) { if (g.input.touch) g.tapSlot(Number(s.dataset.slot)); else g.selectSlot(Number(s.dataset.slot)); }
     });
     // captura de mouse sobre a UI
     this.root.addEventListener('mouseover', e => { g.input.uiCapture = (e.target as HTMLElement) !== this.root && !!(e.target as HTMLElement).closest('.ui-block'); });

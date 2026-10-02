@@ -126,7 +126,7 @@ export class Game {
     this.placeAnalyzer();
     this.player.x = (tx + 0.5) * TILE; this.player.y = (ty + 3) * TILE;
     this.camera.x = this.player.x; this.camera.y = this.player.y;
-    this.world.reveal(this.player.x, this.player.y, 14);
+    this.world.reveal(this.player.x, this.player.y, 22);
   }
 
   /** Analisador de Matriz: a primeira "máquina" de processamento, manual, ao lado da cápsula. */
@@ -187,7 +187,7 @@ export class Game {
     this.stock.add('ferronox', 120, false); this.stock.add('lumenita', 60, false);   // kit inicial: 1 perfuradora, armazém e esteiras
     this.stock.credits = 300;
     this.pack.add('sinalizador', 3); this.pack.add('kit_reparo', 1);
-    this.world.reveal(this.player.x, this.player.y, 14);
+    this.world.reveal(this.player.x, this.player.y, 22);
     for (let i = 0; i < 3; i++) { const c = this.contracts.generate(); if (c) this.contracts.available.push(c); }
   }
 
@@ -303,7 +303,8 @@ export class Game {
     const [mx, my] = this.flags.intro || this.flags.ending || this.ui.modalOpen() ? [0, 0] : this.input.axis();
     p.update(dt, mx, my, this.input.down('Shift'));
     this.world.ensureAroundPx(p.x, p.y, 700);
-    const mining = !this.flags.intro && !this.ui.modalOpen() && !this.input.uiCapture && this.input.primary && this.hotbar[this.selected]?.key === 'drill' && !this.build.active;
+    // no celular o joystick direito SEMPRE minera; a barra rápida só dispara ações
+    const mining = !this.flags.intro && !this.ui.modalOpen() && !this.input.uiCapture && this.input.primary && (this.input.touch || this.hotbar[this.selected]?.key === 'drill') && !this.build.active;
     this.mining.updatePlayer(dt, mining, this.input.worldX, this.input.worldY);
     this.mining.update(dt);
     this.machines.update(dt);
@@ -383,6 +384,25 @@ export class Game {
         if (this.hold.t >= this.hold.dur) { const d = this.hold.done; this.hold = null; this.flags.touchHold = false; d(); }
       }
     }
+  }
+
+  /** Toque na barra rápida (celular): ação imediata, sem trocar a ferramenta de mineração. */
+  tapSlot(i: number) {
+    const s = this.hotbar[i];
+    if (!s) return;
+    if (s.type === 'build') { this.selectSlot(i); return; }
+    this.selected = Math.max(0, this.hotbar.findIndex(x => x?.key === 'drill'));
+    if (s.key === 'scanner') { this.scanner.pulse(); return; }
+    if (s.type === 'item') {
+      // mira: a última direção do joystick direito, ou à frente do personagem
+      const p = this.player, inp = this.input;
+      if (Math.hypot(inp.worldX - p.x, inp.worldY - p.y) < 24) {
+        const D = [[1, 0], [0, 1], [-1, 0], [0, -1]][p.facing];
+        inp.worldX = p.x + D[0] * 60; inp.worldY = p.y + D[1] * 60;
+      }
+      this.useItem(s.key);
+    }
+    this.audio.click();
   }
 
   selectSlot(i: number) {

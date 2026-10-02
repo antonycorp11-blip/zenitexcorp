@@ -36,8 +36,8 @@ function commandPos(g: Game): [number, number] | null {
 }
 function nearestWall(g: Game): [number, number] | null {
   const p = g.player;
-  for (let r = 4; r < 160; r += 4) for (let a = 0; a < 16; a++) {
-    const x = p.x + Math.cos(a / 16 * Math.PI * 2) * r, y = p.y + Math.sin(a / 16 * Math.PI * 2) * r;
+  for (let r = 4; r < 420; r += 4) for (let a = 0; a < 24; a++) {
+    const x = p.x + Math.cos(a / 24 * Math.PI * 2) * r, y = p.y + Math.sin(a / 24 * Math.PI * 2) * r;
     if (IS_SOLID[g.world.get(Math.floor(x / CELL), Math.floor(y / CELL))]) return [x, y];
   }
   return null;

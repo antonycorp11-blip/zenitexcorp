@@ -229,7 +229,7 @@ export class Renderer {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const storm = g.events.storm > 0 ? 0.15 : 0;
     const finalDark = g.flags.finalSeq ? 0.1 + 0.1 * Math.sin(this.time * 3) : 0;
-    g.lighting.render(L, T, z, W, H, sd.ambient, Math.min(0.97, sd.darkness + 0.28 + storm + finalDark));
+    g.lighting.render(L, T, z, W, H, sd.ambient, Math.min(0.97, sd.darkness + storm + finalDark));
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(g.lighting.dark, 0, 0, W, H);
     ctx.globalCompositeOperation = 'lighter';

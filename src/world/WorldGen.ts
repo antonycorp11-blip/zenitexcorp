@@ -15,6 +15,11 @@ export interface RuinSite {
 }
 export interface LooseArtifact { id: number; x: number; y: number; sector: number; }
 
+/** Raio (células) da clareira de pouso: espaço para a base inteira da camada. */
+export const LANDING_R = 58;
+/** Raio (células) do piso de concreto da base. */
+export const PAD_R = 44;
+
 /** Geração determinística. Tudo é função de (seed, x, y). */
 export class WorldGen {
   readonly seed: number;
@@ -97,7 +102,7 @@ export class WorldGen {
 
         // Área de pouso: clareira garantida
         const dl = Math.hypot(x - this.landing.x, y - this.landing.y);
-        if (dl < 26 + valueNoise(x * 0.2, y * 0.2, S) * 4) { out[idx] = MAT.AIR; continue; }
+        if (dl < LANDING_R + valueNoise(x * 0.08, y * 0.08, S) * 10) { out[idx] = MAT.AIR; continue; }
 
 
         // Ruínas
