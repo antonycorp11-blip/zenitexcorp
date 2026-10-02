@@ -349,10 +349,9 @@ export class UI {
     const dmg = procs.find(m => m.working && m.state.startsWith('Danificando'));
     if (dmg) return `⚠ ${dmg.def.name} ${dmg.state.toLowerCase()}: use o processamento certo da camada.`;
     const raw = rawOf(L), rawQ = g.stock.count(raw);
-    const canProc = procs.some(m => M.atBase(m) && M.inputs(m).includes(raw));
-    if (rawQ >= 300 && !canProc) {
+    if (rawQ >= 300) {
       const fit = MACHINES.find(d => d.takes?.[raw] === 1 && (d.minLayer ?? 1) <= L);
-      return `${fmtInt(rawQ)} kg de ${itemName(raw)} parados no estoque: ${L === 1 ? 'processe no Analisador ou construa um Processador de Solo na base.' : `construa um ${fit?.name ?? 'processador'} na base (${compOf(L).chain}).`}`;
+      return `${fmtInt(rawQ)} kg de ${itemName(raw)} sem processar no estoque: processe no Analisador, sopre no funil de um processador, ou ligue a esteira da perfuradora num ${fit?.name ?? 'processador'} antes do armazém.`;
     }
     const full = drills.filter(m => m.state.startsWith('Saída cheia')).length;
     if (full) return `⚠ ${full} perfuradora(s) PARADA(S) com a saída cheia: ligue uma esteira saindo dela até o armazém da base.`;

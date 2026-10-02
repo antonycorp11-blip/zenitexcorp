@@ -662,7 +662,7 @@ export class Renderer {
       for (const o of io.outs) {
         const right = o.side === 0;
         const sx = right ? x0 + W + 2 : x0 - 2, sy = y0 + H - 6;
-        const col = o.label === 'resíduo' ? '#a08a72' : o.label === 'minerais' ? '#4aa8ff' : '#ff9a2a';
+        const col = o.label.startsWith('minerais') ? '#4aa8ff' : '#ff9a2a';
         // seta animada saindo
         const k = (t * 1.6 + m.id * 0.3) % 1;
         ctx.globalAlpha = m.working ? 0.9 : 0.45;
@@ -770,7 +770,7 @@ export class Renderer {
     const right = dir !== 2;
     const outSide = (r: boolean, col: string) => tri(r ? x0 + W + 7 + bob : x0 - 7 - bob, y0 + H - 6, r ? 1 : -1, 0, col);
     if (bh === 'drill' || bh === 'complex') outSide(!(dir === 0), '#ffb04a');
-    else if (bh === 'separator') { outSide(right, '#6ab4ff'); outSide(!right, '#b09a84'); }
+    else if (bh === 'separator') outSide(right, '#6ab4ff');
     else if (bh === 'prep' || bh === 'compactor' || bh === 'refinery' || bh === 'launcher') outSide(right, '#ffb04a');
     if (bh === 'drill') {
       const [dx, dy] = DIRS[dir];

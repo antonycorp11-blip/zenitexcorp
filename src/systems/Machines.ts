@@ -327,10 +327,11 @@ export class Machines {
     const proc = PROC.has(d.behavior);
     if (proc) {
       m.fin *= 0.97; m.fout *= 0.97; m.fres *= 0.97;
-      this.fromBase(m);
+      if (d.behavior === 'compactor') this.fromBase(m);   // só o compactador puxa o resíduo do pátio da base
     }
     // a saída anda mesmo com a máquina parada (senão ela nunca destrava)
-    if (bagTotal(m.out) > 0) { this.pushOut(m); if (proc) this.toBase(m); }
+    // compactador na base entrega os blocos direto no estoque (o Terminal exporta); fora da base, pela calha
+    if (bagTotal(m.out) > 0) { if (d.behavior === 'compactor') this.toBase(m); if (bagTotal(m.out) > 0) this.pushOut(m); }
     const want = this.wantsWork(m);
     if (!want) { m.working = false; if (m.state === 'ok' || m.state === 'Trabalhando') m.state = 'Ocioso'; return; }
     const k = this.condFactor(m) * m.boost;
@@ -352,7 +353,7 @@ export class Machines {
       case 'complex': case 'tectonic': case 'mantle': case 'collector': this.deep(m, dt, k); break;
       case 'orbital': break;
     }
-    if (bagTotal(m.out) > 0) { this.pushOut(m); if (proc) this.toBase(m); }
+    if (bagTotal(m.out) > 0) { if (d.behavior === 'compactor') this.toBase(m); if (bagTotal(m.out) > 0) this.pushOut(m); }
   }
 
   levelPower(m: Machine) { return m.def.behavior === 'complex' ? COMPLEX_LEVELS[m.level].power / 60 : 1; }
@@ -713,7 +714,7 @@ export class Machines {
     const d = m.def;
     let side: number; // 0 = direita, 2 = esquerda
     if (d.behavior === 'drill' || d.behavior === 'complex') side = m.dir === 0 ? 2 : m.dir === 2 ? 0 : 2;
-    else if (d.behavior === 'separator') side = key === 'residuo' ? (m.dir === 0 ? 2 : 0) : (m.dir === 2 ? 2 : 0);
+    else if (d.behavior === 'separator') side = m.dir === 2 ? 2 : 0;   // minerais e resíduo saem pela mesma calha, na esteira para o armazém
     else side = m.dir === 2 ? 2 : 0;
     const x = side === 0 ? (m.tx + d.w) * TILE_CELLS : m.tx * TILE_CELLS - 1;
     // de baixo para cima pela lateral inteira: se houver esteira encostada, o grão sai em cima dela

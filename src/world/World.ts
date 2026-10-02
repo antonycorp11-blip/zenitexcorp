@@ -169,6 +169,9 @@ export class World {
   /** Lança um grão. Retorna false se já há grãos demais no ar. */
   launch(x: number, y: number, vx: number, vy: number, m: number, a = 40, byPlayer = false): boolean {
     if (this.flyers.length > 600) return false;
+    // bocal dentro de uma máquina (jogador encostado nela): entra direto pelo funil
+    const occ = this.occAtCell(Math.floor(x / CELL), Math.floor(y / CELL));
+    if (byPlayer && occ && this.sink && this.sink(occ, m, a, Math.floor(x / CELL), Math.floor(y / CELL))) { this.onFed?.(occ, m); return true; }
     this.flyers.push({ x, y, vx, vy, m, a, t: 0, byPlayer });
     return true;
   }

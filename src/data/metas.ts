@@ -19,8 +19,8 @@ export const METAS: Record<number, MetaDef[]> = {
   1: [
     { kind: 'counter', text: 'Processe 60 kg de Solo K-37 no Analisador de Matriz', key: 'analyzed', max: 60 },
     { kind: 'behavior', text: 'Instale 2 perfuradoras encostadas na terra', behavior: 'drill', count: 2 },
-    { kind: 'build', text: 'Construa um Processador de Solo na base', key: 'processador_solo', count: 1 },
-    { kind: 'build', text: 'Construa um Compactador Planetário na base', key: 'compactador', count: 1 },
+    { kind: 'build', text: 'Ligue um Processador de Solo na linha (perfuradora → esteira → processador → esteira → armazém)', key: 'processador_solo', count: 1 },
+    { kind: 'build', text: 'Construa um Compactador colado na base', key: 'compactador', count: 1 },
     { kind: 'counter', text: 'Exporte 2.000 kg de resíduo em blocos (Terminal Orbital)', key: 'exported', max: 2000 },
     { kind: 'drill', text: 'Melhore o perfurador para P-02 (a Pedra exige)', level: 2 },
   ],

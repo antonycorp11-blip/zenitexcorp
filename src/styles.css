@@ -679,3 +679,34 @@ body.touch #mobile .stick.right span { display: block !important; right: 18px !i
 body.touch #mobile .stick.right span.act { color: #7aff8a; text-shadow: 0 0 6px rgba(80,255,120,0.6); font-size: 12px; }
 #mobile [data-b="jet"].on { background: rgba(255,170,60,.9) !important; color: #2a1404 !important; box-shadow: 0 0 16px rgba(255,170,60,.8); }
 body.touch #mobile div.mobile-actions { top: 148px !important; bottom: auto !important; transform: none !important; right: max(6px, env(safe-area-inset-right)) !important; }
+
+/* ---------- gaveta de construção e cartão de máquina (compactos) ---------- */
+.modal-layer.sheet-layer { background: transparent !important; align-items: flex-end !important; justify-content: center !important; pointer-events: none; }
+.modal-layer.sheet-layer .pnl.sheet { pointer-events: auto; }
+.pnl.sheet { width: min(760px, 100vw) !important; height: auto !important; max-height: 58vh !important; border-radius: 14px 14px 0 0 !important; animation: sheetup .18s ease-out; background: rgba(10,20,30,0.96) !important; box-shadow: 0 -6px 24px rgba(0,0,0,0.5) !important; }
+@keyframes sheetup { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.pnl.sheet .pnl-b { padding: 6px 8px 8px !important; overflow: visible !important; }
+.bd-top { display: flex; align-items: center; gap: 6px; }
+.bd-top .tabs { flex: 1; overflow-x: auto; flex-wrap: nowrap !important; margin: 0 !important; scrollbar-width: none; }
+.bd-top .tabs button { flex: none; padding: 4px 10px !important; font-size: 12px !important; border-radius: 14px !important; }
+.bd-x, .mc-head .x { flex: none; width: 30px; height: 30px; border-radius: 8px; border: 1px solid #2a4a60; background: #0e1e2c; color: #fff; font-size: 14px; }
+.bd-row { display: flex; gap: 6px; overflow-x: auto; padding: 6px 2px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.bd-card { position: relative; flex: none; width: 96px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 5px 4px 6px; border-radius: 10px; background: #12263a; border: 1px solid #2a4a60; cursor: pointer; text-align: center; }
+.bd-card:active { transform: scale(0.96); }
+.bd-card img { width: 52px; height: 44px; object-fit: contain; pointer-events: none; }
+.bd-card b { font-size: 10.5px; line-height: 1.1; min-height: 23px; color: #e8f2fa; pointer-events: none; }
+.bd-card.poor { opacity: 0.6; } .bd-card.locked { opacity: 0.4; filter: grayscale(0.7); }
+.bd-cost { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 5px; font-size: 9.5px; color: #cfe; pointer-events: none; }
+.bd-cost i { font-style: normal; display: inline-flex; align-items: center; gap: 1px; } .bd-cost i.no { color: #ff8a6a; }
+.bd-cost img { width: 12px !important; height: 12px !important; }
+.bd-card u { position: absolute; top: 3px; right: 4px; width: 15px; height: 15px; border-radius: 50%; background: #24465c; color: #cfe; font-size: 10px; font-weight: 800; text-decoration: none; line-height: 15px; }
+.bd-info { font-size: 11px; line-height: 1.3; color: #d6e4ee; padding: 4px 4px 0; }
+.pnl.machine.sheet { width: min(440px, 96vw) !important; border-radius: 14px 14px 0 0 !important; }
+.mc-head { display: flex; align-items: center; gap: 8px; }
+.mc-head img { width: 44px; height: 40px; object-fit: contain; }
+.mc-head div { flex: 1; display: flex; flex-direction: column; } .mc-head b { font-size: 14px; } .mc-head span { font-size: 11px; }
+.mc-how { font-size: 11px; line-height: 1.3; color: #c8d8e4; margin: 4px 0; }
+.mc-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.mc-btns .btn { padding: 6px 10px !important; font-size: 12px !important; }
+.mc-det { max-height: 30vh; overflow-y: auto; margin-top: 6px; font-size: 12px; }
+.mc-det .cols { display: block !important; }

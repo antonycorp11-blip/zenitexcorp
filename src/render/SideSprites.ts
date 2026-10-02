@@ -321,8 +321,7 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
     for (let i = 0; i < 6; i++) p.px(wx + 3 + ((i * 7) % (ww - 6)), wy + 2 + ((i * 5) % 4), i % 2 ? [90, 160, 255] : [180, 180, 200]);
     if (def.key === 'processador_solo') for (let k2 = 0; k2 < 3; k2++) p.r(2, top + 9 + k2 * 5, W - 4, 1, [120, 230, 255], 0.55);  // anéis de ressonância
     p.hopper(4, top - 4, W - 8, 6);
-    p.chute(right ? W - 1 : 0, bot - 10, right, [90, 170, 255]);       // minerais
-    p.chute(right ? 0 : W - 1, bot - 10, !right, [130, 110, 96]);      // resíduo
+    p.chute(right ? W - 1 : 0, bot - 10, right, [90, 170, 255]);       // saída: minerais + resíduo
     p.legs(3, bot - 3, W - 6, 3);
     p.light(W - 6, top + 5, glow);
   } else if (def.behavior === 'prep') {

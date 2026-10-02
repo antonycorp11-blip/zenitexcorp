@@ -24,9 +24,9 @@ export function ioSpec(def: MachineDef, dir: number, layer: number): IOSpec {
     case 'terminal': case 'launchpad': return { inTop: ['bloco_massa', ...minerals], outs: [] };
     case 'separator': {
       const takes = Object.keys(def.takes ?? {});
-      return { inTop: takes.length ? takes : [raw], outs: [{ side: right, keys: minerals, label: 'minerais' }, { side: left, keys: ['residuo'], label: 'resíduo' }], base: true };
+      return { inTop: takes.length ? takes : [raw], outs: [{ side: right, keys: [...minerals, 'residuo'], label: 'minerais + resíduo' }] };
     }
-    case 'prep': return { inTop: Object.keys(def.takes ?? {}).filter(k => RAW_BY_LAYER.includes(k)).slice(0, 3), outs: [{ side: right, keys: ['fragmentado'], label: 'fragmentado' }], base: true };
+    case 'prep': return { inTop: Object.keys(def.takes ?? {}).filter(k => RAW_BY_LAYER.includes(k)).slice(0, 3), outs: [{ side: right, keys: ['fragmentado'], label: 'fragmentado' }] };
     case 'compactor': return { inTop: ['residuo'], outs: [{ side: right, keys: ['bloco_massa'], label: 'blocos' }], base: true };
     case 'refinery': return { inTop: minerals, outs: [{ side: right, keys: minerals.map(k => REFINE_MAP[k]).filter(Boolean), label: 'barras' }] };
     case 'riser': return { inTop: 'tudo', outs: [{ side: right, keys: [], label: 'sai no topo' }] };
@@ -48,9 +48,9 @@ export function howTo(def: MachineDef, layer: number): string {
     case 'link': return 'Aumenta a vazão do armazém da base para o Estoque Central.';
     case 'command': return 'Toque E perto dela para entregar a mochila. Também engole grãos pelo funil.';
     case 'terminal': return 'Exporta os Blocos de Massa do estoque sozinho (é isso que remove o resíduo do planeta). Também aceita blocos jogados em cima.';
-    case 'separator': return `Jogue ${rawName} no funil (esteira, soprar ou perfuradora encostada). Minerais saem pela calha da seta; resíduo pela calha do outro lado. Na base, puxa do estoque e devolve no estoque sozinho.`;
-    case 'prep': return 'Jogue o material bruto no funil. Sai Material Fragmentado pela calha da seta: leve até o funil de um Separador Mineral. Na base, puxa e devolve no estoque sozinho.';
-    case 'compactor': return 'Jogue Resíduo no funil. Saem Blocos de Massa pela calha da seta, que o Terminal Orbital exporta. Na base, esvazia o pátio de resíduo sozinho.';
+    case 'separator': return `Entra ${rawName} pelo funil ou por uma esteira encostada na lateral. Minerais e resíduo saem juntos pela calha do lado da seta: ponha ali uma esteira até o Armazém.`;
+    case 'prep': return 'Entra material bruto pelo funil ou pela lateral. Sai Material Fragmentado pela calha da seta: leve por esteira até um Separador Mineral.';
+    case 'compactor': return 'Construa colado na base: ele puxa sozinho o resíduo que chega ao estoque (o pátio) e transforma em Blocos de Massa, que o Terminal Orbital exporta.';
     case 'refinery': return 'Jogue minerais no funil: 2 kg viram 1 barra refinada, que vai para um armazém encostado.';
     case 'analyzer': return 'Toque E: escolha o material, dê o pulso de frequência e veja o que existe dentro. Processamento manual.';
     case 'dronepad': return 'O drone trabalha sozinho ao redor da estação e volta para recarregar.';

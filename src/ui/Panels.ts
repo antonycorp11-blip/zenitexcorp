@@ -60,11 +60,13 @@ export class Panels {
     this.id = id;
     if (IS_MAIN.has(id)) this.lastTab = id;
     const layer = this.ui.modal;
-    const head = IS_MAIN.has(id)
+    const sheet = id === 'build' || id === 'machine';
+    const head = sheet ? '' : IS_MAIN.has(id)
       ? `<div class="pnl-h nav">${MAIN.map(([k, ic, n]) => `<button class="nt ${k === id ? 'on' : ''}" data-act="nav" data-arg="${k}"><span>${ic}</span><b>${n}</b></button>`).join('')}<button class="gear" data-act="pause" title="Menu do jogo">⚙</button><button class="x" data-act="close">✕</button></div>`
       : `<div class="pnl-h"><span class="pnl-t"></span><button class="x" data-act="close">✕</button></div>`;
-    layer.innerHTML = `<div class="pnl ui-block ${id} ${IS_MAIN.has(id) ? 'main' : ''}">${head}<div class="pnl-b"></div></div>`;
+    layer.innerHTML = `<div class="pnl ui-block ${id} ${IS_MAIN.has(id) && !sheet ? 'main' : ''} ${sheet ? 'sheet' : ''}">${head}<div class="pnl-b"></div></div>`;
     layer.classList.add('show');
+    layer.classList.toggle('sheet-layer', sheet);
     this.el = layer.querySelector('.pnl')!;
     this.el.addEventListener('click', e => this.onClick(e));
     this.el.addEventListener('change', e => this.onChange(e));
@@ -122,7 +124,9 @@ export class Panels {
     sel: (a) => { const [k, v] = a.split(':'); this.st[k] = v; this.render(); },
     craftN: (a) => { const [k, n] = a.split(':'); const err = this.g.crafting.enqueue(k, Number(n)); if (err) this.g.toast(err, '#ff8a3a'); else this.g.audio.click(); this.render(); },
     craft: (a) => { const err = this.g.crafting.enqueue(a, Number(this.st.craftN ?? 1)); if (err) this.g.toast(err, '#ff8a3a'); else this.g.audio.click(); this.render(); },
-    build: (a) => { if (!this.g.canBuildKey(a)) return; this.g.startBuild(a); this.close(); },
+    build: (a) => { if (!this.g.canBuildKey(a)) { this.st.buildInfo = a; this.render(); return; } this.g.startBuild(a); this.close(); },
+    buildInfo: (a) => { this.st.buildInfo = this.st.buildInfo === a ? '' : a; this.render(); },
+    mdet: () => { this.st.mDetails = !this.st.mDetails; this.render(); },
     pin: (a) => { this.g.hotbar[this.g.selected] = { type: 'build', key: a }; this.g.toast(`Fixado no slot ${(this.g.selected + 1) % 10}`, '#9cff8a'); },
     pinItem: (a) => { this.g.hotbar[this.g.selected] = { type: 'item', key: a }; this.g.toast(`Fixado no slot ${(this.g.selected + 1) % 10}`, '#9cff8a'); },
     research: (a) => { const e = this.g.research.start(a); if (e) { this.g.toast(e, '#ff8a3a'); this.g.audio.error(); } else this.g.audio.success(); this.render(); },
@@ -146,7 +150,7 @@ export class Panels {
     recipe: (a) => { if (this.machine) { this.machine.recipe = a || undefined; this.machine.inb = {}; } this.render(); },
     collect: () => { const m = this.machine; if (!m) return; for (const k of Object.keys(m.out)) { const got = this.g.pack.add(k, m.out[k], m.g[k]); m.out[k] -= got; if (m.out[k] <= 0.01) delete m.out[k]; } this.render(); },
     analyzer: () => { this.close(); this.ui.mini.analyzer(); },
-    dismantle: () => { const m = this.machine; if (!m || m.def.behavior === 'command') return; for (const k in m.def.cost) this.g.stock.add(k, Math.floor(m.def.cost[k] * 0.75), false); this.g.machines.remove(m); this.close(); },
+    dismantle: () => { const m = this.machine; if (!m || m.def.behavior === 'command' || m.def.behavior === 'analyzer') return; const full = this.ui.tutorial.active; for (const k in m.def.cost) this.g.stock.add(k, Math.floor(m.def.cost[k] * (full ? 1 : 0.75)), false); this.g.machines.remove(m); this.close(); this.g.toast(`${m.def.name} desmontada${full ? ' (100% devolvido no tutorial)' : ' (75% devolvido)'}`, '#9cff8a'); },
     rotate: () => { const m = this.machine; if (m && m.def.rotatable) { m.dir = nextDir(m.def, m.dir); m.depth = 0; m.exhausted = false; } this.render(); },
     reset: () => { const m = this.machine; if (m) { m.depth = 0; m.exhausted = false; m.t = 0; } this.render(); },
     lift: (a) => { const m = this.g.machines.byId.get(Number(a)); if (m) { const [x, y] = this.g.machines.centerPx(m); this.g.player.x = x; this.g.player.y = y + m.def.h * 8 + 6; this.g.camera.x = x; this.g.camera.y = y; this.g.audio.success(); this.close(); } },
@@ -241,20 +245,23 @@ export class Panels {
   }
 
   // =============== CONSTRUÇÃO ===============
+  /** Gaveta de construção: categorias em chips + fileira de cartões pequenos. Tocar no cartão = posicionar. */
   r_build() {
     const g = this.g;
     const cat = this.st.buildCat as MachineCat;
-    let h = this.tabs('buildCat', MACHINE_CATS) + `<p class="muted">Toque em <b>POSICIONAR</b>, coloque a peça no mapa e aperte <b>CONFIRMAR</b>. Custos saem do Estoque Central + mochila. 📌 fixa no slot ${(g.selected + 1) % 10} da barra.</p>`;
-    if (cat === 'processamento') h += `<p class="hint">Esta camada: <b>${esc(itemName(RAW_BY_LAYER[g.planet.layer]))}</b> → ${esc(compOf(g.planet.layer).chain)} → Compactador → Terminal Orbital. Máquinas na base puxam e devolvem direto ao estoque.</p>`;
-    h += `<div class="cards scroll tall">${MACHINES.filter(m => m.cat === cat && m.behavior !== 'command' && m.behavior !== 'analyzer' && !m.hidden && (m.minLayer ?? 1) <= g.planet.layer).map(d => {
-      const locked = d.research && !g.research.has(d.research);
-      const req = locked ? `🔒 Desbloqueie em Melhorias: ${esc(RESEARCH.find(r => r.key === d.research)?.name ?? d.research!)}` : d.sector12 ? '◈ Apenas no Núcleo' : '';
+    const list = MACHINES.filter(m => m.cat === cat && m.behavior !== 'command' && m.behavior !== 'analyzer' && !m.hidden && (m.minLayer ?? 1) <= g.planet.layer);
+    const info = MACHINE[this.st.buildInfo as string];
+    let h = `<div class="bd-top">${this.tabs('buildCat', MACHINE_CATS)}<button class="x bd-x" data-act="close">✕</button></div>`;
+    h += `<div class="bd-row">${list.map(d => {
+      const locked = !!d.research && !g.research.has(d.research);
       const afford = g.stock.has(d.cost, g.pack.items);
-      return `<div class="card ${locked ? 'locked' : afford ? '' : 'poor'}">
-        <div class="ch"><img src="${g.sprites.machineUrl(d)}"><div><b>${esc(d.name)}</b><small>${d.w}×${d.h} tiles${d.capacity ? ` · ${fmtShort(d.capacity)} ${d.behavior === 'storage' ? 'kg' : 'kg/min'}` : ''}</small></div></div>
-        <p>${esc(['drill', 'belt', 'riser', 'launcher', 'storage', 'separator', 'prep', 'compactor', 'refinery'].includes(d.behavior) ? howTo(d, g.planet.layer) : d.desc)}</p>${this.howtoHtml(d, 0, true)}${d.takes ? `<p class="muted">Processa: ${Object.entries(d.takes).map(([k, f]) => `${esc(itemName(k))}${f < 1 ? ` <span class="warn">(−${Math.round((1 - f) * 100)}%)</span>` : ''}`).join(', ')}</p>` : ''}<div class="cost">${costStr(g, d.cost)}</div>${req ? `<div class="req">${req}</div>` : ''}
-        <div class="row">${locked ? '' : `<button class="btn" data-act="build" data-arg="${d.key}">POSICIONAR</button><button class="btn ghost" data-act="pin" data-arg="${d.key}">📌</button>`}<span class="count">${g.machines.count(d.key) ? `Ativas: ${g.machines.count(d.key)}` : ''}</span></div></div>`;
+      const cost = Object.entries(d.cost).map(([k, n]) => `<i class="${g.stock.count(k) + g.pack.count(k) >= n ? '' : 'no'}">${this.icon(k, 12)}${fmtShort(n)}</i>`).join('');
+      return `<div class="bd-card ${locked ? 'locked' : afford ? '' : 'poor'}" data-act="${locked ? 'buildInfo' : 'build'}" data-arg="${d.key}">
+        <img src="${g.sprites.machineUrl(d)}"><b>${esc(d.name)}</b><span class="bd-cost">${locked ? '🔒 Melhorias' : cost}</span>
+        <u data-act="buildInfo" data-arg="${d.key}">i</u></div>`;
     }).join('')}</div>`;
+    if (info) h += `<div class="bd-info"><b>${esc(info.name)}</b> — ${esc(howTo(info, g.planet.layer))}${info.research && !g.research.has(info.research) ? ` <span class="warn">🔒 Desbloqueie em Melhorias: ${esc(RESEARCH.find(r => r.key === info.research)?.name ?? '')}</span>` : ''}</div>`;
+    else h += `<div class="bd-info muted">Toque numa peça para posicioná-la. <b>i</b> = como funciona.</div>`;
     return h;
   }
 
@@ -517,13 +524,30 @@ export class Panels {
       ${g.machines.atBase(m) ? '<p class="muted">Na base: puxa o material do estoque e entrega a saída direto nele.</p>' : '<p class="muted">Fora da base: alimente por esteira e ligue a saída numa esteira até o armazém.</p>'}`;
   }
 
+  /** Cartão compacto da máquina: o essencial à vista; números em "Detalhes". */
   r_machine() {
     const g = this.g, m = this.machine;
     if (!m || !g.machines.byId.has(m.id)) return '<p>Máquina removida.</p>';
+    const d = m.def;
+    const stCol = m.broken || m.state.startsWith('Travada') || m.state.startsWith('Saída') ? '#ff6a4a' : m.working ? '#7aff8a' : '#ffd04a';
+    let h = `<div class="mc-head"><img src="${g.sprites.machineUrl(d)}"><div><b>${esc(d.name)}</b><span style="color:${stCol}">● ${esc(m.state === 'ok' ? 'Pronta' : m.state)}</span></div><button class="x" data-act="close">✕</button></div>`;
+    h += this.howtoHtml(d, m.dir, true);
+    h += `<p class="mc-how">${esc(howTo(d, g.planet.layer))}</p>`;
+    h += `<div class="mc-btns">`;
+    if (d.rotatable) h += `<button class="btn" data-act="rotate">↻ GIRAR <small>${['▶', '▼', '◀', '▲'][m.dir]}</small></button>`;
+    if (m.cond < 50 || m.broken) h += `<button class="btn orange" data-act="repair">🔧 CONSERTAR</button>`;
+    if (d.behavior !== 'command' && d.behavior !== 'analyzer') h += `<button class="btn ghost danger" data-act="dismantle">DESMONTAR</button>`;
+    h += `<button class="btn ghost" data-act="mdet">${this.st.mDetails ? 'Menos ▴' : 'Detalhes ▾'}</button></div>`;
+    if (this.st.mDetails) h += `<div class="mc-det">${this.machineDetails(m)}</div>`;
+    return h;
+  }
+
+  /** os números completos (antiga tela da máquina) */
+  private machineDetails(m: Machine): string {
+    const g = this.g;
     const d = m.def, rt = g.sectors.rt[m.sector];
     const inb = Object.entries(m.inb).filter(([, v]) => v > 0.01), out = Object.entries(m.out).filter(([, v]) => v > 0.01);
-    let h = `<div class="cols"><div class="col"><div class="dh"><img src="${g.sprites.machineUrl(d)}" style="width:64px"><div><h2>${esc(d.name)}${d.behavior === 'complex' ? ' ' + COMPLEX_LEVELS[m.level].name : ''}</h2><small>${SECTORS[m.sector - 1].code} · ${esc(SECTORS[m.sector - 1].name)}</small><p>${esc(d.desc)}</p></div></div>
-      <h4>COMO FUNCIONA</h4>${this.howtoHtml(d, m.dir)}
+    let h = `<div class="cols"><div class="col">
       <div class="kv"><span>Estado</span><b style="color:${m.broken || m.overheat ? '#ff6a4a' : m.working ? '#9cff8a' : '#ffd04a'}">${esc(m.state)}</b></div>
       <div class="kv"><span>Condição</span><b>${Math.round(m.cond)}%</b></div>${this.bar(m.cond, 100, m.cond < 30 ? '#ff6a3a' : '#e8962a')}
       ${['complex', 'tectonic', 'mantle', 'collector'].includes(d.behavior) ? `<div class="kv"><span>Calibração / eficiência</span><b style="color:${m.eff < 0.6 ? '#ff7a5a' : '#9cff8a'}">${Math.round(m.eff * 100)}%</b></div>${this.bar(m.eff, 1.1, m.eff < 0.6 ? '#ff6a3a' : '#3aff8a')}<div class="kv"><span>Extração</span><b>${fmtShort(m.produced)} t no total</b></div>` : ''}
@@ -535,11 +559,7 @@ export class Panels {
       ${d.fuel ? `<div class="kv"><span>Combustível</span><b>${esc(itemName(d.fuel.item))} · ${d.fuel.perMin}/min</b></div>` : ''}
       ${inb.length && !d.takes && d.behavior !== 'compactor' ? `<h4>ENTRADA</h4><div class="grid">${inb.map(([k, v]) => `<div class="cell">${this.icon(k, 22)}<span>${esc(itemName(k))}</span><b>${fmtShort(v)}</b></div>`).join('')}</div>` : ''}
       ${out.length ? `<h4>SAÍDA</h4><div class="grid">${out.map(([k, v]) => `<div class="cell">${this.icon(k, 22)}<span>${esc(itemName(k))}</span><b>${fmtShort(v)}</b></div>`).join('')}</div><button class="btn ghost" data-act="collect">Coletar saída na mochila</button>` : ''}
-      </div><div class="col"><h4>AÇÕES</h4><div class="actions">`;
-    h += `<button class="btn" data-act="calib">🎛 CALIBRAR (minigame)</button>`;
-    if (m.cond < 100) h += `<button class="btn orange" data-act="repair">🔧 REPARAR ${costStr(g, g.machines.repairCost(m))}</button>`;
-    if (d.rotatable) h += `<button class="btn ghost" data-act="rotate">↻ Girar ${d.behavior === 'drill' ? '(reinicia o veio)' : ''}</button>`;
-    if (d.behavior === 'drill' && m.exhausted) h += `<button class="btn ghost" data-act="reset">Reavaliar veio</button>`;
+      </div><div class="col">`;
     if (d.behavior === 'complex') {
       const nx = COMPLEX_LEVELS[m.level + 1];
       if (nx) h += `<div class="upbox"><b>Melhoria para ${nx.name}: ${fmtShort(nx.rate)} t/min</b>${this.costCells(nx.cost)}${nx.research && !g.research.has(nx.research) ? `<div class="req">🔒 ${esc(RESEARCH.find(r => r.key === nx.research)?.name ?? '')}</div>` : ''}<button class="btn orange" data-act="cupgrade">MELHORAR</button></div>`;
@@ -551,8 +571,7 @@ export class Panels {
       h += g.flags.finalReady ? (!g.flags.finalSeq ? `<button class="btn red" data-act="finalStart">⚠ INICIAR DESMONTAGEM FINAL</button>` : g.flags.finalArmed ? `<button class="btn red big" data-act="finalFire">DISPARAR CORTADOR PLANETÁRIO</button>` : `<p class="warn">Ajuste os 4 estabilizadores ao redor do núcleo.</p>`) : `<p class="muted">Disponível quando a massa extraída atingir 99%.</p>`;
     }
     if (d.behavior === 'cannon') h += m.charged ? `<p class="ok">Carregado. Dispare pelo Mapa → Visão Orbital.</p>` : `<button class="btn orange" data-act="cannonCharge">Recarregar (1 Célula de Energia Negra)</button>`;
-    h += `<button class="btn ghost danger" data-act="dismantle">Desmontar (75% de reembolso)</button></div></div></div>`;
-    return h;
+    return h + '</div></div>';
   }
 
   // =============== CENTRAL DE OPERAÇÕES ===============

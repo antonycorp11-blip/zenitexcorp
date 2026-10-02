@@ -138,7 +138,7 @@ export class Game {
     if (this.machines.count('analisador')) return;
     const c = this.machines.list.find(m => m.def.behavior === 'command'); if (!c) return;
     const gy = Math.floor((SURFACE_Y * CELL) / TILE);
-    for (const dx of [5, 7, 9, -9, -11, 11]) if (this.machines.place('analisador', c.tx + dx, gy - 2, 0)) return;
+    for (const dx of [-3, -11, 5, 7]) if (this.machines.place('analisador', c.tx + dx, gy - 2, 0)) return;
   }
 
   /** Material bruto disponível para o Analisador (mochila + estoque). */
