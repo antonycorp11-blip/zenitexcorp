@@ -510,7 +510,7 @@ export class Renderer {
       if (n.def.behavior === 'tube' && n.tx + bx === m.tx && n.ty + by === m.ty) sides.add(d);
       if (n.def.behavior === 'blower' && dy === 0 && (n.dir === 2 ? -1 : 1) === -dx) sides.add(d);
     }
-    const R = 4.2;
+    const R = m.key === 'tubo_gigante' ? 6.4 : 4.2;
     const seg = (d: number, col: string, r: number) => {
       const [dx, dy] = DIRS[d], h = TILE / 2;
       ctx.fillStyle = col;
@@ -631,20 +631,19 @@ export class Renderer {
       }
       return;
     }
-    if (d.behavior === 'filter' && d.pick) {
-      // Ímã: linhas de campo vermelhas/azuis saindo pelo lado da seta; Ressonador: ondas ciano. Grãos puxados quando separa.
-      const right = m.dir !== 2, sx = right ? x + W : x, cy = y + H / 2, ima = d.key === 'ima';
-      const busy = m.state.startsWith('Separando'), k = busy ? 1 : 0.45;
+    if (d.behavior === 'extractor') {
+      // campo puxando para CIMA a partir da esteira: ondas descendo e grãos subindo até o extrator
+      const ima = d.key === 'ima', cx = x + W / 2, by = y + H, busy = m.state.startsWith('Puxando'), k = busy ? 1 : 0.4;
       ctx.lineWidth = 0.6;
       for (let i = 0; i < 3; i++) {
-        const ph = (t * (busy ? 1.6 : 0.6) + i / 3) % 1, r = 2 + ph * 7;
-        ctx.strokeStyle = ima ? `rgba(${i % 2 ? '255,90,70' : '120,170,255'},${(1 - ph) * 0.8 * k})` : `rgba(120,230,255,${(1 - ph) * 0.8 * k})`;
-        ctx.beginPath(); ctx.arc(sx, cy, r, right ? -Math.PI / 2 : Math.PI / 2, right ? Math.PI / 2 : Math.PI * 1.5); ctx.stroke();
+        const ph = (t * (busy ? 1.4 : 0.5) + i / 3) % 1;
+        ctx.strokeStyle = ima ? `rgba(${i % 2 ? '255,90,70' : '120,170,255'},${(1 - ph) * 0.7 * k})` : `rgba(120,230,255,${(1 - ph) * 0.7 * k})`;
+        ctx.beginPath(); ctx.ellipse(cx, by + 1 + ph * TILE * 1.6, W * 0.42 * (0.5 + ph * 0.5), 1.4 + ph * 2, 0, 0, Math.PI * 2); ctx.stroke();
       }
       if (busy) {
-        const col = ima ? '#e6ecf8' : '#4aa8ff';
-        for (let i = 0; i < 3; i++) { const ph = (t * 2.2 + i / 3) % 1; ctx.fillStyle = col; ctx.fillRect((right ? x + W / 2 + ph * W / 2 : x + W / 2 - ph * W / 2) - 0.8, cy - 0.8 + Math.sin(ph * 6) * 1.2, 1.6, 1.6); }
-        g.lighting.add(sx, cy, 18, ima ? [255, 120, 100] : [110, 210, 255], 0.5);
+        const col = ima ? '#e8eefc' : '#4aa8ff';
+        for (let i = 0; i < 4; i++) { const ph = (t * 2 + i / 4) % 1; ctx.fillStyle = col; ctx.fillRect(cx - W * 0.3 + (i * 0.2) * W - 0.8, by + TILE * 1.6 * (1 - ph) - 0.8, 1.6, 1.6); }
+        g.lighting.add(cx, by + 4, 26, ima ? [255, 130, 110] : [110, 210, 255], 0.55);
       }
       return;
     }

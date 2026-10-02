@@ -1,3 +1,4 @@
+import { FAB_UPS, fabLevel } from '../data/factory';
 import { siloHelp } from '../systems/SiloHelp';
 import { METAS } from '../data/metas';
 import { fmtInt, fmtShort, fmtMass, fmtTime } from '../core/math';
@@ -49,6 +50,7 @@ export class UI {
     this.cine = new Cinematics(g, this);
     this.tutorial = new Tutorial(g, this.el.hud);
     this.el.menuBtn.addEventListener('click', () => { g.audio.click(); this.open(this.panels.lastTab); });
+    this.el.upBtn.addEventListener('click', () => { g.audio.click(); this.panels.st.upBr = 'fab'; this.open('upgrades'); if (this.tutorial.active) this.tutorial.tap(this.el.meta as HTMLElement); });
     this.el.descendBtn.addEventListener('click', () => this.descendPrompt());
     // hotbar
     this.el.hotbar.addEventListener('click', e => {
@@ -107,6 +109,7 @@ export class UI {
         <button class="descend" data-id="descendBtn">▼ DESCER PARA A PRÓXIMA CAMADA</button>
       </div>
       <button class="ui-block menu-btn" data-id="menuBtn" title="Menu (Tab)"><span>☰</span><b>MENU</b><i class="badge" data-id="menuBadge"></i></button>
+      <button class="ui-block up-btn" data-id="upBtn"><span>✚</span><b>MELHORIAS</b><i class="dot" data-id="upDot"></i></button>
       <div class="ui-block hcard meta" data-id="meta"><div class="mt" data-id="metaTitle"></div><div class="mx" data-id="metaText"></div><div class="mb"><i data-id="metaBar"></i></div></div>
       <div class="ui-block res" data-id="res"></div>
       <div class="ui-block hcard mm"><canvas data-id="minimap" width="240" height="170"></canvas><div class="mmcap"><span data-id="mmName"></span><span>MAPA ›</span></div></div>
@@ -159,26 +162,24 @@ export class UI {
     const el = document.createElement('div');
     el.className = 'lesson';
     el.innerHTML = `<div class="lcard">
-      <div class="lt">COMO A TORRE SEPARA</div>
+      <div class="lt">COMO OS EXTRATORES FUNCIONAM</div>
       <div class="lbody">
         <div class="ldia">
-          <div class="lb ltube"></div><div class="lb ltube v"></div>
-          <div class="lb lprensa">PRENSA</div><div class="lb lpiso"></div>
-          <div class="lb lpen">PENEIRA ◀</div>
-          <div class="lb lima">ÍMÃ ▶</div>
-          <div class="lb lres">◀ RESSONADOR</div>
-          <div class="lb lcol">COLETOR</div>
           <div class="lb lsfe">SILO<br>Fe</div><div class="lb lslu">SILO<br>Lu</div>
-          ${dots('d-res', 4)}${dots('d-fe', 3)}${dots('d-lu', 3)}${dots('d-rest', 2)}
+          <div class="lb ltfe"></div><div class="lb ltfe v"></div><div class="lb ltlu"></div><div class="lb ltlu v"></div>
+          <div class="lb lima">ÍMÃ</div><div class="lb lres">RESSON.</div>
+          <div class="lgap a"></div><div class="lgap b"></div>
+          <div class="lb lbelt"></div><div class="lb lprensa">PRENSA</div><div class="lb lsop">SOPR.</div><div class="lb ltin"></div>
+          ${dots('d-dirt', 5)}${dots('d-fe', 3)}${dots('d-lu', 3)}
         </div>
         <ol class="lsteps">
-          <li><i class="k d-res"></i>A <b>Peneira</b> joga o <b>resíduo</b> para a seta ◀, direto na <b>Prensa</b>. Os minerais caem pela grade.</li>
-          <li><i class="k d-fe"></i>O <b>Ímã</b> puxa o <b>Ferronox</b> (metal prateado) para a seta ▶. Ele cai no <b>Silo</b> da direita.</li>
-          <li><i class="k d-lu"></i>O <b>Ressonador</b> faz a <b>Lumenita</b> (cristal azul) saltar para a seta ◀, no <b>Silo</b> da esquerda.</li>
-          <li><i class="k d-rest"></i>O que sobra cai no <b>Coletor</b> e vai para o estoque.</li>
+          <li><i class="k d-dirt0"></i>O <b>Soprador</b> manda a terra pelo <b>Tubo de Vácuo</b> até a <b>esteira</b>.</li>
+          <li><i class="k d-fe"></i>O <b>Ímã</b>, <b>por cima da esteira</b>, puxa o <b>Ferronox</b> (prateado) e manda pelo tubo encostado nele até o <b>Silo</b>.</li>
+          <li><i class="k d-lu"></i>O <b>Ressonador</b> puxa a <b>Lumenita</b> (azul) para o outro Silo.</li>
+          <li><i class="k d-gray"></i>A terra muda de cor a cada extração. O que sobra (<b>cinza</b>) cai na <b>Prensa</b> e vira bloco.</li>
         </ol>
       </div>
-      <p class="lnote">A <b>seta</b> de cada separador diz para que lado ele joga. O <b>Silo</b> fica no chão, <b>embaixo desse lado</b>.</p>
+      <p class="lnote">Regra: deixe <b>1 espaço livre</b> entre o extrator e a esteira, e encoste um <b>Tubo de Vácuo</b> nele. O tubo vai para onde você quiser: <b>Silo</b> (melhorias), <b>Coletor</b> (construir) ou <b>Refinaria</b>.</p>
       <button class="ok">ENTENDI</button></div>`;
     el.querySelector('.ok')!.addEventListener('click', () => { this.g.flags.lessonSep = true; el.remove(); });
     document.body.appendChild(el);
@@ -440,6 +441,7 @@ export class UI {
     (this.el.metaBar as HTMLElement).style.width = prog >= 0 ? Math.min(100, prog * 100) + '%' : '0';
     (this.el.metaBar.parentElement as HTMLElement).style.display = prog >= 0 ? 'block' : 'none';
     this.el.meta.classList.toggle('tut', !!tut);
+    (this.el.upDot as HTMLElement).style.display = FAB_UPS.some(u => { const c = u.costs[fabLevel(g.flags, u.key)]; return !!c && g.upHas(c); }) ? 'block' : 'none';
   }
 
   private updateDialog() {

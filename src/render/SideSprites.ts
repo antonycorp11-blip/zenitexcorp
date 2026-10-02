@@ -351,7 +351,7 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
     x.fillStyle = css([160, 136, 108]); x.beginPath(); x.roundRect(4, bot - 9, W - 8, 5, 0.8); x.fill();
     x.strokeStyle = 'rgba(16,18,24,0.9)'; x.lineWidth = 0.5; x.stroke();
     p.hazard(1, bot - 3, W - 2, 2);
-  } else if (def.behavior === 'filter' && def.pick) {
+  } else if (def.behavior === 'extractor') {
     // Ímã (ferradura vermelha) / Ressonador (anéis de cristal): caixa larga com grade e calha lateral
     const x = p.x, ima = def.key === 'ima';
     p.panel(1, top + 2, W - 2, H - 3, ima ? [70, 74, 86] : [44, 70, 96], { rivets: true });

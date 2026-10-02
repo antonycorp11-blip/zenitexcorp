@@ -555,7 +555,7 @@ export class Game {
     // volta para o perfurador: senão o slot de construção continua ativo e nada minera
     if (this.hotbar[this.selected]?.type === 'build') this.selected = 0;
     this.build.active = false; this.build.deconstruct = false; this.build.key = null; this.build.anchor = null; this.build.dragging = false; this.input.placeMode = false; }
-  isLineBuild() { const d = this.build.key ? MACHINE[this.build.key] : null; return !!d && (d.behavior === 'belt' || d.behavior === 'riser' || d.behavior === 'scaffold' || d.key === 'tubo'); }
+  isLineBuild() { const d = this.build.key ? MACHINE[this.build.key] : null; return !!d && (d.behavior === 'belt' || d.behavior === 'riser' || d.behavior === 'scaffold' || d.behavior === 'tube'); }
 
   /**
    * Linha de peças arrastando: esteira = horizontal (anda no sentido do arrasto);
@@ -564,10 +564,10 @@ export class Game {
   beltPath(): [number, number, number][] {
     const b = this.build;
     const def = b.key ? MACHINE[b.key] : null;
-    if (!b.anchor) return [[b.tx, b.ty, def?.key === 'tubo' ? b.dir : b.dir === 2 ? 2 : 0]];
+    if (!b.anchor) return [[b.tx, b.ty, def?.behavior === 'tube' ? b.dir : b.dir === 2 ? 2 : 0]];
     const [ax, ay] = b.anchor;
     const out: [number, number, number][] = [];
-    if (def?.key === 'tubo') {
+    if (def?.behavior === 'tube') {
       // tubo: caminho em L (primeiro na vertical, depois na horizontal); cada peça aponta para a próxima
       const pts: [number, number][] = [[ax, ay]];
       let x = ax, y = ay;

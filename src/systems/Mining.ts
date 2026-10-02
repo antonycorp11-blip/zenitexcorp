@@ -1,3 +1,4 @@
+import { fabVal } from '../data/factory';
 import { CELL, TILE, WORLD_W, WORLD_TW } from '../core/constants';
 import { hash2 } from '../core/rng';
 import { MAT, IS_SOLID, IS_LOOSE, GRAIN, GRAIN_ITEM, GRAIN_KG, matById } from '../data/materials';
@@ -30,11 +31,10 @@ export class Mining {
     this.hardWarnT -= dt;
     if (!active) return;
     const dr = this.drill;
-    if (p.energy <= 0.5) { if (this.hardWarnT <= 0) { g.toast('Energia do traje esgotada', '#ff6a3a'); this.hardWarnT = 3; } return; }
     const dx = ax - p.x, dy = ay - (p.y - 12);
     const len = Math.hypot(dx, dy) || 1;
     const ux = dx / len, uy = dy / len;
-    const maxR = Math.min(dr.range, len + 6);
+    const maxR = Math.min(dr.range * fabVal(g.flags, 'laser'), len + 6);
     // marcha do raio
     let hx = p.x, hy = p.y - 12, hit = false, loose = false;
     for (let d = 4; d <= maxR; d += 1) {

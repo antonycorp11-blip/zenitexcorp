@@ -86,7 +86,7 @@ export const GRAIN_KG = 2;                 // kg por grão (= 1 unidade de meta)
 const GRAIN_DEFS: [string, string, [number, number, number], number?][] = [
   ['solo_k37', 'Solo K-37', [150, 100, 64]], ['rocha_bruta', 'Rocha Bruta', [128, 128, 132]], ['basalto_bruto', 'Basalto Bruto', [110, 52, 46]],
   ['matriz_cristalina', 'Matriz Cristalina', [130, 168, 214]], ['rocha_manto', 'Rocha de Manto', [112, 92, 140]], ['matriz_profunda', 'Matriz Profunda', [74, 124, 128]],
-  ['materia_nucleo', 'Matéria de Núcleo', [196, 100, 44]], ['fragmentado', 'Material Fragmentado', [154, 146, 134]], ['residuo', 'Resíduo Planetário', [98, 88, 80]],
+  ['materia_nucleo', 'Matéria de Núcleo', [196, 100, 44]], ['fragmentado', 'Material Fragmentado', [154, 146, 134]], ['residuo', 'Resíduo Planetário', [92, 90, 92]], ['bruto_sm', 'Terra sem Metal', [190, 150, 112]], ['bruto_sc', 'Terra sem Cristal', [116, 74, 50]],
   ['ferronox', 'Ferronox', [226, 234, 252]], ['lumenita', 'Lumenita', [70, 150, 255]], ['nexolita', 'Nexolita', [176, 90, 255]],
   ['pyroxis', 'Pyroxis', [255, 84, 44]], ['ferronox_denso', 'Ferronox Denso', [104, 106, 128]], ['crysalis', 'Crysalis', [160, 236, 255]],
   ['umbrium', 'Umbrium', [96, 60, 140]], ['necrocristal', 'Necrocristal', [212, 236, 214]], ['solvex', 'Solvex', [255, 214, 70]],

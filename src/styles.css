@@ -783,23 +783,26 @@ body.touch .hud .hcard.meta .mx { max-height: 92px !important; }
 .lesson .lbody { display: flex; gap: 12px; align-items: flex-start; }
 .lesson .ldia { position: relative; flex: none; width: 216px; height: 190px; background: linear-gradient(#0a1624, #101c14 80%, #2a1e14 80%); border: 1px solid #23435a; overflow: hidden; }
 .lesson .lb { position: absolute; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 8px; font-weight: 700; letter-spacing: .04em; color: #e8f4ff; border: 1px solid rgba(10,14,20,.9); line-height: 1.05; }
-.lesson .ltube { left: 120px; top: 8px; width: 96px; height: 7px; background: linear-gradient(#3a4a64, #1c2434); box-shadow: inset 0 0 0 1px rgba(110,220,255,.5); }
-.lesson .ltube.v { left: 200px; top: 8px; width: 7px; height: 150px; }
-.lesson .lpen { left: 66px; top: 26px; width: 74px; height: 22px; background: linear-gradient(#3a6a88, #1e3a50); }
-.lesson .lima { left: 66px; top: 50px; width: 74px; height: 22px; background: linear-gradient(#5a5f70, #2a2e3a); box-shadow: inset -12px 0 0 rgba(220,50,40,.55); }
-.lesson .lres { left: 66px; top: 74px; width: 74px; height: 22px; background: linear-gradient(#2c5578, #16304a); box-shadow: inset 12px 0 0 rgba(110,220,255,.45); }
-.lesson .lcol { left: 66px; top: 128px; width: 74px; height: 34px; background: linear-gradient(#3a4458, #222838); box-shadow: inset 0 3px 0 #ec9628; }
-.lesson .lprensa { left: 30px; top: 14px; width: 34px; height: 34px; background: linear-gradient(#6a4a2a, #3a2814); }
-.lesson .lpiso { left: 30px; top: 50px; width: 34px; height: 5px; background: #2c3446; box-shadow: 0 2px 6px rgba(110,220,255,.7); }
-.lesson .lsfe { left: 144px; top: 128px; width: 40px; height: 34px; background: linear-gradient(90deg, #4a5468, #9aa6bc, #4a5468); color: #10141c; }
-.lesson .lslu { left: 22px; top: 128px; width: 40px; height: 34px; background: linear-gradient(90deg, #4a5468, #9aa6bc, #4a5468); color: #10141c; }
-.lesson .ld { position: absolute; width: 6px; height: 6px; border-radius: 50%; left: 0; top: 0; opacity: 0; animation: 3.6s linear infinite; }
-.lesson .d-res { background: #8a7462; } .lesson .d-fe { background: #e6ecf8; box-shadow: 0 0 6px #fff; } .lesson .d-lu { background: #3a9cff; box-shadow: 0 0 6px #5ab8ff; } .lesson .d-rest { background: #c08cff; box-shadow: 0 0 5px #c08cff; }
-.lesson .ld.d-res { animation-name: lres; } .lesson .ld.d-fe { animation-name: lfe; } .lesson .ld.d-lu { animation-name: llu; } .lesson .ld.d-rest { animation-name: lrest; }
-@keyframes lres { 0% { left: 200px; top: 150px; opacity: 1 } 25% { left: 200px; top: 9px } 40% { left: 104px; top: 9px } 50% { left: 104px; top: 30px } 65% { left: 44px; top: 30px } 75%,100% { left: 44px; top: 30px; opacity: 0 } }
-@keyframes lfe { 0% { left: 200px; top: 150px; opacity: 1 } 25% { left: 200px; top: 9px } 40% { left: 104px; top: 9px } 55% { left: 104px; top: 56px } 68% { left: 156px; top: 56px } 82% { left: 160px; top: 136px; opacity: 1 } 88%,100% { left: 160px; top: 140px; opacity: 0 } }
-@keyframes llu { 0% { left: 200px; top: 150px; opacity: 1 } 25% { left: 200px; top: 9px } 40% { left: 104px; top: 9px } 55% { left: 104px; top: 80px } 68% { left: 44px; top: 80px } 82% { left: 40px; top: 136px; opacity: 1 } 88%,100% { left: 40px; top: 140px; opacity: 0 } }
-@keyframes lrest { 0% { left: 200px; top: 150px; opacity: 1 } 25% { left: 200px; top: 9px } 40% { left: 104px; top: 9px } 75% { left: 104px; top: 136px; opacity: 1 } 82%,100% { left: 104px; top: 140px; opacity: 0 } }
+.lesson .ldia { background: linear-gradient(#0a1624, #101c14 86%, #2a1e14 86%) !important; }
+.lesson .lsfe { left: 8px; top: 44px; width: 30px; height: 34px; background: linear-gradient(90deg, #4a5468, #9aa6bc, #4a5468); color: #10141c; }
+.lesson .lslu { left: 46px; top: 44px; width: 30px; height: 34px; background: linear-gradient(90deg, #4a5468, #9aa6bc, #4a5468); color: #10141c; }
+.lesson .ltfe { left: 20px; top: 22px; width: 150px; height: 5px; background: #2a3346; box-shadow: inset 0 0 0 1px rgba(110,220,255,.55); }
+.lesson .ltfe.v { left: 166px; top: 22px; width: 5px; height: 74px; }
+.lesson .ltlu { left: 58px; top: 32px; width: 54px; height: 5px; background: #2a3346; box-shadow: inset 0 0 0 1px rgba(110,220,255,.55); }
+.lesson .ltlu.v { left: 108px; top: 32px; width: 5px; height: 64px; }
+.lesson .lima { left: 150px; top: 96px; width: 38px; height: 14px; background: linear-gradient(#5a5f70, #2a2e3a); box-shadow: inset -9px 0 0 rgba(220,50,40,.6); }
+.lesson .lres { left: 92px; top: 96px; width: 38px; height: 14px; background: linear-gradient(#2c5578, #16304a); box-shadow: inset 9px 0 0 rgba(110,220,255,.5); }
+.lesson .lgap { position: absolute; top: 110px; height: 22px; border-left: 1px dashed rgba(255,255,255,.25); border-right: 1px dashed rgba(255,255,255,.25); }
+.lesson .lgap.a { left: 150px; width: 38px; } .lesson .lgap.b { left: 92px; width: 38px; }
+.lesson .lbelt { left: 40px; top: 140px; width: 160px; height: 8px; background: repeating-linear-gradient(90deg, #3a4254 0 6px, #22283a 6px 10px); border-top: 1px solid #ffb84a; }
+.lesson .lprensa { left: 16px; top: 116px; width: 24px; height: 32px; background: linear-gradient(#6a4a2a, #3a2814); font-size: 6px; }
+.lesson .lsop { left: 214px; top: 128px; width: 22px; height: 20px; background: radial-gradient(circle, #c8a0ff, #3a4a6a 60%); font-size: 6px; }
+.lesson .ltin { left: 206px; top: 112px; width: 5px; height: 20px; background: #2a3346; box-shadow: inset 0 0 0 1px rgba(110,220,255,.55); }
+.lesson .d-dirt, .lesson .d-dirt0 { background: #a06a44; } .lesson .d-gray { background: #6c6a6e; }
+.lesson .ld.d-dirt { animation-name: ldirt; } .lesson .ld.d-fe { animation-name: lfe2; } .lesson .ld.d-lu { animation-name: llu2; }
+@keyframes ldirt { 0% { left: 206px; top: 112px; opacity: 1; background: #a06a44 } 12% { left: 200px; top: 134px } 35% { left: 160px; top: 134px; background: #a06a44 } 40% { background: #c49a72 } 62% { left: 104px; top: 134px; background: #c49a72 } 67% { background: #6c6a6e } 88% { left: 40px; top: 134px; opacity: 1 } 94%,100% { left: 30px; top: 128px; opacity: 0; background: #6c6a6e } }
+@keyframes lfe2 { 0% { left: 206px; top: 112px; opacity: 1 } 12% { left: 200px; top: 134px } 32% { left: 166px; top: 134px } 42% { left: 166px; top: 100px } 56% { left: 166px; top: 21px } 80% { left: 20px; top: 21px; opacity: 1 } 88%,100% { left: 20px; top: 46px; opacity: 0 } }
+@keyframes llu2 { 0% { left: 206px; top: 112px; opacity: 1 } 12% { left: 200px; top: 134px } 52% { left: 108px; top: 134px } 62% { left: 108px; top: 100px } 72% { left: 108px; top: 31px } 84% { left: 58px; top: 31px; opacity: 1 } 92%,100% { left: 58px; top: 46px; opacity: 0 } }
 .lesson .lsteps { margin: 0; padding-left: 0; list-style: none; font-size: 12px; line-height: 1.35; }
 .lesson .lsteps li { margin: 0 0 6px; display: block; position: relative; padding-left: 15px; } .lesson .lsteps .k { position: absolute; left: 0; top: 4px; width: 9px; height: 9px; border-radius: 50%; }
 .lesson .lsteps b, .lesson .lnote b { color: #ffd27a; }
@@ -810,3 +813,20 @@ body.touch .hud .hcard.meta { left: max(6px, env(safe-area-inset-left)) !importa
 body.touch.tut-r .hud .hcard.meta { left: auto !important; right: calc(max(6px, env(safe-area-inset-right)) + 66px) !important; }
 .hud .meta { left: 14px; top: 90px; transform: none; width: 330px; }
 .hud .hcard.vitals, body.touch .hud .hcard.vitals { display: none !important; }
+.lesson .ldia { width: 244px !important; height: 160px !important; }
+/* botão MELHORIAS sempre à vista */
+.hud .up-btn { position: absolute; left: 150px; top: 10px; height: 40px; padding: 0 12px; display: flex; gap: 6px; align-items: center; pointer-events: auto; cursor: pointer; color: #1a0e02 !important; font-weight: 800; letter-spacing: .05em;
+  background: linear-gradient(180deg, #ffb24a, #e0701a) !important; border: 1px solid #ffd28a !important; box-shadow: 0 0 14px rgba(255,150,40,.45) !important; clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px); }
+.hud .up-btn span { font-size: 16px; } .hud .up-btn b { font-size: 11px; }
+.hud .up-btn .dot { display: none; position: absolute; top: 3px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: #3aff8a; box-shadow: 0 0 8px #3aff8a; }
+body.touch .hud .up-btn { left: calc(max(6px, env(safe-area-inset-left)) + 266px) !important; top: 4px !important; height: 34px !important; padding: 0 9px !important; }
+body.touch .hud .up-btn b { font-size: 9.5px !important; }
+/* painéis longe da barra do iPhone: gaveta de construção sobe acima da área segura; cartão da máquina vira painel lateral com rolagem */
+.modal-layer.sheet-layer .pnl.sheet.build { margin-bottom: max(10px, env(safe-area-inset-bottom)) !important; max-height: calc(100vh - 70px - env(safe-area-inset-bottom)) !important; }
+.modal-layer.sheet-layer.side-layer { align-items: center !important; justify-content: flex-end !important; padding-right: calc(max(8px, env(safe-area-inset-right)) + 62px); }
+.modal-layer.sheet-layer.side-layer .pnl.machine.sheet { width: min(360px, 46vw) !important; max-height: calc(100vh - 16px - env(safe-area-inset-bottom)) !important; margin-bottom: env(safe-area-inset-bottom); display: flex; flex-direction: column; animation: sidein .18s ease-out; }
+.modal-layer.sheet-layer.side-layer .pnl.machine.sheet .pnl-b { overflow-y: auto !important; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; min-height: 0; }
+@keyframes sidein { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.pnl.machine .mc-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.pnl.machine .mc-btns .btn { flex: 1 1 auto; min-width: 0; }
+.pnl.machine .mc-head b { font-size: 13px !important; }

@@ -2,6 +2,8 @@
 export interface FabUp { key: string; name: string; unit: string; vals: number[]; costs: Record<string, number>[]; desc: string; }
 
 export const FAB_UPS: FabUp[] = [
+  { key: 'laser', name: 'Laser · Alcance', unit: '×', vals: [1, 1.35, 1.7, 2.1], desc: 'Até onde o feixe do laser alcança (a força do laser fica na aba Laser).',
+    costs: [{ ferronox: 30, lumenita: 10 }, { ferronox: 100, lumenita: 40 }, { ferronox: 260, lumenita: 100, lumenita_pura: 5 }] },
   { key: 'alcance', name: 'Soprador · Alcance', unit: 'tiles', vals: [7, 9, 11, 14], desc: 'Raio em que cada soprador aspira as pilhas.',
     costs: [{ ferronox: 40, lumenita: 15 }, { ferronox: 120, lumenita: 50 }, { ferronox: 300, lumenita: 120, lumenita_pura: 6 }] },
   { key: 'vazao', name: 'Soprador · Vazão', unit: 'kg/min', vals: [900, 1400, 2100, 3000], desc: 'Quanto cada soprador aspira por minuto.',

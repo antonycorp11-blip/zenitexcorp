@@ -70,6 +70,7 @@ export class Panels {
     layer.innerHTML = `<div class="pnl ui-block ${id} ${IS_MAIN.has(id) && !sheet ? 'main' : ''} ${sheet ? 'sheet' : ''}">${head}<div class="pnl-b"></div></div>`;
     layer.classList.add('show');
     layer.classList.toggle('sheet-layer', sheet);
+    layer.classList.toggle('side-layer', id === 'machine');
     this.el = layer.querySelector('.pnl')!;
     this.el.addEventListener('click', e => this.onClick(e));
     const hold = () => { this.touchUntil = Infinity; }, release = () => { this.touchUntil = performance.now() + 700; };
@@ -286,7 +287,7 @@ export class Panels {
   // =============== MELHORIAS: árvore única ===============
   r_upgrades() {
     const g = this.g, p = g.player;
-    const BR: { key: string; name: string }[] = [{ key: 'fab', name: '🏭 Fábrica' }, { key: 'perf', name: '⛏ Perfurador' }, { key: 'traje', name: '🧑‍🚀 Traje e Aspirador' },
+    const BR: { key: string; name: string }[] = [{ key: 'fab', name: '⚡ Laser · Soprador · Tubos · Silos' }, { key: 'perf', name: '🔫 Força do Laser' }, { key: 'traje', name: '🧑‍🚀 Traje e Aspirador' },
       ...RESEARCH_CATS.filter(c => c.key !== 'energia').map(c => ({ key: c.key, name: c.key === 'robotica' ? 'Drones' : c.key === 'mineracao' ? 'Extração' : c.name }))];
     const br = this.st.upBr;
     let h = `<div class="tabs branches">${BR.map(b => {
