@@ -63,9 +63,12 @@ class Pen {
     for (let k = 3; k < w - 3; k += 3) this.px(a + k, b, P.stLL);   // grade
   }
   /** calha de saída na lateral, embaixo */
+  /** calha de saída descendo para fora; `a` é a borda do sprite do lado da saída */
   chute(a: number, b: number, right: boolean, c: readonly number[] = P.or) {
-    const d = right ? 1 : -1;
-    for (let k = 0; k < 6; k++) { this.r(a + d * k - (right ? 0 : 0), b + (k >> 1), 1, 4, P.ink); this.r(a + d * k, b + 1 + (k >> 1), 1, 2, k % 2 ? c : sh(c, 0.75)); }
+    for (let k = 0; k < 6; k++) {
+      const x = right ? a - 5 + k : a + 5 - k;
+      this.r(x, b + (k >> 1) - 1, 1, 5, P.ink); this.r(x, b + (k >> 1), 1, 3, k % 2 ? c : sh(c, 0.75)); this.px(x, b + (k >> 1), sh(c, 1.3));
+    }
   }
   pipe(a: number, b: number, w: number, h: number, c: readonly number[] = P.stL) {
     this.r(a - 1, b - 1, w + 2, h + 2, P.ink); this.r(a, b, w, h, c);
@@ -319,35 +322,45 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
   return c;
 }
 
-/** Personagem de lado (olhando para a direita; o renderizador espelha). 16×22 px. */
+/** Personagem de lado (olhando para a direita; o renderizador espelha). 16×22 px, contorno automático. */
 export function drawPlayer(frame: number, suitTier: number, jet: boolean): HTMLCanvasElement {
-  const [c, p] = canvas(16, 22);
+  const W = 16, H = 22;
+  const [c, p] = canvas(W, H);
   const suit: C3 = suitTier >= 3 ? [226, 228, 236] : P.or;
-  const suitD = sh(suit, 0.66), suitL = sh(suit, 1.25);
+  const suitD = sh(suit, 0.68), suitL = sh(suit, 1.25), suitDD = sh(suit, 0.48);
   const walk = frame >= 1 && frame <= 4;
   const ph = (frame - 1) % 4;
-  const lA = walk ? [0, 2, 0, -2][ph] : frame === 5 ? -1 : 0;   // passada
-  const bob = walk && (ph === 1 || ph === 3) ? 1 : 0;
-  // mochila / jetpack
-  p.r(1, 7 + bob, 5, 9, P.ink); p.r(2, 8 + bob, 3, 7, P.stD); p.r(2, 8 + bob, 1, 7, P.st); p.px(3, 9 + bob, P.cyan);
-  if (jet) { p.r(2, 16 + bob, 3, 2, [255, 220, 120]); p.r(2, 18 + bob, 3, 2, [255, 140, 40]); p.px(3, 20 + bob, [255, 90, 30]); }
-  // pernas
-  const leg = (x: number, dx: number, back: boolean) => {
-    const col = back ? sh(suitD, 0.8) : suitD;
-    p.r(x + dx - 1, 15 + bob, 4, 6 - bob, P.ink); p.r(x + dx, 15 + bob, 2, 5 - bob, col);
-    p.r(x + dx - 1, 20, 4, 2, P.ink); p.r(x + dx, 20, 3, 1, P.stD);
-  };
-  leg(6, -lA, true); leg(8, lA, false);
+  const step = walk ? [1, 0, -1, 0][ph] : frame === 5 ? 1 : 0;
+  const bob = walk && (ph === 0 || ph === 2) ? 1 : 0;
+  const map: (C3 | null)[] = new Array(W * H).fill(null);
+  const set = (x: number, y: number, col: C3) => { if (x >= 0 && y >= 0 && x < W && y < H) map[y * W + x] = col; };
+  const rect = (x: number, y: number, w: number, h: number, col: C3) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) set(x + i, y + j, col); };
+  // jetpack
+  rect(1, 8 + bob, 4, 8, P.stD); rect(1, 8 + bob, 1, 8, P.st); set(2, 10 + bob, P.cyan); set(2, 12 + bob, P.cyan);
+  rect(2, 16 + bob, 2, 1, P.stDD);
+  // pernas (trás mais escura) e botas
+  const leg = (x: number, off: number, col: C3) => { rect(x + off, 15 + bob, 2, 5 - bob, col); rect(x + off - (off < 0 ? 0 : 0), 20, 3, 2, P.stD); set(x + off + 2, 21, P.stDD); };
+  leg(6, -step, suitDD); leg(9, step, suitD);
   // tronco
-  p.r(4, 7 + bob, 9, 9, P.ink);
-  p.r(5, 8 + bob, 7, 7, suit); p.r(5, 8 + bob, 7, 1, suitL); p.r(5, 14 + bob, 7, 1, suitD);
-  p.r(5, 11 + bob, 7, 1, P.stD); p.px(10, 11 + bob, P.yellow);                  // cinto
-  p.r(7, 9 + bob, 2, 2, P.stD); p.px(7, 9 + bob, P.green);                       // painel do peito
-  // capacete
-  p.r(4, 0 + bob, 10, 9, P.ink);
-  p.r(5, 1 + bob, 8, 7, suit); p.r(5, 1 + bob, 8, 1, suitL); p.r(5, 1 + bob, 1, 7, suitL);
-  p.r(8, 3 + bob, 6, 4, P.ink); p.r(9, 3 + bob, 5, 3, [30, 70, 110]); p.r(9, 3 + bob, 2, 1, [170, 230, 255]); p.px(13, 5 + bob, [90, 170, 230]);  // visor
-  p.px(5, 0 + bob, [255, 230, 140]); p.px(6, 0 + bob, [255, 230, 140]);        // lanterna
+  rect(5, 8 + bob, 8, 8, suit); rect(5, 8 + bob, 8, 1, suitL); rect(5, 9 + bob, 1, 6, suitL); rect(12, 9 + bob, 1, 6, suitD);
+  rect(5, 13 + bob, 8, 1, P.stD); set(10, 13 + bob, P.yellow);
+  rect(8, 10 + bob, 3, 2, P.stD); set(8, 10 + bob, P.green); set(10, 11 + bob, P.red);
+  // capacete arredondado
+  const hy = bob;
+  rect(6, 0 + hy, 6, 1, suit); rect(5, 1 + hy, 8, 1, suit); rect(4, 2 + hy, 10, 5, suit); rect(5, 7 + hy, 8, 1, suit);
+  rect(6, 0 + hy, 4, 1, suitL); rect(5, 1 + hy, 3, 1, suitL); set(4, 3 + hy, suitL); set(4, 4 + hy, suitL);
+  rect(5, 7 + hy, 8, 1, suitD);
+  // visor
+  rect(9, 2 + hy, 5, 4, [24, 54, 86]); rect(9, 2 + hy, 4, 1, [44, 96, 140]); set(10, 3 + hy, [190, 236, 255]); set(11, 3 + hy, [140, 210, 250]); set(13, 5 + hy, [70, 140, 200]);
+  set(5, 0 + hy, [255, 236, 150]);   // lanterna
+  // pinta e contorno automático
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (map[y * W + x]) continue;
+    const n = (x > 0 && map[y * W + x - 1]) || (x < W - 1 && map[y * W + x + 1]) || (y > 0 && map[(y - 1) * W + x]) || (y < H - 1 && map[(y + 1) * W + x]);
+    if (n) p.px(x, y, P.ink);
+  }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const col = map[y * W + x]; if (col) p.px(x, y, col); }
+  if (jet) { p.r(2, 17 + bob, 2, 2, [255, 230, 140]); p.r(1, 19 + bob, 4, 1, [255, 150, 50]); p.px(2, 20 + bob, [255, 90, 30]); }
   return c;
 }
 
