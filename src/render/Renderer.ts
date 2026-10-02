@@ -1,4 +1,5 @@
 import { CELL, CHUNK_PX, TILE, WORLD_CW, WORLD_PX_W } from '../core/constants';
+import { hash2 } from '../core/rng';
 import { DIRS } from '../core/math';
 import { MATERIALS } from '../data/materials';
 import { SECTORS } from '../data/sectors';
@@ -32,7 +33,7 @@ export class Renderer {
     this.canvas.style.width = w + 'px'; this.canvas.style.height = h + 'px';
     this.g.camera.w = this.canvas.width; this.g.camera.h = this.canvas.height;
     this.g.lighting.resize(this.canvas.width, this.canvas.height);
-    const z = Math.max(1.25, Math.min(2.4, h / 380));
+    const z = Math.max(1.8, Math.min(3, h / 200));   // vista lateral: perto o bastante para ver os grãos
     if (!this.g.flags.userZoom) { this.g.camera.targetZoom = z; this.g.camera.zoom = z; }
   }
 
@@ -120,7 +121,7 @@ export class Renderer {
     for (const r of g.robots.list) {
       if (r.x < L - 20 || r.x > R + 20 || r.y < T - 20 || r.y > B + 20) continue;
       objs.push({ y: r.y, draw: () => {
-        ctx.drawImage(g.sprites.robot(r.kind, Math.floor(r.frame) % 2), Math.round(r.x - 6), Math.round(r.y - 10));
+        ctx.drawImage(g.sprites.robot(r.kind, Math.floor(this.time * 20) % 2), Math.round(r.x - 8), Math.round(r.y - 12 + Math.sin(this.time * 3 + r.id) * 1.5));
         if (r.stuck || r.broken || r.energy <= 0) this.alert(r.x, r.y - 14, r.stuck ? '#ffd27a' : '#ff5a3a');
         g.lighting.add(r.x, r.y - 4, 26, [255, 210, 150], 0.5);
         if (r.name === 'KILO') { ctx.fillStyle = '#ffd27a'; ctx.font = `${7}px monospace`; }
@@ -138,7 +139,7 @@ export class Renderer {
       if (c.x < L - 20 || c.x > R + 20 || c.y < T - 20 || c.y > B + 20 || !g.chests.visible(c)) continue;
       objs.push({ y: c.y + 4, draw: () => {
         const bob = Math.sin(this.time * 2.5 + c.id) * 0.8;
-        ctx.drawImage(g.sprites.chest(), Math.round(c.x - 7), Math.round(c.y - 12 + bob));
+        ctx.drawImage(g.sprites.chest(), Math.round(c.x - 8), Math.round(c.y - 12 + bob));
         g.lighting.add(c.x, c.y - 6, 46, [255, 210, 110], 0.8 + 0.15 * Math.sin(this.time * 3 + c.id));
         if (Math.random() < 0.04) g.fx.ember(c.x + (Math.random() - 0.5) * 10, c.y - 8, [255, 220, 120]);
       } });
@@ -178,7 +179,22 @@ export class Renderer {
     const p = g.player;
     objs.push({ y: p.y + 2, draw: () => {
       if (p.invuln > 0 && Math.floor(this.time * 10) % 2) return;
-      ctx.drawImage(g.sprites.player(p.facing === 2 ? 2 : 0, p.frame, p.suit.termico ?? 0), Math.round(p.x - 6), Math.round(p.y - 16));
+      const left = p.facing === 2;
+      const body = g.sprites.player(0, p.frame, p.suit.termico ?? 0, p.jet > 0);
+      const bx = Math.round(p.x), by = Math.round(p.y - 22);
+      ctx.save();
+      ctx.translate(bx, by);
+      if (left) ctx.scale(-1, 1);
+      ctx.drawImage(body, -8, 0);
+      ctx.restore();
+      // braço com o perfurador apontando para a mira (ou para a frente)
+      const sx = p.x + (left ? -1 : 1), sy = p.y - 12;
+      let ang = left ? Math.PI : 0;
+      if (g.mining.hitting) ang = Math.atan2(g.mining.hitY - sy, g.mining.hitX - sx);
+      ctx.save(); ctx.translate(Math.round(sx), Math.round(sy)); ctx.rotate(ang);
+      if (Math.abs(ang) > Math.PI / 2) ctx.scale(1, -1);
+      ctx.drawImage(g.sprites.arm(p.drillLevel), 0, -3);
+      ctx.restore();
       if (p.jet > 0) { g.fx.ember(p.x + (p.facing === 2 ? 3 : -3), p.y - 4, [255, 170, 60]); g.lighting.add(p.x, p.y - 2, 26, [255, 160, 60], 0.7); }
     } });
     objs.sort((a, b) => a.y - b.y);
@@ -188,19 +204,37 @@ export class Renderer {
     // ---- feixe de mineração ----
     if (g.mining.hitting) {
       const hx = g.mining.hitX, hy = g.mining.hitY;
-      const sx = p.x + (p.facing === 0 ? 4 : p.facing === 2 ? -4 : 0), sy = p.y - 6;
-      // cor e largura do feixe mudam com a classe do perfurador: a melhoria se vê
+      const s0x = p.x + (p.facing === 2 ? -1 : 1), s0y = p.y - 12;
+      const ang = Math.atan2(hy - s0y, hx - s0x);
+      const sx = s0x + Math.cos(ang) * 13, sy = s0y + Math.sin(ang) * 13;
       const BEAM: [number, number, number][] = [[255, 170, 60], [255, 220, 70], [80, 220, 255], [90, 255, 160], [200, 110, 255], [255, 250, 210]];
-      const lv = Math.min(5, p.drillLevel), bc = BEAM[lv], bw = 2 + lv * 0.7;
+      const lv = Math.min(5, p.drillLevel), bc = BEAM[lv];
+      const dist = Math.hypot(hx - sx, hy - sy);
+      // cone do aspirador (translúcido) + grãos sendo puxados
+      const spread = 7 + lv;
+      const nx = -Math.sin(ang), ny = Math.cos(ang);
+      ctx.fillStyle = 'rgba(160,220,255,0.10)';
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(hx + nx * spread, hy + ny * spread); ctx.lineTo(hx - nx * spread, hy - ny * spread); ctx.closePath(); ctx.fill();
+      for (let k = 0; k < 5; k++) {
+        const t = ((this.time * 2.2 + k / 5) % 1);
+        const off = Math.sin(k * 7.3 + this.time * 3) * spread * (1 - t);
+        ctx.fillStyle = 'rgba(210,240,255,0.55)';
+        ctx.fillRect(hx + (sx - hx) * t + nx * off, hy + (sy - hy) * t + ny * off, 1, 1);
+      }
+      // feixe de corte
       ctx.globalCompositeOperation = 'lighter';
-      ctx.strokeStyle = `rgba(${bc[0]},${bc[1]},${bc[2]},${0.6 + Math.random() * 0.3})`; ctx.lineWidth = bw;
+      ctx.strokeStyle = `rgba(${bc[0]},${bc[1]},${bc[2]},${0.55 + Math.random() * 0.3})`; ctx.lineWidth = 1.6 + lv * 0.5;
       ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(hx, hy); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,230,0.9)'; ctx.lineWidth = 0.8 + lv * 0.25;
-      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(hx + (Math.random() - 0.5) * 2, hy + (Math.random() - 0.5) * 2); ctx.stroke();
-      const hs = 4 + lv; ctx.fillStyle = `rgba(${bc[0]},${bc[1]},${bc[2]},0.9)`; ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
+      ctx.strokeStyle = 'rgba(255,255,235,0.95)'; ctx.lineWidth = 0.6 + lv * 0.2;
+      ctx.beginPath(); ctx.moveTo(sx, sy);
+      const segs = Math.max(2, Math.floor(dist / 8));
+      for (let k = 1; k <= segs; k++) { const t = k / segs; ctx.lineTo(sx + (hx - sx) * t + (Math.random() - 0.5) * (k < segs ? 1.5 : 0), sy + (hy - sy) * t + (Math.random() - 0.5) * (k < segs ? 1.5 : 0)); }
+      ctx.stroke();
+      const hs = 3 + lv * 0.7 + Math.random() * 1.5; ctx.fillStyle = `rgba(${bc[0]},${bc[1]},${bc[2]},0.9)`; ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
+      ctx.fillStyle = 'rgba(255,255,240,0.9)'; ctx.fillRect(hx - 1, hy - 1, 2, 2);
       ctx.globalCompositeOperation = 'source-over';
       g.lighting.add(hx, hy, 60 + lv * 10, bc, 1);
-      g.lighting.add(sx, sy, 30, [255, 200, 120], 0.6);
+      g.lighting.add(sx, sy, 26, bc, 0.7);
     }
     g.fx.draw(ctx);
 
@@ -208,7 +242,7 @@ export class Renderer {
     this.drawBuildGhost();
 
     // ---- luz do jogador ----
-    g.lighting.add(p.x, p.y - 6, 85 + p.scannerLevel * 5, [255, 225, 190], 0.85);
+    g.lighting.add(p.x, p.y - 10, 120 + p.scannerLevel * 8, [255, 230, 200], 0.95);
     const [ax, ay] = [g.input.worldX - p.x, g.input.worldY - p.y];
     const al = Math.hypot(ax, ay) || 1;
     g.lighting.add(p.x + (ax / al) * 55, p.y + (ay / al) * 55, 70, [255, 235, 200], 0.6);
@@ -220,7 +254,7 @@ export class Renderer {
     const finalDark = g.flags.finalSeq ? 0.1 + 0.1 * Math.sin(this.time * 3) : 0;
     // escuridão cresce com a profundidade (a superfície da Terra é dia)
     const surfPx = g.world.gen.landing.y * CELL;
-    g.lighting.render(L, T, z, W, H, sd.ambient, Math.min(0.95, 0.55 + sd.darkness + storm + finalDark), surfPx, g.planet.layer === 1 ? storm + finalDark : Math.min(0.8, 0.3 + sd.darkness));
+    g.lighting.render(L, T, z, W, H, sd.ambient, Math.min(0.92, 0.4 + sd.darkness + storm + finalDark), surfPx, g.planet.layer === 1 ? storm + finalDark : Math.min(0.8, 0.3 + sd.darkness));
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(g.lighting.dark, 0, 0, W, H);
     ctx.globalCompositeOperation = 'lighter';
@@ -261,47 +295,103 @@ export class Renderer {
     if (m.state.startsWith('Travada') && Math.floor(this.time * 2) % 2) { ctx.fillStyle = 'rgba(255,60,40,0.45)'; ctx.fillRect(x, y, 16, 9); }
   }
 
-  /** Céu da superfície (dia) ou o vazio escavado das camadas de baixo, com morros em paralaxe. */
+  /** Céu da superfície (dia) ou o vazio escavado das camadas de baixo, em pixel art com paralaxe. */
   private drawSky(L: number, T: number, z: number, W: number, H: number) {
     const ctx = this.ctx, g = this.g;
     const surfY = (g.world.gen.landing.y * CELL - T) * z;
     const layer = g.planet.layer;
     const SK: [string, string, string][] = [
-      ['#4f8fd0', '#9ccbe8', '#f0c890'], ['#1c2430', '#33404c', '#5a5450'], ['#1a0806', '#3a120a', '#7a2a10'],
-      ['#06101e', '#10243a', '#2a4a66'], ['#0c0818', '#1c1230', '#3a2450'], ['#04141a', '#0a2a30', '#1a4a50'], ['#200a02', '#4a1806', '#a04010'],
+      ['#3d7cc4', '#86bfe6', '#f4d39c'], ['#161d26', '#2a3540', '#4a4844'], ['#160604', '#33100a', '#6e240e'],
+      ['#050c18', '#0e2036', '#244260'], ['#0a0614', '#1a102c', '#34204a'], ['#031015', '#08242a', '#164248'], ['#1a0802', '#401404', '#8e380e'],
     ];
     const [a, b, c] = SK[layer - 1] ?? SK[0];
-    const gr = ctx.createLinearGradient(0, surfY - H, 0, surfY);
-    gr.addColorStop(0, a); gr.addColorStop(0.7, b); gr.addColorStop(1, c);
+    const gr = ctx.createLinearGradient(0, surfY - 260 * z, 0, surfY);
+    gr.addColorStop(0, a); gr.addColorStop(0.65, b); gr.addColorStop(1, c);
     ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
-    // morros/paredões distantes em duas camadas de paralaxe
-    const hillCol = layer === 1 ? ['#6a86a0', '#4c6478'] : ['rgba(0,0,0,0.35)', 'rgba(0,0,0,0.55)'];
-    for (let k = 0; k < 2; k++) {
-      const par = 0.25 + k * 0.25, amp = (k ? 26 : 40) * z, base = surfY + (k ? 6 : -4) * z;
-      ctx.fillStyle = hillCol[k];
-      ctx.beginPath(); ctx.moveTo(0, H);
-      for (let sx = 0; sx <= W; sx += 8) {
-        const wx = (L * par + sx / z) * 0.01;
-        const hy = base - (Math.sin(wx * (1.3 + k)) * 0.5 + Math.sin(wx * 0.37 + k * 2) * 0.5 + 1) * amp;
-        ctx.lineTo(sx, hy);
-      }
-      ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
-    }
+    const px = Math.max(2, Math.round(2 * z));          // tamanho do "pixel" do fundo
     if (layer === 1) {
-      // sol baixo e algumas nuvens
-      ctx.fillStyle = 'rgba(255,230,170,0.9)'; ctx.beginPath(); ctx.arc(W * 0.78 - L * 0.02 * z, surfY - 150 * z, 16 * z, 0, 7); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      for (let i = 0; i < 6; i++) { const cx = ((i * 260 - L * 0.12 + this.time * 3) % (W / z + 200) + W / z + 200) % (W / z + 200) - 100; ctx.fillRect(cx * z, surfY - (90 + (i * 37) % 70) * z, (40 + (i * 13) % 30) * z, 5 * z); }
+      // sol com halo em anéis
+      const sx = W * 0.72 - L * 0.03 * z, sy = surfY - 170 * z;
+      for (const [r, al] of [[44, 0.08], [32, 0.12], [22, 0.2]] as [number, number][]) { ctx.fillStyle = `rgba(255,236,180,${al})`; ctx.beginPath(); ctx.arc(sx, sy, r * z, 0, 7); ctx.fill(); }
+      ctx.fillStyle = '#fff4d0'; ctx.beginPath(); ctx.arc(sx, sy, 12 * z, 0, 7); ctx.fill();
+      // nuvens pixeladas
+      for (let i = 0; i < 7; i++) {
+        const span = W / z + 300;
+        const cx = (((i * 233 - L * (0.08 + (i % 3) * 0.03) + this.time * (2 + i % 3)) % span) + span) % span - 150;
+        const cyy = surfY / z - 120 - ((i * 47) % 90);
+        this.cloud(cx * z, cyy * z, 0.8 + (i % 3) * 0.35, z);
+      }
+    }
+    // morros/paredões em 3 camadas de paralaxe, em degraus de pixel
+    const cols = layer === 1 ? ['#8fb0c8', '#6c8ca6', '#4f6c84'] : layer === 3 || layer === 7 ? ['#3a1408', '#2a0e06', '#1c0904'] : ['#1a2028', '#131820', '#0c1016'];
+    for (let k = 0; k < 3; k++) {
+      const par = 0.15 + k * 0.18, amp = [70, 50, 34][k], base = surfY + [-6, 0, 6][k] * z;
+      ctx.fillStyle = cols[k];
+      for (let sx = 0; sx < W; sx += px) {
+        const wx = (L * par + sx / z);
+        const hgt = (Math.sin(wx * 0.006 * (1 + k * 0.4)) * 0.45 + Math.sin(wx * 0.017 + k * 2) * 0.3 + Math.sin(wx * 0.041 + k) * 0.12 + 0.9) * amp;
+        const top = Math.round((base - hgt * z) / px) * px;
+        ctx.fillRect(sx, top, px, Math.max(0, H - top));
+        // neve/brilho no cume da camada do fundo (superfície)
+        if (layer === 1 && k === 0) { ctx.fillStyle = '#c8dae8'; ctx.fillRect(sx, top, px, px); ctx.fillStyle = cols[k]; }
+      }
+      // torres de mineração da Zenitex ao longe (camada do meio)
+      if (k === 1) {
+        for (let t = 0; t < 4; t++) {
+          const span = W / z + 400;
+          const wx = (((t * 520 + 180 - L * par) % span) + span) % span - 200;
+          const bx = wx * z, by = base - amp * 0.9 * z;
+          ctx.fillStyle = cols[k];
+          ctx.fillRect(bx, by - 46 * z, 6 * z, 60 * z); ctx.fillRect(bx - 8 * z, by - 30 * z, 22 * z, 3 * z); ctx.fillRect(bx + 10 * z, by - 22 * z, 3 * z, 30 * z);
+          if (Math.floor(this.time * 1.5 + t) % 2) { ctx.fillStyle = '#ff5a40'; ctx.fillRect(bx + 2 * z, by - 49 * z, 2 * z, 2 * z); }
+        }
+      }
+    }
+    if (layer > 1) {
+      // teto da caverna gigante com estalactites + partículas brilhando
+      ctx.fillStyle = '#05070a';
+      for (let sx = 0; sx < W; sx += px) {
+        const wx = L * 0.3 + sx / z;
+        const hang = (Math.sin(wx * 0.05) * 0.5 + 0.5) * 18 + (hash2(Math.floor(wx / 6), 7, 3) > 0.8 ? 26 : 0);
+        ctx.fillRect(sx, 0, px, Math.round((surfY - 230 * z + hang * z) / px) * px);
+      }
+      const mote = SECTORS[layer - 1].accent;
+      ctx.fillStyle = mote;
+      for (let i = 0; i < 24; i++) {
+        const mx = ((hash2(i, 1, 9) * W + this.time * 6 * (i % 3 + 1)) % W), my = surfY - (40 + hash2(i, 2, 9) * 200) * z + Math.sin(this.time + i) * 4 * z;
+        ctx.globalAlpha = 0.3 + 0.3 * Math.sin(this.time * 2 + i);
+        ctx.fillRect(mx, my, px, px);
+      }
+      ctx.globalAlpha = 1;
     }
     void WORLD_PX_W;
+  }
+
+  private cloudCache: HTMLCanvasElement | null = null;
+  private cloud(x: number, y: number, s: number, z: number) {
+    if (!this.cloudCache) {
+      const c = document.createElement('canvas'); c.width = 40; c.height = 14;
+      const k = c.getContext('2d')!;
+      for (const [cx, cy, r] of [[10, 9, 5], [18, 6, 6], [27, 8, 5], [33, 10, 3], [5, 11, 3]] as [number, number, number][]) {
+        for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) if (i * i + j * j <= r * r) { k.fillStyle = j < -r / 3 ? '#ffffff' : j > r / 2 ? '#c6d8ea' : '#e8f2fa'; k.fillRect(cx + i, cy + j, 1, 1); }
+      }
+      this.cloudCache = c;
+    }
+    const ctx = this.ctx;
+    ctx.globalAlpha = 0.9;
+    ctx.drawImage(this.cloudCache, x, y, 40 * s * z, 14 * s * z);
+    ctx.globalAlpha = 1;
   }
 
   private drawMachine(m: Machine) {
     const g = this.g, ctx = this.ctx;
     const { img, oy } = g.sprites.machine(m.def, m.dir, m.def.behavior === 'complex' ? m.level : m.def.key.endsWith('2') ? 1 : m.def.key.endsWith('3') ? 2 : 0);
-    const x = m.tx * TILE, y = m.ty * TILE - oy;
+    // máquinas trabalhando tremem (peneiras, britadores, prensas)
+    const shake = m.working && ['separator', 'prep', 'compactor'].includes(m.def.behavior) ? (Math.floor(this.time * 24 + m.id) % 2 ? 1 : 0) : 0;
+    const x = m.tx * TILE + shake, y = m.ty * TILE - oy;
     if (m.def.behavior === 'drill') this.drawDrillBit(m);
     ctx.drawImage(img, x, y);
+    if (m.working && m.def.behavior === 'compactor' && Math.random() < 0.08) g.fx.dust(x + m.def.w * 8, m.ty * TILE + 8, 2);
     const [cx, cy] = g.machines.centerPx(m);
     if (m.broken) { ctx.fillStyle = 'rgba(30,0,0,0.45)'; ctx.fillRect(x, y, img.width, img.height); if (Math.random() < 0.15) g.fx.smoke(cx, cy - 6, [80, 80, 80]); }
     if (m.buried > 0) {

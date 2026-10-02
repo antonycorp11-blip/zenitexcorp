@@ -59,9 +59,11 @@ export class Player {
     this.moving = Math.abs(ax) > 0.1;
     if (this.moving) {
       this.animT += dt * (run ? 12 : 9);
-      this.frame = this.grounded ? (Math.floor(this.animT) % 4 === 1 ? 1 : Math.floor(this.animT) % 4 === 3 ? 2 : 0) : 1;
+      this.frame = this.grounded ? 1 + (Math.floor(this.animT) % 4) : 5;
       this.facing = ax > 0 ? 0 : 2;
-    } else this.frame = this.grounded ? 0 : 1;
+    } else this.frame = this.grounded ? 0 : 5;
+    // mirando com o perfurador, o corpo vira para o alvo
+    if (g.mining.hitting) this.facing = g.mining.hitX >= this.x ? 0 : 2;
     // energia recarrega no chão; muito rápido perto da base
     const nearPower = g.nearPowerSource(this.x, this.y);
     if (this.grounded || nearPower) this.energy = Math.min(this.maxEnergy, this.energy + dt * (nearPower ? 30 : 14));

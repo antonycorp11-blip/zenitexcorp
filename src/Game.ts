@@ -259,7 +259,7 @@ export class Game {
     const dpr = cam.w / window.innerWidth;
     if (inp.touch && inp.aimActive) {
       const d = Math.hypot(inp.aimX, inp.aimY) || 1;
-      inp.worldX = this.player.x + (inp.aimX / d) * 60; inp.worldY = this.player.y - 9 + (inp.aimY / d) * 60;
+      inp.worldX = this.player.x + (inp.aimX / d) * 60; inp.worldY = this.player.y - 12 + (inp.aimY / d) * 60;
     } else {
       inp.worldX = cam.left() + (inp.mouseX * dpr) / cam.zoom;
       inp.worldY = cam.top() + (inp.mouseY * dpr) / cam.zoom;

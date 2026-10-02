@@ -74,6 +74,21 @@ export class TerrainRenderer {
     return c;
   }
 
+  /** 5 tons por material: 0 mais escuro … 4 mais claro */
+  private pals = new Map<number, [number, number, number][]>();
+  private pal(m: number): [number, number, number][] {
+    let p = this.pals.get(m);
+    if (p) return p;
+    const d = MATERIALS[m];
+    const t = d.top, f = d.face;
+    const mix = (k: number, a: number): [number, number, number] => [
+      Math.min(255, (f[0] + (t[0] - f[0]) * a) * k), Math.min(255, (f[1] + (t[1] - f[1]) * a) * k), Math.min(255, (f[2] + (t[2] - f[2]) * a) * k)];
+    p = d.kind === 'rock' || d.kind === 'barrier' ? [mix(0.6, 0.2), mix(0.92, 0.55), mix(1.02, 0.75), mix(1.14, 0.9), mix(1.42, 1)]
+      : [mix(0.55, 0), mix(0.8, 0.4), mix(1, 0.85), mix(1.2, 1), mix(1.55, 1)];
+    this.pals.set(m, p);
+    return p;
+  }
+
   private renderRegion(cx: number, cy: number, ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, lights: Emitter[] | null) {
     const rw = x1 - x0, rh = y1 - y0;
     if (rw <= 0 || rh <= 0) return;
@@ -81,7 +96,10 @@ export class TerrainRenderer {
     const d = img.data;
     const w = this.world, gen = w.gen, mat = w.mat;
     const sd = SECTORS[gen.layer - 1];
-    const back = shade(sd.floor, 0.2), backRuin: [number, number, number] = [26, 44, 50];
+    const rockPal = this.pal(sd.rock);
+    const L1 = gen.layer === 1;
+    const ruins = gen.ruins;
+    const solidish = (m: number) => IS_SOLID[m] === 1 || IS_LOOSE[m] !== 0;
     for (let py = 0; py < rh; py++) {
       const y = cy * CHUNK + y0 + py;
       for (let px = 0; px < rw; px++) {
@@ -90,70 +108,103 @@ export class TerrainRenderer {
         const m = mat[i];
         const o = (py * rw + px) * 4;
         const f = this.fine.at(x, y), n = this.fb.at(x, y);
-        let r = 0, g = 0, b = 0, a = 255;
+        let c: readonly number[] = [0, 0, 0];
+        let a = 255;
         if (m === MAT.AIR) {
-          if (y < gen.surfaceAt(x)) { a = 0; }
-          else {
-            // parede do fundo da caverna
-            const inRuin = gen.ruins.some(s => x >= s.x0 && x < s.x0 + s.w && y >= s.y0 && y < s.y0 + s.h);
-            const base = inRuin ? backRuin : back;
-            const k = 0.75 + n * 0.35 + (f > 0.93 ? 0.12 : 0);
-            r = base[0] * k; g = base[1] * k; b = base[2] * k;
-            if (inRuin && ((x % 8 === 0) || (y % 6 === 0))) { r *= 0.8; g *= 0.8; b *= 0.8; }
+          const sy = gen.surfaceAt(x);
+          if (y < sy) {
+            // grama brotando acima do chão da superfície
+            const below = mat[i + WORLD_W];
+            if (L1 && (y === sy - 1 || y === sy - 2) && IS_SOLID[below] && MATERIALS[below].kind === 'rock' && y >= sy - 2) {
+              const hgt = hash2(x, 3, 91);
+              if ((y === sy - 1 && hgt < 0.55) || (y === sy - 2 && hgt < 0.18 && IS_SOLID[mat[i + 2 * WORLD_W]])) { c = hgt < 0.25 ? [120, 200, 70] : [84, 160, 56]; }
+              else a = 0;
+            } else a = 0;
+          } else {
+            // parede do fundo: rocha escura em blocos, com rachaduras
+            const inRuin = ruins.length && ruins.some(r => x >= r.x0 && x < r.x0 + r.w && y >= r.y0 && y < r.y0 + r.h);
+            if (inRuin) {
+              const seam = x % 8 === 0 || y % 6 === 0;
+              c = seam ? [16, 26, 30] : (f > 0.5 ? [30, 48, 54] : [26, 42, 48]);
+              if (!seam && f > 0.985) c = [50, 150, 160];
+            } else {
+              const row = Math.floor(y / 5), off = (row & 1) * 4;
+              const seam = (x + off) % 9 === 0 || y % 5 === 0;
+              const t = n > 0.55 ? 1 : 0;
+              const base = rockPal[t];
+              const k = seam ? 0.22 : 0.34 + f * 0.06;
+              c = [base[0] * k, base[1] * k, base[2] * k];
+              // raízes penduradas logo abaixo da superfície da Terra
+              if (L1 && y < sy + 26 && hash2(x, 0, 17) < 0.06 && y - sy < 8 + hash2(x, 1, 17) * 14) c = [70, 52, 34];
+            }
           }
         } else if (IS_LOOSE[m]) {
+          const pal = this.pal(m);
+          const h = hash2(x, y, 5);
           const def = MATERIALS[m];
-          const k = 0.78 + f * 0.36;
-          [r, g, b] = def.top; r *= k; g *= k; b *= k;
-          if (m === GRAIN.bloco_massa) { const e = x % 3 === 0 || y % 3 === 0; if (e) { r *= 0.7; g *= 0.7; b *= 0.7; } else { r = 160 + f * 30; g = 136 + f * 24; b = 108; } }
-          else if (def.glow && f > 0.8) { r = Math.min(255, r * 1.3); g = Math.min(255, g * 1.3); b = Math.min(255, b * 1.3); }
-          else if (w.aux[i] > 70 && f < 0.1) { r *= 1.25; g *= 1.15; b *= 0.9; } // grão de teor alto: brilho de minério
+          if (m === GRAIN.bloco_massa) {
+            const e = x % 3 === 0 || y % 3 === 0;
+            c = e ? [84, 70, 58] : (h > 0.5 ? [170, 146, 116] : [154, 130, 102]);
+          } else {
+            c = h < 0.25 ? pal[1] : h < 0.7 ? pal[2] : h < 0.95 ? pal[3] : pal[4];
+            if (def.glow && h > 0.9) c = [Math.min(255, pal[4][0] + 40), Math.min(255, pal[4][1] + 40), Math.min(255, pal[4][2] + 40)];
+            else if (w.aux[i] > 70 && h < 0.08) c = [255, 210, 120];   // pinta de minério em grão de teor alto
+            // sombra de contato: grão com vazio embaixo fica mais claro (borda da pilha)
+            if (!solidish(mat[i + WORLD_W])) c = pal[3];
+          }
         } else if (IS_LIQUID[m]) {
-          const def = MATERIALS[m];
-          const surf = !IS_LIQUID[mat[i - WORLD_W]] && mat[i - WORLD_W] === MAT.AIR;
-          const k = 0.8 + n * 0.3;
-          [r, g, b] = def.top; r *= k; g *= k; b *= k;
-          if (surf) { r = Math.min(255, r * 1.5 + 30); g = Math.min(255, g * 1.4 + 30); b = Math.min(255, b * 1.3 + 30); }
-          if (m === MAT.LAVA && f > 0.9) { r = 255; g = 220; b = 120; }
+          const pal = this.pal(m);
+          let depth = 0;
+          for (let k = 1; k <= 8; k++) { if (mat[i - k * WORLD_W] !== m) break; depth++; }
+          const surf = depth === 0 && mat[i - WORLD_W] === MAT.AIR;
+          c = surf ? pal[4] : depth < 2 ? pal[3] : depth < 5 ? pal[2] : pal[1];
+          if (m === MAT.LAVA) { if (f > 0.93) c = [255, 236, 150]; else if (n < 0.3 && !surf) c = [140, 40, 16]; }
+          else if (f > 0.985) c = pal[4];
           if (lights && m === MAT.LAVA && f > 0.985) lights.push({ x: x * CELL + 2, y: y * CELL + 2, r: 40, c: [255, 100, 30], a: 0.6, flicker: f });
         } else {
           const def = MATERIALS[m];
-          const k = 0.82 + n * 0.22 + (f - 0.5) * 0.12;
+          const pal = this.pal(m);
+          const up = mat[i - WORLD_W], dn = y < WORLD_H - 1 ? mat[i + WORLD_W] : m;
+          const openUp = y > 0 && !solidish(up), openDn = !solidish(dn);
+          const openL = !solidish(mat[i - 1]), openR = !solidish(mat[i + 1]);
           if (def.kind === 'ore') {
-            [r, g, b] = f > 0.55 ? def.top : def.face;
-            r *= k; g *= k; b *= k;
-            if (f > 0.93) { r = Math.min(255, r * 1.5); g = Math.min(255, g * 1.5); b = Math.min(255, b * 1.5); }
+            // cristais facetados com brilho
+            const facet = ((x - y) & 3) === 0 ? 4 : ((x + 2 * y) % 5 === 0) ? 1 : (n > 0.5 ? 3 : 2);
+            c = pal[facet];
+            if (f > 0.975) c = [255, 255, 255];
+            if (openDn) c = pal[0];
             if (lights && def.glow && f > 0.992) lights.push({ x: x * CELL + 2, y: y * CELL + 2, r: 22 + f * 20, c: def.glow, a: 0.5, flicker: f });
           } else if (def.kind === 'edge') {
-            r = 18 + f * 10; g = 14 + f * 8; b = 16 + f * 10;
+            const v = (x + (y >> 1)) % 7 === 0 ? 10 : 0;
+            c = [22 + f * 8 + v, 18 + f * 6 + v, 22 + f * 8 + v];
           } else if (def.kind === 'ancient') {
-            [r, g, b] = def.top;
             const seam = x % 6 === 0 || y % 4 === 0;
-            const kk = seam ? 0.7 : k;
-            r *= kk; g *= kk; b *= kk;
-            if (!seam && f > 0.97) { r = 70; g = 230; b = 230; if (lights && f > 0.995) lights.push({ x: x * CELL + 2, y: y * CELL + 2, r: 26, c: [60, 220, 230], a: 0.5, flicker: f }); }
+            c = seam ? pal[0] : (f > 0.5 ? pal[2] : pal[1]);
+            if (!seam && f > 0.975) { c = [80, 236, 236]; if (lights && f > 0.995) lights.push({ x: x * CELL + 2, y: y * CELL + 2, r: 26, c: [60, 220, 230], a: 0.5, flicker: f }); }
+            if (openUp) c = pal[3];
           } else {
-            // rocha com estratos horizontais
+            // rocha: estratos pontilhados + pedrinhas + bordas definidas
             const st = this.strata.at(x, y);
-            const base = st > 0.62 ? def.face : def.top;
-            const kk = k * (0.9 + st * 0.2);
-            r = base[0] * kk * 1.25; g = base[1] * kk * 1.25; b = base[2] * kk * 1.25;
-            if (f > 0.97) { r *= 1.25; g *= 1.25; b *= 1.25; } else if (f < 0.04) { r *= 0.7; g *= 0.7; b *= 0.7; }
-            // pedrinhas 2x2 e torrões
+            let t = st > 0.62 ? 1 : n > 0.62 ? 3 : 2;
             const peb = hash2(x >> 1, y >> 1, 77);
-            if (peb > 0.95) { r *= 1.22; g *= 1.2; b *= 1.18; } else if (peb < 0.05) { r *= 0.72; g *= 0.72; b *= 0.74; }
+            if (f > 0.992) t = 4;
+            c = pal[t];
+            // pedrinhas: 2x2 cinzentas na terra, escuras nas rochas
+            if (peb > 0.975) c = L1 ? ((x & 1) ? [120, 116, 110] : [96, 92, 88]) : pal[3];
+            else if (peb < 0.02) c = pal[0];
+            if (openUp) {
+              if (L1 && y <= gen.surfaceAt(x) + 1 && def.kind === 'rock') c = f > 0.4 ? [104, 178, 66] : [86, 152, 54];   // grama
+              else c = pal[4];
+            } else if (y > 1 && !solidish(mat[i - 2 * WORLD_W])) {
+              c = L1 && y <= gen.surfaceAt(x) + 3 && def.kind === 'rock' ? [66, 116, 44] : pal[3];
+            } else if (L1 && y <= gen.surfaceAt(x) + 4 && def.kind === 'rock' && hash2(x, y, 4) < 0.35) c = [74, 92, 42];
+            if (openDn) c = pal[0];
+            else if (openL || openR) c = pal[1];
           }
-          // luz no topo exposto, sombra embaixo
-          const up = mat[i - WORLD_W], dn = mat[i + WORLD_W];
-          if (y > 0 && !IS_SOLID[up] && !IS_LOOSE[up]) {
-            if (gen.layer === 1 && y <= gen.surfaceAt(x) + 1 && def.kind === 'rock') { r = 86 + f * 30; g = 130 + f * 40; b = 54 + f * 10; } // grama
-            else { r *= 1.35; g *= 1.35; b *= 1.35; }
-          } else if (y > 1 && !IS_SOLID[mat[i - 2 * WORLD_W]] && !IS_LOOSE[mat[i - 2 * WORLD_W]]) { r *= 1.15; g *= 1.15; b *= 1.15; }
-          if (y < WORLD_H - 1 && !IS_SOLID[dn] && !IS_LOOSE[dn]) { r *= 0.6; g *= 0.6; b *= 0.6; }
           const dm = w.dmg[i];
-          if (dm > 20) { const kd = 1 - dm / 255 * 0.45; r *= kd; g *= kd; b *= kd; }
+          if (dm > 30) { const kd = 1 - dm / 255 * 0.5; c = [c[0] * kd, c[1] * kd, c[2] * kd]; }
         }
-        d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = a;
+        d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = a;
       }
     }
     ctx.putImageData(img, x0, y0);
