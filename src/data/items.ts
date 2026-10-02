@@ -96,6 +96,9 @@ it({ key: 'kit_reparo', name: 'Kit de Reparo', cat: 'consumivel', color: [230, 1
 it({ key: 'medkit', name: 'Kit Médico', cat: 'consumivel', color: [230, 60, 60], icon: 'kit', weight: 1, value: 15, desc: 'Restaura vida. Descontado do salário.' });
 it({ key: 'plataforma_kit', name: 'Kit de Plataforma', cat: 'consumivel', color: [200, 140, 50], icon: 'plate', weight: 3, value: 15, desc: 'Plataforma sobre líquidos e abismos.' });
 
+// --- Equipamento portátil ---
+it({ key: 'kit_soprador', name: 'Soprador (na mão)', cat: 'consumivel', color: [80, 180, 230], color2: [40, 60, 80], icon: 'module', weight: 0, value: 30, desc: 'Soprador Automático recolhido: coloque de novo em qualquer frente de escavação, sem custo.' });
+
 // --- Especiais ---
 it({ key: 'artefato', name: 'Fragmento Ancestral', cat: 'especial', color: [70, 220, 230], icon: 'orb', weight: 1, value: 0, desc: 'Resto material de Khelos. Avaliado pela Zenitex em "depende".' });
 

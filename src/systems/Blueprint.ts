@@ -17,19 +17,31 @@ export class Blueprint {
     const c = this.g.machines.list.find(m => m.def.behavior === 'command');
     if (!c) { this.items = []; return; }
     const tx0 = c.tx + 1, gy = c.ty + c.def.h;     // gy = primeira fileira de chão
-    // FÁBRICA VERTICAL, à direita da cápsula (tudo cai por gravidade):
-    //            [ELEVADOR ▲]
-    //   [PENEIRA ◀]  [ ▲ ]
-    // [PRENSA][COLETOR][ ▲ ]◀ esteira ◀ [PERFURADORA ↓]
+    // FÁBRICA VERTICAL, à direita da cápsula (tudo cai por gravidade), alimentada por um SOPRADOR numa frente de escavação:
+    //            ◀═══════ tubo ══╗
+    //   [PENEIRA ◀]              ║
+    // [PRENSA][COLETOR]          ╚[SOPRADOR ◀]  ← cave aqui perto
     const x = tx0 + 4;
     this.items = [
       { id: 'armazem', key: 'armazem', tx: x, ty: gy - 2, dir: 0, label: 'COLETOR' },
       { id: 'peneira', key: 'peneira', tx: x, ty: gy - 3, dir: 2, label: 'PENEIRA ◀' },
       { id: 'compactador', key: 'compactador', tx: x - 1, ty: gy - 2, dir: 0, label: 'PRENSA' },
-      { id: 'elevador', key: 'elevador_grao', tx: x + 2, ty: gy - 1, ty2: gy - 4, dir: 2, label: 'ELEVADOR ▲' },
-      { id: 'perfuradora', key: 'perfuradora', tx: x + 6, ty: gy - 2, dir: 1, label: 'PERFURADORA ↓' },
-      { id: 'esteira', key: 'esteira', tx: x + 5, tx2: x + 3, ty: gy - 1, dir: 2, label: 'ESTEIRA ◀' },
+      { id: 'soprador', key: 'soprador', tx: x + 9, ty: gy - 1, dir: 2, label: 'SOPRADOR ◀' },
+      { id: 'tubo', key: 'tubo', tx: x + 8, ty: gy - 1, tx2: x + 2, ty2: gy - 4, dir: 3, label: 'TUBO' },
     ];
+  }
+
+  /** peças do tubo em L (sobe primeiro, depois vai para o lado), cada uma apontando para a próxima */
+  tubePath(it: BPItem): [number, number, number][] {
+    const pts: [number, number][] = [[it.tx, it.ty]];
+    let x = it.tx, y = it.ty;
+    while (y !== it.ty2!) { y += Math.sign(it.ty2! - y); pts.push([x, y]); }
+    while (x !== it.tx2!) { x += Math.sign(it.tx2! - x); pts.push([x, y]); }
+    const dirOf = (dx: number, dy: number) => (dx > 0 ? 0 : dy > 0 ? 1 : dx < 0 ? 2 : 3);
+    return pts.map(([px, py], i) => {
+      const [nx, ny] = i < pts.length - 1 ? pts[i + 1] : [px * 2 - pts[i - 1][0], py * 2 - pts[i - 1][1]];
+      return [px, py, dirOf(nx - px, ny - py)];
+    });
   }
 
   item(id: string) { return this.items.find(i => i.id === id); }
@@ -37,6 +49,10 @@ export class Blueprint {
   /** a peça foi posta onde o projeto pede, girada certo? */
   placed(id: string): boolean {
     const it = this.item(id); if (!it) return false;
+    if (it.key === 'tubo') {
+      for (const [px, py, d] of this.tubePath(it)) { const m = this.g.machines.at(px, py); if (!m || m.def.behavior !== 'tube' || m.dir !== d) return false; }
+      return true;
+    }
     if (it.key === 'esteira') {
       for (let x = Math.min(it.tx, it.tx2!); x <= Math.max(it.tx, it.tx2!); x++) { const m = this.g.machines.at(x, it.ty); if (!m?.belt || m.dir !== it.dir) return false; }
       return true;
@@ -78,11 +94,10 @@ export class Blueprint {
       ['armazem', 'Falta o Coletor no quadrado marcado.'],
       ['peneira', 'A Peneira tem que ficar EM CIMA do Coletor, com a seta ◀ (resíduo para a esquerda).'],
       ['compactador', 'A Prensa vai do lado esquerdo, embaixo da borda por onde o resíduo escorrega.'],
-      ['elevador', 'O Elevador é uma coluna de 4, encostada no Coletor, com a saída do topo ◀ para cima da Peneira.'],
-      ['perfuradora', 'A Perfuradora vai na ponta, com a seta para BAIXO.'],
-      ['esteira', 'A esteira vai da perfuradora ATÉ o elevador (arraste da perfuradora para o elevador).'],
+      ['soprador', 'O Soprador vai no quadrado marcado, com o bocal ◀ virado para a fábrica.'],
+      ['tubo', 'O tubo sai do bocal do soprador, SOBE e vai até em cima da Peneira (arraste do 1 até o 2).'],
     ];
     for (let i = 0; i < order.length; i++) if (!this.placed(order[i][0])) return { ok: false, msg: order[i][1], stage: i };
-    return { ok: true, msg: 'Fábrica montada: perfuradora → esteira → elevador → peneira → minerais no coletor, resíduo na prensa.', stage: order.length };
+    return { ok: true, msg: 'Fábrica montada: soprador → tubo → peneira → minerais no coletor, resíduo na prensa.', stage: order.length };
   }
 }

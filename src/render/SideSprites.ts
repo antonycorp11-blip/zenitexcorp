@@ -422,6 +422,25 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
     for (let k = 0; k < 9; k++) { p.r(bx + d * k - 2, by - k - 2, 5, 5, P.ink); }
     for (let k = 0; k < 9; k++) { p.r(bx + d * k - 1, by - k - 1, 3, 3, k > 6 ? P.orL : P.or); }
     p.r(bx - 3, top + 2, 6, 5, P.stL); p.r(bx - 3, top + 2, 6, 1, P.stLL);
+  } else if (def.behavior === 'blower') {
+    // soprador portátil: carcaça amarela com ventoinha (boca de aspiração), alça de carregar e bocal na seta
+    const x = p.x, cx = W / 2, cy = top + H / 2 + 1;
+    p.panel(1, top + 3, W - 2, H - 4, [214, 164, 40], { rivets: true });
+    p.hazard(1, bot - 3, W - 2, 2);
+    x.fillStyle = css(P.ink); x.beginPath(); x.arc(cx, cy, 4.6, 0, 7); x.fill();
+    x.fillStyle = css(P.stD); x.beginPath(); x.arc(cx, cy, 4, 0, 7); x.fill();
+    x.strokeStyle = css(P.stLL); x.lineWidth = 0.7;
+    for (let i = 0; i < 5; i++) { const a = i * 1.2566; x.beginPath(); x.moveTo(cx, cy); x.quadraticCurveTo(cx + Math.cos(a + 0.6) * 3, cy + Math.sin(a + 0.6) * 3, cx + Math.cos(a) * 3.8, cy + Math.sin(a) * 3.8); x.stroke(); }
+    x.fillStyle = css(P.stLL); x.beginPath(); x.arc(cx, cy, 1, 0, 7); x.fill();
+    // alça
+    x.strokeStyle = css(P.ink); x.lineWidth = 1.6; x.beginPath(); x.moveTo(4, top + 3); x.quadraticCurveTo(cx, top - 4, W - 4, top + 3); x.stroke();
+    x.strokeStyle = css(P.stL); x.lineWidth = 0.8; x.stroke();
+    // bocal
+    const nx = right ? W - 1 : -3;
+    p.panel(nx, cy - 2.5, 4, 5, P.stL);
+    p.light(right ? 2 : W - 4, top + 4, glow);
+  } else if (def.behavior === 'tube') {
+    // desenhado no Renderer (liga nos vizinhos)
   } else if (def.behavior === 'link') {
     p.r(1, top, 3, H, P.ink); p.r(W - 4, top, 3, H, P.ink); p.r(2, top, 1, H, P.stL); p.r(W - 3, top, 1, H, P.stL);
     p.panel(5, top + 6, W - 10, H - 10, P.or, { rivets: true });

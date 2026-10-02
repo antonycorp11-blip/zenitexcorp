@@ -5,7 +5,7 @@ export type Behavior =
   | 'belt' | 'splitter' | 'storage' | 'link' | 'lift' | 'terminal' | 'launchpad'
   | 'drill' | 'pump' | 'complex' | 'tectonic' | 'mantle' | 'cannon' | 'cutter' | 'collector' | 'orbital'
   | 'crusher' | 'purifier' | 'refinery' | 'foundry' | 'synth'
-  | 'analyzer' | 'separator' | 'prep' | 'compactor' | 'riser' | 'launcher' | 'filter' | 'scaffold'
+  | 'analyzer' | 'separator' | 'prep' | 'compactor' | 'riser' | 'launcher' | 'filter' | 'scaffold' | 'blower' | 'tube'
   | 'generator' | 'reactor'
   | 'command' | 'workshop' | 'lab' | 'robotics' | 'archaeo' | 'logcenter'
   | 'field' | 'lamp' | 'support' | 'platform' | 'surge' | 'dronepad';
@@ -52,6 +52,8 @@ const m = (d: MachineDef) => D.push(d);
 m({ key: 'esteira', name: 'Esteira Mk I', cat: 'logistica', behavior: 'belt', look: 'belt', w: 1, h: 1, rotatable: true, cost: { ferronox: 2 }, power: 0, speed: 1.4, wear: 0.02, desc: 'Empurra os grãos que caem em cima dela. Na ponta, eles caem ou entram na máquina encostada.' });
 m({ key: 'esteira2', name: 'Esteira Mk II', cat: 'logistica', behavior: 'belt', look: 'belt', w: 1, h: 1, rotatable: true, cost: { placa_ferronox: 1, ferronox: 1 }, power: 0, speed: 2.8, wear: 0.02, research: 'esteira2', desc: 'Dobro da velocidade. Dobro dos gargalos em outros lugares.' });
 m({ key: 'esteira3', name: 'Esteira Mk III', cat: 'logistica', behavior: 'belt', look: 'belt', w: 1, h: 1, rotatable: true, cost: { placa_ferronox: 1, polimero_solvex: 1 }, power: 0, speed: 5.5, wear: 0.02, research: 'esteira3', desc: 'Transporte de alta vazão.' });
+m({ key: 'tubo', name: 'Tubo Pneumático', cat: 'logistica', behavior: 'tube', look: 'belt', w: 1, h: 1, rotatable: true, cost: { ferronox: 2 }, power: 0, speed: 6, desc: 'Arraste para montar: leva grãos em qualquer direção, até para cima. A pressão de um soprador ou reforçador empurra por 14 tiles; mais longe, ponha um Reforçador no meio.' });
+m({ key: 'reforcador', name: 'Reforçador de Pressão', cat: 'logistica', behavior: 'tube', look: 'belt', w: 1, h: 1, rotatable: true, cost: { ferronox: 10, lumenita: 4 }, power: 0, speed: 6, desc: 'Peça de tubo com compressor: renova a pressão por mais 14 tiles. Linhas longas precisam de vários.' });
 m({ key: 'plataforma_metal', name: 'Plataforma', cat: 'logistica', behavior: 'scaffold', look: 'platform', w: 1, h: 1, cost: { ferronox: 1 }, power: 0, desc: 'Viga de 1 tile: você pisa em cima e os grãos também. Use para subir a fábrica e apoiar peças no alto.' });
 m({ key: 'elevador_grao', name: 'Elevador de Grãos', cat: 'logistica', behavior: 'riser', look: 'lift', w: 1, h: 1, rotatable: true, cost: { ferronox: 4, lumenita: 1 }, power: 0, desc: 'Empilhe na vertical: grãos que entram embaixo (por esteira ou caindo) saem no topo, para o lado da seta. Tire material do fundo do buraco.' });
 m({ key: 'lancador_grao', name: 'Lançador de Grãos', cat: 'logistica', behavior: 'launcher', look: 'lift', w: 1, h: 1, rotatable: true, cost: { ferronox: 8, lumenita: 4 }, power: 0, desc: 'Grão que entra (por esteira ou caindo em cima) é arremessado em arco para o lado da seta. Atravessa buracos e alimenta funis de longe.' });
@@ -67,6 +69,7 @@ m({ key: 'terminal_orbital', name: 'Terminal Orbital', cat: 'logistica', behavio
 m({ key: 'plataforma_lancamento', name: 'Plataforma de Lançamento', cat: 'logistica', behavior: 'launchpad', look: 'pad', w: 4, h: 4, cost: { placa_ferronox: 60, motor: 10, pyroxis_estabilizado: 20 }, power: -40, capacity: 5000, wear: 0.1, research: 'lancamento', desc: '+5.000 kg/min de venda e +30.000 kg/min de exportação de blocos.' });
 
 // ---------------- EXTRAÇÃO ----------------
+m({ key: 'soprador', name: 'Soprador Automático', cat: 'extracao', behavior: 'blower', look: 'pump', w: 1, h: 1, rotatable: true, cost: { ferronox: 20, lumenita: 10 }, power: 0, capacity: 900, radius: 7, wear: 0.3, glow: [120, 220, 255], desc: 'Portátil: você coloca e RECOLHE quando a frente acaba. Aspira as pilhas soltas num raio de 7 tiles e sopra para o tubo encostado no lado da seta (sem tubo, sopra no ar). Cave perto dele.' });
 m({ key: 'perfuradora', name: 'Perfuradora Mk I', cat: 'extracao', behavior: 'drill', look: 'drill', w: 2, h: 2, rotatable: true, cost: { ferronox: 30, lumenita: 15 }, power: -8, speed: 1, tier: 2, wear: 1.2, heat: 1, glow: [255, 170, 60], desc: 'Perfura o terreno à frente e despeja material bruto da camada. Regiões de teor alto rendem mais minerais depois do processamento.' });
 m({ key: 'perfuradora2', name: 'Perfuradora Mk II', cat: 'extracao', behavior: 'drill', look: 'drill', w: 2, h: 2, rotatable: true, cost: { placa_ferronox: 16, broca: 2, motor: 2 }, power: -25, speed: 2.6, tier: 4, wear: 1.0, heat: 3, glow: [255, 170, 60], research: 'perfuradora2', desc: 'Perfuração pesada. Alcance maior.' });
 m({ key: 'perfuradora3', name: 'Perfuradora Mk III', cat: 'extracao', behavior: 'drill', look: 'drill', w: 2, h: 2, rotatable: true, cost: { liga_termo: 8, broca: 4, circuito: 2 }, power: -70, speed: 6, tier: 6, wear: 0.8, heat: 6, glow: [255, 120, 60], research: 'perfuradora3', desc: 'Atravessa rocha hiperdensa.' });
@@ -138,13 +141,13 @@ m({ key: 'drone_ambiental', name: 'Estação: Drone Ambiental', cat: 'drones', b
 m({ key: 'drone_operador', name: 'Estação: Drone Operador', cat: 'drones', behavior: 'dronepad', look: 'robotics', w: 2, h: 2, robot: 'loader', cost: { ferronox: 60, motor: 2 }, power: 0, research: 'robo_loader', glow: [255, 220, 120], desc: 'Opera elevadores e terminais próximos: +20% de vazão.' });
 
 // Fora da versão atual (sem rede de energia; pesquisa e fabricação não exigem prédio): mantidos só para saves antigos
-for (const k of ['separador', 'elevador_pessoal', 'plataforma', 'gerador', 'reator_lumenita', 'reator_pyroxis', 'reator_hibrido', 'receptor_orbital', 'nucleo_alienigena', 'protetor_surto', 'laboratorio', 'oficina', 'centro_robotico']) {
+for (const k of ['perfuradora', 'perfuradora2', 'perfuradora3', 'complexo', 'separador', 'elevador_pessoal', 'plataforma', 'gerador', 'reator_lumenita', 'reator_pyroxis', 'reator_hibrido', 'receptor_orbital', 'nucleo_alienigena', 'protetor_surto', 'laboratorio', 'oficina', 'centro_robotico']) {
   const d = D.find(x => x.key === k); if (d) d.hidden = true;
 }
 
 export const MACHINES: readonly MachineDef[] = D;
 /** Vista lateral: só perfuradoras giram nas 4 direções; o resto vira para a esquerda/direita. */
-export const nextDir = (def: MachineDef | undefined, dir: number) => def?.behavior === 'drill' ? (dir + 1) % 4 : dir === 0 ? 2 : 0;
+export const nextDir = (def: MachineDef | undefined, dir: number) => def?.behavior === 'drill' || def?.behavior === 'tube' ? (dir + 1) % 4 : dir === 0 ? 2 : 0;
 export const MACHINE: Record<string, MachineDef> = Object.fromEntries(D.map(d => [d.key, d]));
 export const MACHINE_CATS: { key: MachineCat; name: string }[] = [
   { key: 'extracao', name: 'Extração' }, { key: 'logistica', name: 'Logística' }, { key: 'processamento', name: 'Processamento' },

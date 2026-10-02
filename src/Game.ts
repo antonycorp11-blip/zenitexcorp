@@ -188,6 +188,7 @@ export class Game {
     this.setupBase();
     this.markLayerStart();
     this.stock.add('ferronox', 180, false); this.stock.add('lumenita', 90, false);   // kit inicial: a primeira fábrica vertical inteira, com folga
+    this.pack.add('kit_soprador', 2);   // dois sopradores na mão
     this.stock.credits = 300;
     this.pack.add('sinalizador', 3); this.pack.add('kit_reparo', 1);
     this.world.reveal(this.player.x, this.player.y, 22);
@@ -455,7 +456,7 @@ export class Game {
     // volta para o perfurador: senão o slot de construção continua ativo e nada minera
     if (this.hotbar[this.selected]?.type === 'build') this.selected = 0;
     this.build.active = false; this.build.deconstruct = false; this.build.key = null; this.build.anchor = null; this.build.dragging = false; this.input.placeMode = false; }
-  isLineBuild() { const d = this.build.key ? MACHINE[this.build.key] : null; return !!d && (d.behavior === 'belt' || d.behavior === 'riser' || d.behavior === 'scaffold'); }
+  isLineBuild() { const d = this.build.key ? MACHINE[this.build.key] : null; return !!d && (d.behavior === 'belt' || d.behavior === 'riser' || d.behavior === 'scaffold' || d.key === 'tubo'); }
 
   /**
    * Linha de peças arrastando: esteira = horizontal (anda no sentido do arrasto);
@@ -464,9 +465,23 @@ export class Game {
   beltPath(): [number, number, number][] {
     const b = this.build;
     const def = b.key ? MACHINE[b.key] : null;
-    if (!b.anchor) return [[b.tx, b.ty, b.dir === 2 ? 2 : 0]];
+    if (!b.anchor) return [[b.tx, b.ty, def?.key === 'tubo' ? b.dir : b.dir === 2 ? 2 : 0]];
     const [ax, ay] = b.anchor;
     const out: [number, number, number][] = [];
+    if (def?.key === 'tubo') {
+      // tubo: caminho em L (primeiro na vertical, depois na horizontal); cada peça aponta para a próxima
+      const pts: [number, number][] = [[ax, ay]];
+      let x = ax, y = ay;
+      while (y !== b.ty && pts.length < 120) { y += Math.sign(b.ty - y); pts.push([x, y]); }
+      while (x !== b.tx && pts.length < 120) { x += Math.sign(b.tx - x); pts.push([x, y]); }
+      const dirOf = (dx: number, dy: number) => (dx > 0 ? 0 : dy > 0 ? 1 : dx < 0 ? 2 : 3);
+      for (let i = 0; i < pts.length; i++) {
+        const [px, py] = pts[i];
+        const [nx, ny] = i < pts.length - 1 ? pts[i + 1] : pts.length > 1 ? [px * 2 - pts[i - 1][0], py * 2 - pts[i - 1][1]] : [px + (b.dir === 2 ? -1 : 1), py];
+        out.push([px, py, pts.length === 1 ? b.dir : dirOf(nx - px, ny - py)]);
+      }
+      return out;
+    }
     const vertical = def?.behavior === 'riser' || (def?.behavior === 'scaffold' && Math.abs(b.ty - ay) > Math.abs(b.tx - ax));
     if (vertical) {
       const step = b.ty >= ay ? 1 : -1;
@@ -490,7 +505,7 @@ export class Game {
       if (!this.stock.pay(def.cost, this.pack.items)) { poor = true; break; }
       if (this.machines.place(def.key, tx, ty, dir)) { placed++; this.stats.built++; }
     }
-    if (placed || turned) { this.audio.click(); this.toast(`${placed} esteira(s) instalada(s)${turned ? `, ${turned} girada(s)` : ''}`, '#9cff8a'); }
+    if (placed || turned) { this.audio.click(); this.toast(`${placed} ${def.behavior === 'tube' ? 'tubo(s)' : def.behavior === 'riser' ? 'peça(s) de elevador' : 'esteira(s)'} instalada(s)${turned ? `, ${turned} girada(s)` : ''}`, '#9cff8a'); }
     if (blocked) this.toast(`${blocked} trecho(s) obstruído(s) foram pulados`, '#ffd04a');
     if (poor) { this.toast('Recursos acabaram no meio da linha', '#ff8a3a'); this.audio.error(); }
     // linha instalada: volta ao perfurador (ficar preso no modo construção parecia travamento)
@@ -502,7 +517,7 @@ export class Game {
     // projeto guiado: não deixa confirmar girado errado
     const bp = this.ui.tutorial.currentBp();
     const def = this.build.key ? MACHINE[this.build.key] : null;
-    if (bp && def && bp.key === def.key && def.rotatable && def.behavior !== 'belt' && this.build.dir !== bp.dir) {
+    if (bp && def && bp.key === def.key && def.rotatable && def.behavior !== 'belt' && def.behavior !== 'tube' && this.build.dir !== bp.dir) {
       this.toast(`Gire primeiro: a seta tem que apontar para ${['a DIREITA', 'BAIXO', 'a ESQUERDA', 'CIMA'][bp.dir]} (botão GIRAR)`, '#ffd04a'); this.audio.error(); return;
     }
     this.buildAction();
@@ -530,8 +545,11 @@ export class Game {
     const err = this.machines.canPlace(def, ox, oy);
     if (err) { this.toast(err, '#ff8a3a'); this.audio.error(); return; }
     if (Math.hypot((ox + def.w / 2) * TILE - this.player.x, (oy + def.h / 2) * TILE - this.player.y) > 260) { this.toast('Muito longe para construir', '#ff8a3a'); this.audio.error(); return; }
-    if (!this.stock.pay(def.cost, this.pack.items)) { this.toast('Recursos insuficientes (Estoque Central + aspirador)', '#ff8a3a'); this.audio.error(); return; }
+    const useKit = def.key === 'soprador' && this.pack.count('kit_soprador') >= 1;
+    if (useKit) this.pack.take('kit_soprador', 1);
+    else if (!this.stock.pay(def.cost, this.pack.items)) { this.toast('Recursos insuficientes (Estoque Central + aspirador)', '#ff8a3a'); this.audio.error(); return; }
     const m = this.machines.place(def.key, ox, oy, this.build.dir);
+    if (!m && useKit) this.pack.add('kit_soprador', 1);
     if (m) {
       this.stats.built++;
       this.audio.click();

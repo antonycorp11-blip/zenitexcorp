@@ -127,6 +127,7 @@ export class Panels {
     build: (a) => { if (!this.g.canBuildKey(a)) { this.st.buildInfo = a; this.render(); return; } this.g.startBuild(a); this.close(); },
     buildInfo: (a) => { this.st.buildInfo = this.st.buildInfo === a ? '' : a; this.render(); },
     mdet: () => { this.st.mDetails = !this.st.mDetails; this.render(); },
+    pickup: () => { const m = this.machine; if (!m) return; this.g.machines.remove(m); this.g.pack.add('kit_soprador', 1); this.close(); this.g.toast('Soprador na mão: coloque em outra frente de escavação (Construir → Extração)', '#9cff8a'); },
     setFilter: (a) => { if (this.machine) this.machine.filter = a; this.render(); },
     pin: (a) => { this.g.hotbar[this.g.selected] = { type: 'build', key: a }; this.g.toast(`Fixado no slot ${(this.g.selected + 1) % 10}`, '#9cff8a'); },
     pinItem: (a) => { this.g.hotbar[this.g.selected] = { type: 'item', key: a }; this.g.toast(`Fixado no slot ${(this.g.selected + 1) % 10}`, '#9cff8a'); },
@@ -256,7 +257,8 @@ export class Panels {
     h += `<div class="bd-row">${list.map(d => {
       const locked = !!d.research && !g.research.has(d.research);
       const afford = g.stock.has(d.cost, g.pack.items);
-      const cost = Object.entries(d.cost).map(([k, n]) => `<i class="${g.stock.count(k) + g.pack.count(k) >= n ? '' : 'no'}">${this.icon(k, 12)}${fmtShort(n)}</i>`).join('');
+      const kits = d.key === 'soprador' ? g.pack.count('kit_soprador') : 0;
+      const cost = kits >= 1 ? `<i>✋ ${kits} na mão</i>` : Object.entries(d.cost).map(([k, n]) => `<i class="${g.stock.count(k) + g.pack.count(k) >= n ? '' : 'no'}">${this.icon(k, 12)}${fmtShort(n)}</i>`).join('');
       return `<div class="bd-card ${locked ? 'locked' : afford ? '' : 'poor'}" data-act="${locked ? 'buildInfo' : 'build'}" data-arg="${d.key}">
         <img src="${g.sprites.machineUrl(d)}"><b>${esc(d.name)}</b><span class="bd-cost">${locked ? '🔒 Melhorias' : cost}</span>
         <u data-act="buildInfo" data-arg="${d.key}">i</u></div>`;
@@ -541,7 +543,8 @@ export class Panels {
     h += `<div class="mc-btns">`;
     if (d.rotatable) h += `<button class="btn" data-act="rotate">↻ GIRAR <small>${['▶', '▼', '◀', '▲'][m.dir]}</small></button>`;
     if (m.cond < 50 || m.broken) h += `<button class="btn orange" data-act="repair">🔧 CONSERTAR</button>`;
-    if (d.behavior !== 'command' && d.behavior !== 'analyzer') h += `<button class="btn ghost danger" data-act="dismantle">DESMONTAR</button>`;
+    if (d.behavior === 'blower') h += `<button class="btn orange" data-act="pickup">✋ RECOLHER</button>`;
+    else if (d.behavior !== 'command' && d.behavior !== 'analyzer') h += `<button class="btn ghost danger" data-act="dismantle">DESMONTAR</button>`;
     h += `<button class="btn ghost" data-act="mdet">${this.st.mDetails ? 'Menos ▴' : 'Detalhes ▾'}</button></div>`;
     if (this.st.mDetails) h += `<div class="mc-det">${this.machineDetails(m)}</div>`;
     return h;

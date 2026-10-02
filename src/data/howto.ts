@@ -31,6 +31,7 @@ export function ioSpec(def: MachineDef, dir: number, layer: number): IOSpec {
     case 'compactor': return { inTop: ['residuo'], outs: [{ side: def.outMode === 'bottom' ? 'down' : right, keys: ['bloco_massa'], label: 'blocos' }], base: true };
     case 'filter': return { inTop: 'tudo', outs: [{ side: 'down', keys: [], label: 'tipo escolhido' }, { side: right, keys: [], label: 'o resto' }] };
     case 'refinery': return { inTop: minerals, outs: [{ side: right, keys: minerals.map(k => REFINE_MAP[k]).filter(Boolean), label: 'barras' }] };
+    case 'blower': return { inTop: null, outs: [{ side: right, keys: [], label: 'pilhas soltas' }] };
     case 'riser': return { inTop: 'tudo', outs: [{ side: right, keys: [], label: 'sai no topo' }] };
     case 'launcher': return { inTop: 'tudo', outs: [{ side: right, keys: [], label: 'arremesso' }] };
     default: return { inTop: null, outs: [] };
@@ -44,6 +45,8 @@ export function howTo(def: MachineDef, layer: number): string {
   switch (def.behavior) {
     case 'drill': return 'Ponha no chão com a seta apontando para a terra. Ela cava sozinha e cospe o material bruto pela calha do lado oposto: ponha uma esteira embaixo da calha.';
     case 'belt': return 'Grãos que caem em cima andam no sentido da seta. Na ponta, caem no chão ou entram na máquina encostada (pela lateral ou pelo funil).';
+    case 'blower': return 'Portátil. Ponha perto de onde você está cavando: ele aspira sozinho os grãos soltos no círculo e sopra pelo bocal (seta). Ligue um Tubo no bocal para levar até a Peneira. Pilha acabou? Toque nele e RECOLHA para levar a outra frente.';
+    case 'tube': return def.key === 'reforcador' ? 'Repõe a pressão do tubo: a cada 14 tubos sem reforçador o fluxo para. Coloque no meio de linhas longas.' : 'Arraste para traçar o caminho (sobe primeiro, depois vai para o lado). O grão anda na seta e sai pela boca: em cima de um funil, entra na máquina. Linhas longas precisam de Reforçador a cada 14 tubos.';
     case 'riser': return 'Empilhe na vertical. O grão que entra embaixo (esteira encostada ou caindo em cima) sai no topo, para o lado da seta.';
     case 'launcher': return 'O grão que entra é arremessado em arco para o lado da seta. Use para pular buracos ou jogar dentro de um funil longe.';
     case 'storage': return 'O funil em cima engole TUDO o que cair dentro (esteira, soprar, perfuradora encostada) e manda para o Estoque Central.';

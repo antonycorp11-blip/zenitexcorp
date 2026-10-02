@@ -25,7 +25,7 @@ function openTab(g: Game, tab: string): string {
 /** Caminho de construção: MENU → CONSTRUIR → aba → POSICIONAR → CONFIRMAR. */
 function buildFlow(g: Game, cat: string, key: string): Target {
   if (g.build.active && g.build.key === key) {
-    if (key === 'esteira' && !g.build.anchor) return null;   // primeiro desenhe a linha
+    if ((key === 'esteira' || key === 'tubo') && !g.build.anchor) return null;   // primeiro desenhe a linha
     return '[data-build-action="confirm"]';
   }
   if (g.ui.panels.id !== 'build') return openTab(g, 'build');
@@ -61,12 +61,12 @@ const DIRN = ['a DIREITA', 'BAIXO', 'a ESQUERDA', 'CIMA'];
 /** passo de construção guiada: o anel vai em GIRAR enquanto a rotação estiver errada, depois em CONFIRMAR */
 function bpTarget(g: Game, cat: string, id: string): Target {
   const it = g.blueprint.item(id);
-  if (g.build.active && it && g.build.key === it.key && it.key !== 'esteira' && g.build.dir !== it.dir) return '[data-build-action="rotate"]';
+  if (g.build.active && it && g.build.key === it.key && it.key !== 'esteira' && it.key !== 'tubo' && MACHINE[it.key]?.rotatable && g.build.dir !== it.dir) return '[data-build-action="rotate"]';
   return buildFlow(g, cat, it?.key ?? id);
 }
 function rotHint(g: Game, id: string): string {
   const it = g.blueprint.item(id);
-  if (!g.build.active || !it || g.build.key !== it.key) return '';
+  if (!g.build.active || !it || g.build.key !== it.key || !MACHINE[it.key]?.rotatable) return '';
   return g.build.dir === it.dir ? ' <b style="color:#7aff8a">✔ Girada certo — CONFIRMAR.</b>' : ` <b style="color:#ffd04a">↻ Toque GIRAR até a seta apontar para ${DIRN[it.dir]} (agora: ${DIRN[g.build.dir]}).</b>`;
 }
 const lineOk = (g: Game) => g.blueprint.checkLine().ok;
@@ -79,28 +79,28 @@ const STEPS: Step[] = [
     target: g => () => nearestWall(g), done: g => g.stats.manualKg >= 40 || analyzed(g) },
   { title: 'Processar à mão', text: t => `Vá até o <b>Analisador de Matriz</b> (seta) e ${t ? '<b>toque rápido no lado direito</b> da tela (USAR)' : 'aperte <b>E</b>'}. Escolha o Solo K-37, <b>INICIAR</b> e dê o <b>PULSO</b> na faixa verde.`,
     target: (g, t) => t && (g.hover?.ref as any)?.key === 'analisador' ? '#mobile .stick.right .base' : g.ui.mini.isOpen() ? null : () => machinePos(g, 'analisador'), done: analyzed },
-  { title: 'O que existe dentro', text: () => 'Viu? <b>~80% é resíduo</b> e o resto são minerais, que foram para o <b>estoque</b> (é com eles que você constrói). Agora vamos montar a <b>primeira linha de produção</b>, reta, ao lado da base: <b>Perfuradora → esteira → Processador → esteira → Armazém</b>. <b>Toque aqui.</b>',
+  { title: 'O que existe dentro', text: () => 'Viu? <b>~80% é resíduo</b> e o resto são minerais, que foram para o <b>estoque</b> (é com eles que você constrói). Aqui não existe broca: <b>quem cava é você</b>. Os <b>Sopradores</b> aspiram as pilhas que você deixa e mandam por <b>tubos</b> até a fábrica. Vamos montar a primeira. <b>Toque aqui.</b>',
     target: () => '.hcard.meta', done: () => false, manual: true },
-  { title: 'Fábrica 1/6 · Coletor', bp: 'armazem', text: (_t, g) => 'Vamos montar uma <b>fábrica vertical</b>: o material sobe, cai pela peneira e se separa por gravidade. Primeiro o <b>Coletor</b> (o armazém) no quadrado verde: <b>Construir → Logística → Armazém</b>. Tudo que cair dentro dele vai para o estoque.' + rotHint(g, 'armazem'),
+  { title: 'Fábrica 1/5 · Coletor', bp: 'armazem', text: (_t, g) => 'A fábrica é <b>vertical</b>: o material cai pela peneira e se separa por gravidade. Primeiro o <b>Coletor</b> no quadrado verde: <b>Construir → Logística → Coletor</b>. Tudo que cair dentro dele vai para o estoque.' + rotHint(g, 'armazem'),
     target: g => bpTarget(g, 'logistica', 'armazem'), done: g => g.blueprint.placed('armazem') },
   { title: 'Soprar no funil', text: t => (t ? 'Teste: toque em <b>SOPRAR</b> e arraste o <b>lado direito</b>' : 'Teste: <b>segure o botão direito</b> do mouse') + ' mirando o <b>funil do Coletor</b>. Sai o que está no aspirador (vazio, ele sopra a terra solta ao seu redor). Jogue <b>20 kg</b> e desligue o SOPRAR.',
     target: (g, t) => t && !g.flags.blowMode ? '#mobile [data-b="blow"]' : () => storagePos(g), done: g => fed(g) >= 20 },
-  { title: 'Fábrica 2/6 · Peneira', bp: 'peneira', text: (_t, g) => '<b>Processamento → Peneira</b>, <b>em cima do Coletor</b>. A terra que cair nela se separa: os <b>minerais passam pela grade</b> e caem no Coletor embaixo; o <b>resíduo escorrega</b> para o lado da seta. Seta para a <b>ESQUERDA</b>.' + rotHint(g, 'peneira'),
+  { title: 'Fábrica 2/5 · Peneira', bp: 'peneira', text: (_t, g) => '<b>Processamento → Peneira</b>, <b>em cima do Coletor</b>. Os <b>minerais passam pela grade</b> e caem no Coletor; o <b>resíduo escorrega</b> para o lado da seta. Seta para a <b>ESQUERDA</b>.' + rotHint(g, 'peneira'),
     target: g => bpTarget(g, 'processamento', 'peneira'), done: g => g.blueprint.placed('peneira') },
-  { title: 'Fábrica 3/6 · Prensa', bp: 'compactador', text: () => '<b>Processamento → Prensa</b>, no lado esquerdo, <b>embaixo da borda</b> por onde o resíduo escorrega. O resíduo cai nela e vira <b>bloco</b>, que vai direto para a base e o Terminal exporta.',
+  { title: 'Fábrica 3/5 · Prensa', bp: 'compactador', text: () => '<b>Processamento → Prensa</b>, no lado esquerdo, <b>embaixo da borda</b> por onde o resíduo escorrega. O resíduo vira <b>bloco</b>, vai para a base e o Terminal exporta.',
     target: g => bpTarget(g, 'processamento', 'compactador'), done: g => g.blueprint.placed('compactador') },
-  { title: 'Fábrica 4/6 · Elevador', bp: 'elevador', text: (_t, g) => '<b>Logística → Elevador de Grãos</b>: é uma <b>coluna</b> — arraste de baixo (1) até em cima (2). O que entra embaixo sai no topo, para o lado da seta: <b>◀ ESQUERDA</b>, caindo em cima da Peneira.' + (g.build.active && g.build.key === 'elevador_grao' && g.build.dir !== 2 ? ' <b style="color:#ffd04a">↻ Toque GIRAR: a saída tem que ser ◀.</b>' : ''),
-    target: g => { const it = g.blueprint.item('elevador'); if (g.build.active && g.build.key === 'elevador_grao' && it && g.build.dir !== it.dir) return '[data-build-action="rotate"]'; return buildFlow(g, 'logistica', 'elevador_grao'); }, done: g => g.blueprint.placed('elevador') },
-  { title: 'Fábrica 5/6 · Perfuradora', bp: 'perfuradora', text: (_t, g) => '<b>Extração → Perfuradora</b>, na ponta. A <b>seta</b> é para onde ela cava: <b>para BAIXO</b>. A terra sai pela <b>calha da esquerda</b>.' + rotHint(g, 'perfuradora'),
-    target: g => bpTarget(g, 'extracao', 'perfuradora'), done: g => g.blueprint.placed('perfuradora') },
-  { title: 'Fábrica 6/6 · Esteira', bp: 'esteira', text: () => '<b>Logística → Esteira</b>, da <b>calha da perfuradora</b> (1) até o <b>pé do elevador</b> (2). A esteira anda no sentido em que você arrasta. <b>CONFIRMAR</b>.',
-    target: g => buildFlow(g, 'logistica', 'esteira'), done: g => g.blueprint.placed('esteira') },
-  { title: 'Funcionando?', text: (_t, g) => { const r = g.blueprint.checkLine(); return r.ok ? '✔ <b>' + r.msg + '</b> Olhe: a broca cava, a esteira leva, o elevador sobe, a peneira separa. Espere os minerais chegarem ao Coletor.' : '✖ <b>' + r.msg + '</b> Toque na peça para <b>GIRAR</b> ou <b>DESMONTAR</b>.'; },
-    target: g => () => { const it = g.blueprint.item('peneira'); return it ? [(it.tx + 1) * TILE, it.ty * TILE] : null; },
-    done: g => g.blueprint.checkLine().ok && (g.sectors.s[g.planet.layer]?.counters.separated ?? 0) > 12 && (g.sectors.rt[g.planet.layer]?.linkedTotal ?? 0) > 10 },
-  { title: 'Scanner', text: t => `${t ? 'Toque em <b>SCANNER</b>' : 'Aperte <b>F</b>'}: ele mostra o <b>teor</b> da região. Perfuradoras em teor ALTO rendem muito mais minerais.`,
+  { title: 'Fábrica 4/5 · Soprador', bp: 'soprador', text: (_t, g) => `Você tem <b>${g.pack.count('kit_soprador')} Sopradores Automáticos</b> na mão. <b>Extração → Soprador</b> no quadrado verde, com o <b>bocal ◀</b> virado para a fábrica. Ele aspira sozinho os grãos soltos no círculo azul.` + rotHint(g, 'soprador'),
+    target: g => bpTarget(g, 'extracao', 'soprador'), done: g => g.blueprint.placed('soprador') },
+  { title: 'Fábrica 5/5 · Tubo', bp: 'tubo', text: () => '<b>Logística → Tubo Pneumático</b>: o caminho já está traçado — do <b>bocal do soprador</b> (1), <b>sobe</b> e vai até <b>em cima da Peneira</b> (2). Cada peça aponta para a próxima. <b>CONFIRMAR</b>.',
+    target: g => buildFlow(g, 'logistica', 'tubo'), done: g => g.blueprint.placed('tubo') },
+  { title: 'Cave perto dele', text: (t, g) => { const r = g.blueprint.checkLine(); if (!r.ok) return '✖ <b>' + r.msg + '</b> Toque na peça para <b>GIRAR</b> ou <b>DESMONTAR</b>.'; return 'Agora <b>cave o chão perto do Soprador</b> (' + (t ? 'joystick direito' : 'botão esquerdo') + '). Os grãos que você solta ficam em <b>pilhas</b> e ele aspira, manda pelo tubo e a peneira separa. Separe <b>15 kg</b>.'; },
+    target: g => () => { const m = g.machines.list.find(x => x.def.behavior === 'blower'); return m ? [(m.tx + 0.5) * TILE, (m.ty + 1.5) * TILE] : null; },
+    done: g => g.blueprint.checkLine().ok && (g.sectors.s[g.planet.layer]?.counters.separated ?? 0) > 15 },
+  { title: 'Mais frentes', text: () => 'Pilha acabou? <b>Toque no Soprador → RECOLHER</b> e leve para outra frente, ou use o <b>segundo soprador</b> em outro ponto e puxe outro tubo até a peneira. Para limpar a camada você vai precisar de <b>muitos sopradores</b> e tubos longos: a cada <b>14 tubos</b> ponha um <b>Reforçador</b> ou a pressão acaba. <b>Toque aqui.</b>',
+    target: () => '.hcard.meta', done: () => false, manual: true },
+  { title: 'Scanner', text: t => `${t ? 'Toque em <b>SCANNER</b>' : 'Aperte <b>F</b>'}: ele mostra o <b>teor</b> da região. Cavar em teor ALTO rende muito mais minerais.`,
     target: (_g, t) => t ? '#mobile [data-b="scan"]' : null, done: g => (g.sectors.s[g.planet.layer]?.counters.scans ?? 0) > 0 },
-  { title: 'Sua fábrica', text: () => 'Pronto: <b>perfuradora → esteira → elevador → peneira → coletor + prensa → terminal</b>. Para crescer: mais perfuradoras na mesma esteira, outra peneira empilhada, <b>Plataformas</b> para subir, <b>Lançador</b> para atravessar buracos e <b>Filtro</b> para separar por tipo. Buraco fundo? <b>Elevador de Grãos</b> ou <b>Lançador</b>. A barra da <b>CAMADA</b> sobe com massa removida. <b>Toque aqui</b> para terminar.',
+  { title: 'Sua fábrica', text: () => 'Pronto: <b>você cava → soprador → tubo → peneira → coletor + prensa → terminal</b>. Para crescer: mais sopradores ligados ao mesmo tubo, outra peneira, <b>Filtro</b> para separar por tipo. A barra da <b>CAMADA</b> sobe com massa removida. <b>Toque aqui</b> para terminar.',
     target: () => '.hcard.layer', done: () => false, manual: true },
 ];
 
@@ -127,6 +127,7 @@ export class Tutorial {
   private lockBuild() {
     const g = this.g, it = this.currentBp(), b = g.build;
     if (!it || !b.active || b.key !== it.key) return;
+    if (it.key === 'tubo') { b.anchor = [it.tx, it.ty]; b.tx = it.tx2!; b.ty = it.ty2!; return; }
     if (it.key === 'esteira') { b.anchor = [it.tx, it.ty]; b.tx = it.tx2!; b.ty = it.ty; return; }
     if (it.ty2 !== undefined) { b.anchor = [it.tx, it.ty]; b.tx = it.tx; b.ty = it.ty2; return; }
     const d = MACHINE[it.key];

@@ -12,13 +12,13 @@ export type MetaDef =
 
 /**
  * A Camada 1 ensina a cadeia inteira, uma peça por vez:
- * minerar bruto → processar à mão → perfuradora → processador → compactar resíduo → exportar massa.
+ * cavar com o laser → processar à mão → sopradores nas pilhas → tubo até a fábrica → peneira → prensa → exportar.
  * As camadas de baixo apresentam o processamento específico de cada material.
  */
 export const METAS: Record<number, MetaDef[]> = {
   1: [
     { kind: 'counter', text: 'Processe 60 kg de Solo K-37 no Analisador de Matriz', key: 'analyzed', max: 60 },
-    { kind: 'behavior', text: 'Instale 2 perfuradoras encostadas na terra', behavior: 'drill', count: 2 },
+    { kind: 'behavior', text: 'Tenha 2 Sopradores trabalhando (cave perto deles)', behavior: 'blower', count: 2 },
     { kind: 'build', text: 'Monte uma Peneira em cima do Coletor (minerais caem dentro, resíduo escorrega)', key: 'peneira', count: 1 },
     { kind: 'build', text: 'Ponha uma Prensa embaixo da saída de resíduo da Peneira', key: 'compactador', count: 1 },
     { kind: 'counter', text: 'Exporte 2.000 kg de resíduo em blocos (Terminal Orbital)', key: 'exported', max: 2000 },
@@ -33,6 +33,7 @@ export const METAS: Record<number, MetaDef[]> = {
   3: [
     { kind: 'build', text: 'Construa um Britador Pesado (basalto)', key: 'triturador_pesado', count: 1 },
     { kind: 'build', text: 'Instale 2 Refrigeradores contra o calor', key: 'refrigerador', count: 2 },
+    { kind: 'behavior', text: 'Tenha 4 Sopradores em frentes diferentes', behavior: 'blower', count: 4 },
     { kind: 'counter', text: 'Separe 4.000 kg de minerais', key: 'separated', max: 4000 },
     { kind: 'drill', text: 'Melhore o perfurador para P-04 (o Cristal exige)', level: 4 },
   ],
@@ -44,11 +45,11 @@ export const METAS: Record<number, MetaDef[]> = {
   5: [
     { kind: 'build', text: 'Construa um Descompressor de Manto', key: 'descompressor', count: 1 },
     { kind: 'build', text: 'Instale 2 Estabilizadores Gravitacionais', key: 'estabilizador', count: 2 },
-    { kind: 'build', text: 'Construa um Complexo de Extração', key: 'complexo', count: 1 },
+    { kind: 'behavior', text: 'Tenha 8 Sopradores trabalhando', behavior: 'blower', count: 8 },
     { kind: 'counter', text: 'Exporte 80.000 kg de resíduo em blocos', key: 'exported', max: 80000 },
   ],
   6: [
-    { kind: 'behavior', text: 'Tenha 2 Complexos de Extração', behavior: 'complex', count: 2 },
+    { kind: 'behavior', text: 'Tenha 10 Sopradores trabalhando', behavior: 'blower', count: 10 },
     { kind: 'build', text: 'Instale um Escudo de Radiação', key: 'escudo_rad', count: 1 },
     { kind: 'drill', text: 'Melhore o perfurador para P-06 (o Núcleo exige)', level: 6 },
   ],

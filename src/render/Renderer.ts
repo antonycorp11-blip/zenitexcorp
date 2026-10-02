@@ -127,7 +127,7 @@ export class Renderer {
       const w = m.def.w * TILE, h = m.def.h * TILE;
       if (x > R || x + w < L || y - 60 > B || y + h < T) continue;
       // empilhadas: as de cima desenham por cima das de baixo (funil do coletor não cobre a peneira)
-      objs.push({ y: -100000 - y, draw: () => this.drawMachine(m) });
+      objs.push({ y: b === 'tube' ? -200000 - y : -100000 - y, draw: () => b === 'tube' ? this.drawTube(m) : this.drawMachine(m) });
     }
     for (const r of g.robots.list) {
       if (r.x < L - 20 || r.x > R + 20 || r.y < T - 20 || r.y > B + 20) continue;
@@ -454,6 +454,58 @@ export class Renderer {
     ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
   }
 
+  /** Tubo pneumático: cano que liga nos vizinhos (entrada de tubos/soprador apontando para ele), pacotes andando e reforçador. */
+  private drawTube(m: Machine) {
+    const g = this.g, ctx = this.ctx;
+    const cx = m.tx * TILE + TILE / 2, cy = m.ty * TILE + TILE / 2;
+    const sides = new Set<number>([m.dir]);
+    for (let d = 0; d < 4; d++) {
+      const [dx, dy] = DIRS[d];
+      const n = g.machines.at(m.tx + dx, m.ty + dy);
+      if (!n) continue;
+      // vizinho que manda para mim
+      const [bx, by] = DIRS[n.dir];
+      if (n.def.behavior === 'tube' && n.tx + bx === m.tx && n.ty + by === m.ty) sides.add(d);
+      if (n.def.behavior === 'blower' && dy === 0 && (n.dir === 2 ? -1 : 1) === -dx) sides.add(d);
+    }
+    const R = 4.2;
+    const seg = (d: number, col: string, r: number) => {
+      const [dx, dy] = DIRS[d], h = TILE / 2;
+      ctx.fillStyle = col;
+      if (dx) ctx.fillRect(dx > 0 ? cx : cx - h, cy - r, h, r * 2); else ctx.fillRect(cx - r, dy > 0 ? cy : cy - h, r * 2, h);
+    };
+    for (const d of sides) seg(d, '#14161c', R + 0.8);
+    for (const d of sides) seg(d, '#7c8696', R);
+    for (const d of sides) seg(d, '#a8b2c0', R * 0.45);
+    ctx.fillStyle = '#7c8696'; ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+    ctx.fillStyle = '#a8b2c0'; ctx.fillRect(cx - R * 0.45, cy - R * 0.45, R * 0.9, R * 0.9);
+    // flanges nas pontas
+    ctx.fillStyle = '#4a5260';
+    for (const d of sides) { const [dx, dy] = DIRS[d]; const fx = cx + dx * (TILE / 2 - 1), fy = cy + dy * (TILE / 2 - 1); ctx.fillRect(fx - (dx ? 1 : R + 1), fy - (dy ? 1 : R + 1), dx ? 2 : R * 2 + 2, dy ? 2 : R * 2 + 2); }
+    // pacotes correndo para a saída
+    const [ox, oy] = DIRS[m.dir], ph = (this.time * 6) % 1;
+    if (m.q) m.q.forEach((p, i) => {
+      const t = Math.min(0.95, (i / 4) + ph / 4);
+      const c = MATERIALS[p.m]?.top ?? [200, 200, 200];
+      ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+      ctx.fillRect(cx - TILE / 2 * ox + ox * TILE * t - 1.4, cy - TILE / 2 * oy + oy * TILE * t - 1.4, 2.8, 2.8);
+    });
+    // seta da direção
+    ctx.fillStyle = 'rgba(255,208,74,0.85)';
+    ctx.beginPath(); ctx.moveTo(cx + ox * 3, cy + oy * 3); ctx.lineTo(cx - ox * 1 + oy * 2, cy - oy * 1 + ox * 2); ctx.lineTo(cx - ox * 1 - oy * 2, cy - oy * 1 - ox * 2); ctx.closePath(); ctx.fill();
+    if (m.key === 'reforcador') {
+      // colar de pressão laranja com manômetro
+      ctx.fillStyle = '#14161c'; ctx.fillRect(cx - 6.5, cy - 6.5, 13, 13);
+      ctx.fillStyle = '#e8862a'; ctx.fillRect(cx - 6, cy - 6, 12, 12);
+      ctx.fillStyle = '#ffb04a'; ctx.fillRect(cx - 6, cy - 6, 12, 2);
+      ctx.fillStyle = '#f2f2ea'; ctx.beginPath(); ctx.arc(cx, cy + 1, 3.4, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#d02a1a'; ctx.lineWidth = 0.8; const a = -2.4 + ((m.q?.length ?? 0) / 4) * 2 + Math.sin(this.time * 9 + m.id) * 0.15;
+      ctx.beginPath(); ctx.moveTo(cx, cy + 1); ctx.lineTo(cx + Math.cos(a) * 2.8, cy + 1 + Math.sin(a) * 2.8); ctx.stroke();
+      g.lighting.add(cx, cy, 14, [255, 170, 80], 0.3);
+    }
+    if (m.state.startsWith('Sem pressão')) this.alert(cx, cy - 10, '#ff5a3a');
+  }
+
   private drawMachine(m: Machine) {
     const g = this.g, ctx = this.ctx;
     const { img, oy } = g.sprites.machine(m.def, m.dir, m.def.behavior === 'complex' ? m.level : m.def.key.endsWith('2') ? 1 : m.def.key.endsWith('3') ? 2 : 0);
@@ -610,6 +662,19 @@ export class Renderer {
       if (b.anchor) { ctx.strokeStyle = '#ffd04a'; ctx.strokeRect(b.anchor[0] * TILE + 0.5, b.anchor[1] * TILE + 0.5, TILE - 1, TILE - 1); }
       return;
     }
+    if (def.behavior === 'tube') {
+      for (const [px, py, dir] of g.beltPath()) {
+        const ex = g.machines.at(px, py);
+        const ok = (ex && ex.def.behavior === 'tube') || !g.machines.canPlace(def, px, py);
+        const cx = px * TILE + 8, cy = py * TILE + 8, [dx, dy] = DIRS[dir];
+        ctx.fillStyle = ok ? 'rgba(80,255,120,0.25)' : 'rgba(255,60,40,0.35)'; ctx.fillRect(px * TILE, py * TILE, TILE, TILE);
+        ctx.fillStyle = def.key === 'reforcador' ? 'rgba(232,134,42,0.8)' : 'rgba(124,134,150,0.8)'; ctx.fillRect(cx - 4, cy - 4, 8, 8);
+        ctx.strokeStyle = '#ffd04a'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(cx - dx * 4, cy - dy * 4); ctx.lineTo(cx + dx * 6, cy + dy * 6); ctx.stroke();
+      }
+      if (b.anchor) { ctx.strokeStyle = '#ffd04a'; ctx.strokeRect(b.anchor[0] * TILE + 0.5, b.anchor[1] * TILE + 0.5, TILE - 1, TILE - 1); }
+      return;
+    }
     if (def.behavior === 'belt') {
       // linha de esteiras: cada tile com a seta da direção
       for (const [px, py, dir] of g.beltPath()) {
@@ -740,6 +805,21 @@ export class Renderer {
         ctx.fillStyle = '#d8ffe0'; ctx.font = 'bold 6px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(n, cx, cy + 2.2);
       }
       ctx.textAlign = 'left';
+    } else if (it.key === 'tubo') {
+      const path = g.blueprint.tubePath(it);
+      ctx.fillStyle = `rgba(120,255,150,${0.12 + pulse * 0.1})`;
+      for (const [px, py] of path) { ctx.fillRect(px * TILE, py * TILE, TILE, TILE); ctx.strokeRect(px * TILE + 0.5, py * TILE + 0.5, TILE - 1, TILE - 1); }
+      ctx.setLineDash([]);
+      // ponto andando pelo caminho
+      const k = (this.time * 5) % path.length, [qx, qy] = path[Math.floor(k)], [ddx, ddy] = DIRS[path[Math.floor(k)][2]], f = k % 1;
+      ctx.fillStyle = 'rgba(160,255,180,0.95)'; ctx.beginPath(); ctx.arc((qx + 0.5 + ddx * f) * TILE, (qy + 0.5 + ddy * f) * TILE, 2.5, 0, 7); ctx.fill();
+      for (const [tx, ty, n] of [[it.tx, it.ty, '1'], [it.tx2!, it.ty2!, '2']] as [number, number, string][]) {
+        const cx = (tx + 0.5) * TILE, cy = ty * TILE - 6;
+        ctx.fillStyle = '#1a3a22'; ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, 7); ctx.fill();
+        ctx.strokeStyle = '#7aff8a'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = '#d8ffe0'; ctx.font = 'bold 6px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(n, cx, cy + 2.2);
+      }
+      ctx.textAlign = 'left';
     } else if (it.ty2 !== undefined) {
       const y0 = Math.min(it.ty, it.ty2) * TILE, y1 = (Math.max(it.ty, it.ty2) + 1) * TILE, x = it.tx * TILE;
       ctx.fillStyle = `rgba(120,255,150,${0.12 + pulse * 0.1})`; ctx.fillRect(x, y0, TILE, y1 - y0);
@@ -770,7 +850,7 @@ export class Renderer {
       }
     }
     // etiqueta
-    const lx = (it.key === 'esteira' ? (it.tx + it.tx2!) / 2 + 0.5 : it.tx + d.w / 2) * TILE, ly = it.key === 'esteira' ? it.ty * TILE - 16 : it.ty2 !== undefined ? Math.min(it.ty, it.ty2) * TILE - 6 : (it.ty + d.h / 2) * TILE + 2;   // dentro do quadrado: não briga com o rótulo de toque
+    const lx = (it.key === 'tubo' ? (it.tx + it.tx2!) / 2 + 0.5 : it.key === 'esteira' ? (it.tx + it.tx2!) / 2 + 0.5 : it.tx + d.w / 2) * TILE, ly = it.key === 'tubo' ? it.ty2! * TILE - 6 : it.key === 'esteira' ? it.ty * TILE - 16 : it.ty2 !== undefined ? Math.min(it.ty, it.ty2) * TILE - 6 : (it.ty + d.h / 2) * TILE + 2;   // dentro do quadrado: não briga com o rótulo de toque
     ctx.font = 'bold 6px sans-serif'; ctx.textAlign = 'center';
     const tw = ctx.measureText(it.label).width + 8;
     ctx.fillStyle = 'rgba(10,30,16,0.88)'; ctx.fillRect(lx - tw / 2, ly - 7, tw, 9);
