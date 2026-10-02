@@ -46,9 +46,9 @@ export class Research {
     const b = this.blocked(r); if (b) return b;
     const c = this.cost(r);
     if (this.g.stock.credits < c.credits) return 'Créditos insuficientes';
-    if (!this.g.stock.has(c.items, this.g.pack.items)) return 'Materiais insuficientes';
+    if (!this.g.upHas(c.items)) return 'Materiais insuficientes (minerais saem dos SILOS)';
     this.g.stock.credits -= c.credits;
-    this.g.stock.pay(c.items, this.g.pack.items);
+    this.g.upPay(c.items);
     // desbloqueio imediato: sem estação e sem fila de pesquisa
     this.done.add(r.key);
     this.effCache = null;

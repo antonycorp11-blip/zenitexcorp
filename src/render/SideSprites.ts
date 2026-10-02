@@ -341,6 +341,35 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
     x.fillStyle = css([160, 136, 108]); x.beginPath(); x.roundRect(4, bot - 9, W - 8, 5, 0.8); x.fill();
     x.strokeStyle = 'rgba(16,18,24,0.9)'; x.lineWidth = 0.5; x.stroke();
     p.hazard(1, bot - 3, W - 2, 2);
+  } else if (def.behavior === 'filter' && def.pick) {
+    // Ímã (ferradura vermelha) / Ressonador (anéis de cristal): caixa larga com grade e calha lateral
+    const x = p.x, ima = def.key === 'ima';
+    p.panel(1, top + 2, W - 2, H - 3, ima ? [70, 74, 86] : [44, 70, 96], { rivets: true });
+    x.fillStyle = 'rgba(10,10,14,0.9)'; x.fillRect(3, top + 1, W - 6, 1.4);
+    x.strokeStyle = css(P.stL); x.lineWidth = 0.4;
+    for (let k = 4; k < W - 3; k += 2.5) { x.beginPath(); x.moveTo(k, bot - 3.2); x.lineTo(k, bot - 1.4); x.stroke(); }
+    const cx = right ? W - 9 : 9, cy = top + H / 2 - 1;
+    if (ima) {
+      x.lineWidth = 3.2; x.lineCap = 'butt';
+      x.strokeStyle = css([210, 40, 36]); x.beginPath(); x.arc(cx, cy, 3.6, right ? Math.PI * 0.5 : -Math.PI * 0.5, right ? Math.PI * 1.5 : Math.PI * 0.5, !right); x.stroke();
+      x.fillStyle = css([230, 230, 236]); x.fillRect(cx + (right ? 0 : -2.4), cy - 5.2, 2.4, 3.2); x.fillRect(cx + (right ? 0 : -2.4), cy + 2, 2.4, 3.2);
+      for (let i = 0; i < 3; i++) p.px(W / 2 - 6 + i * 3, cy - 1 + (i % 2), [170, 172, 196]);
+    } else {
+      for (let r = 1; r <= 3; r++) { x.strokeStyle = css([120, 220, 255], 1 - r * 0.22); x.lineWidth = 0.7; x.beginPath(); x.ellipse(cx, cy, r * 1.8, r * 1.2, 0, 0, 7); x.stroke(); }
+      x.fillStyle = css([140, 230, 255]); x.beginPath(); x.moveTo(cx, cy - 2.4); x.lineTo(cx + 1.4, cy); x.lineTo(cx, cy + 2.4); x.lineTo(cx - 1.4, cy); x.closePath(); x.fill();
+    }
+    p.chute(right ? W - 1 : 0, top + 3, right, glow);
+    p.light(right ? 3 : W - 5, top + 3, glow);
+  } else if (def.behavior === 'silo') {
+    // silo: cilindro alto com teto cônico, funil em cima e calha de transbordo
+    const x = p.x;
+    p.hopper(6, top - 4, W - 12, 5);
+    x.beginPath(); x.roundRect(2, top + 2, W - 4, H - 4, 3);
+    const gr = x.createLinearGradient(2, 0, W - 2, 0); gr.addColorStop(0, css(P.stD)); gr.addColorStop(0.35, css(P.stLL)); gr.addColorStop(1, css(P.st));
+    x.fillStyle = gr; x.fill(); x.strokeStyle = 'rgba(16,18,24,0.95)'; x.lineWidth = 0.6; x.stroke();
+    x.strokeStyle = 'rgba(0,0,0,0.25)'; x.lineWidth = 0.5; for (let y = top + 8; y < bot - 4; y += 6) { x.beginPath(); x.moveTo(3, y); x.lineTo(W - 3, y); x.stroke(); }
+    p.hazard(2, bot - 4, W - 4, 2);
+    p.chute(right ? W - 1 : 0, top + 6, right, [255, 176, 74]);
   } else if (def.behavior === 'filter') {
     const x = p.x;
     p.panel(1, top + 2, W - 2, H - 3, [70, 80, 96], { rivets: false });

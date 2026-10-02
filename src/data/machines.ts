@@ -5,7 +5,7 @@ export type Behavior =
   | 'belt' | 'splitter' | 'storage' | 'link' | 'lift' | 'terminal' | 'launchpad'
   | 'drill' | 'pump' | 'complex' | 'tectonic' | 'mantle' | 'cannon' | 'cutter' | 'collector' | 'orbital'
   | 'crusher' | 'purifier' | 'refinery' | 'foundry' | 'synth'
-  | 'analyzer' | 'separator' | 'prep' | 'compactor' | 'riser' | 'launcher' | 'filter' | 'scaffold' | 'blower' | 'tube'
+  | 'analyzer' | 'separator' | 'prep' | 'compactor' | 'riser' | 'launcher' | 'filter' | 'scaffold' | 'blower' | 'tube' | 'silo'
   | 'generator' | 'reactor'
   | 'command' | 'workshop' | 'lab' | 'robotics' | 'archaeo' | 'logcenter'
   | 'field' | 'lamp' | 'support' | 'platform' | 'surge' | 'dronepad';
@@ -43,6 +43,8 @@ export interface MachineDef {
   minLayer?: number;             // aparece no menu a partir desta camada
   /** geometria da saída: lateral (calha da seta), por baixo, ou peneira (minerais por baixo, resíduo pela lateral) */
   outMode?: 'side' | 'bottom' | 'sieve';
+  /** separador fixo: estes grãos são puxados para o lado da seta; o resto cai por baixo */
+  pick?: string[];
 }
 
 const D: MachineDef[] = [];
@@ -88,6 +90,9 @@ m({ key: 'analisador', name: 'Analisador de Matriz Zenitex', cat: 'processamento
 // Fábrica VERTICAL (por gravidade): o material cai por cima, é processado e sai por baixo ou pela lateral.
 m({ key: 'peneira', name: 'Peneira de Ressonância', cat: 'processamento', behavior: 'separator', outMode: 'sieve', look: 'tank', w: 2, h: 1, rotatable: true, cost: { ferronox: 25, lumenita: 12 }, power: 0, capacity: 600, wear: 0.4, takes: { solo_k37: 1, fragmentado: 1 }, glow: [120, 220, 255], desc: 'O material bruto cai em cima: os MINERAIS passam pela grade e caem por baixo; o RESÍDUO escorrega para o lado da seta. 600 kg/min.' });
 m({ key: 'compactador', name: 'Prensa de Massa', cat: 'processamento', behavior: 'compactor', outMode: 'bottom', look: 'generator', w: 1, h: 2, cost: { ferronox: 25, lumenita: 8 }, power: 0, capacity: 900, wear: 0.4, glow: [255, 170, 60], desc: 'Resíduo cai por cima, Bloco de Massa (100 kg) sai por baixo. Colada na base, entrega os blocos direto ao estoque e puxa o resíduo do pátio sozinha.' });
+m({ key: 'ima', name: 'Separador Magnético', cat: 'processamento', behavior: 'filter', look: 'splitter', w: 2, h: 1, rotatable: true, cost: { ferronox: 20, lumenita: 6 }, power: 0, pick: ['ferronox', 'ferronox_denso', 'umbrium'], glow: [255, 90, 70], desc: 'Ímã: minerais metálicos (Ferronox, Umbrium) que caem em cima são PUXADOS para o lado da seta; todo o resto cai por baixo. Ponha um Silo do lado da seta.' });
+m({ key: 'ressonador', name: 'Ressonador de Cristais', cat: 'processamento', behavior: 'filter', look: 'splitter', w: 2, h: 1, rotatable: true, cost: { ferronox: 20, lumenita: 14 }, power: 0, pick: ['lumenita', 'lumenita_pura', 'lumenita_instavel', 'crysalis', 'nexolita', 'nexolita_condensada', 'necrocristal'], glow: [90, 200, 255], desc: 'Vibra na frequência dos cristais (Lumenita, Crysalis, Nexolita): eles saltam para o lado da seta; o resto cai por baixo. Ponha um Silo do lado da seta.' });
+m({ key: 'silo', name: 'Silo', cat: 'logistica', behavior: 'silo', look: 'silo', w: 2, h: 2, rotatable: true, cost: { ferronox: 24 }, power: 0, capacity: 150, desc: 'Guarda UM tipo de mineral (o primeiro que cair, ou o escolhido no cartão). As MELHORIAS são pagas com o que está nos silos. Cheio, transborda pelo lado da seta.' });
 m({ key: 'filtro', name: 'Filtro', cat: 'processamento', behavior: 'filter', look: 'splitter', w: 1, h: 1, rotatable: true, cost: { ferronox: 6, lumenita: 4 }, power: 0, desc: 'O grão do tipo escolhido passa direto e cai por baixo; todo o resto desvia para o lado da seta. Escolha o tipo no cartão da peça.' });
 m({ key: 'triturador', name: 'Britador', cat: 'processamento', behavior: 'prep', outMode: 'bottom', look: 'crusher', w: 2, h: 2, rotatable: true, cost: { ferronox: 60, lumenita: 20 }, power: 0, capacity: 900, wear: 0.6, minLayer: 2, takes: { rocha_bruta: 1, matriz_cristalina: 0.55 }, glow: [255, 170, 60], desc: 'Rocha cai por cima, sai Material Fragmentado por baixo — direto numa Peneira empilhada embaixo. 900 kg/min. Quebra cristais (−45%).' });
 m({ key: 'triturador_pesado', name: 'Britador Pesado', cat: 'processamento', behavior: 'prep', outMode: 'bottom', look: 'crusher', w: 2, h: 2, rotatable: true, cost: { placa_ferronox: 20, pyroxis: 40 }, power: 0, capacity: 1800, wear: 0.6, minLayer: 3, takes: { basalto_bruto: 1, rocha_bruta: 1, matriz_profunda: 1, matriz_cristalina: 0.55, rocha_manto: 0.7 }, glow: [255, 110, 50], desc: 'Basalto e rochas densas caem por cima, saem fragmentados por baixo. 1.800 kg/min.' });

@@ -8,7 +8,8 @@ export type MetaDef =
   | { kind: 'deliver'; text: string; kg: number }                       // kg entregues na base nesta camada
   | { kind: 'counter'; text: string; key: string; max: number }         // contador da camada (analyzed, exported, separated…)
   | { kind: 'drill'; text: string; level: number }                      // perfurador portátil P-0N
-  | { kind: 'layer'; text: string; frac: number };                      // fração da camada removida
+  | { kind: 'layer'; text: string; frac: number }                      // fração da camada removida
+  | { kind: 'silo'; text: string; key: string; kg: number };            // kg de um mineral guardados em silos                      // fração da camada removida
 
 /**
  * A Camada 1 ensina a cadeia inteira, uma peça por vez:
@@ -19,13 +20,14 @@ export const METAS: Record<number, MetaDef[]> = {
   1: [
     { kind: 'counter', text: 'Processe 60 kg de Solo K-37 no Analisador de Matriz', key: 'analyzed', max: 60 },
     { kind: 'behavior', text: 'Tenha 2 Sopradores trabalhando (cave perto deles)', behavior: 'blower', count: 2 },
-    { kind: 'build', text: 'Monte uma Peneira em cima do Coletor (minerais caem dentro, resíduo escorrega)', key: 'peneira', count: 1 },
-    { kind: 'build', text: 'Ponha uma Prensa embaixo da saída de resíduo da Peneira', key: 'compactador', count: 1 },
+    { kind: 'silo', text: 'Guarde 100 kg de Ferronox em silos (Ímã ▶ Silo)', key: 'ferronox', kg: 100 },
+    { kind: 'silo', text: 'Monte um Ressonador e guarde 60 kg de Lumenita em outro silo', key: 'lumenita', kg: 60 },
     { kind: 'counter', text: 'Exporte 2.000 kg de resíduo em blocos (Terminal Orbital)', key: 'exported', max: 2000 },
     { kind: 'drill', text: 'Melhore o perfurador para P-02 (a Pedra exige)', level: 2 },
   ],
   2: [
     { kind: 'build', text: 'Empilhe um Britador em cima de uma Peneira (a rocha precisa ser quebrada)', key: 'triturador', count: 1 },
+    { kind: 'silo', text: 'Guarde 150 kg de Nexolita em silos (Ressonador)', key: 'nexolita', kg: 150 },
     { kind: 'counter', text: 'Separe 1.500 kg de minerais', key: 'separated', max: 1500 },
     { kind: 'counter', text: 'Exporte 10.000 kg de resíduo em blocos', key: 'exported', max: 10000 },
     { kind: 'drill', text: 'Melhore o perfurador para P-03 (o Basalto exige)', level: 3 },

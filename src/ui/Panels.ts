@@ -20,6 +20,7 @@ import { HIDDEN_RESEARCH } from '../data/economy';
 import { gradeLabel, gradeColor, compOf, RAW_BY_LAYER } from '../data/composition';
 import { SEP_EFF } from '../systems/Machines';
 import { ioSpec, howTo } from '../data/howto';
+import { FAB_UPS, SILO_KEYS, fabLevel } from '../data/factory';
 
 export type PanelId = 'inventory' | 'build' | 'upgrades' | 'research' | 'sectors' | 'robots' | 'contracts' | 'archive' | 'map' | 'help' | 'menu' | 'machine' | 'ops' | 'lifts' | 'settings' | 'missions';
 
@@ -37,7 +38,7 @@ export class Panels {
   id: PanelId | null = null;
   el: HTMLElement | null = null;
   lastTab: PanelId = 'build';
-  st: Record<string, any> = { invTab: 'todos', buildCat: 'extracao', upBr: 'perf', misTab: 'camada', resCat: 'mineracao', archCat: 'historia', craftSel: 'of_componente', mapTab: 'mapa', conTab: 'disp' };
+  st: Record<string, any> = { invTab: 'todos', buildCat: 'extracao', upBr: 'fab', misTab: 'camada', resCat: 'mineracao', archCat: 'historia', craftSel: 'of_componente', mapTab: 'mapa', conTab: 'disp' };
   machine: Machine | null = null;
   private refreshT = 0;
   private mapRaf = 0;
@@ -50,7 +51,7 @@ export class Panels {
 
   open(id: PanelId) {
     // atalhos antigos -> abas do menu único
-    if (id === 'research') { id = 'upgrades'; if (this.st.upBr === 'perf' || this.st.upBr === 'traje') this.st.upBr = 'mineracao'; }
+    if (id === 'research') { id = 'upgrades'; if (this.st.upBr === 'perf' || this.st.upBr === 'traje' || this.st.upBr === 'fab') this.st.upBr = 'mineracao'; }
     if (id === 'sectors') { id = 'missions'; this.st.misTab = 'camada'; }
     if (id === 'contracts') { id = 'missions'; this.st.misTab = 'contratos'; }
     if (id === 'archive') { id = 'missions'; this.st.misTab = 'arquivo'; }
@@ -128,7 +129,8 @@ export class Panels {
     buildInfo: (a) => { this.st.buildInfo = this.st.buildInfo === a ? '' : a; this.render(); },
     mdet: () => { this.st.mDetails = !this.st.mDetails; this.render(); },
     pickup: () => { const m = this.machine; if (!m) return; this.g.machines.remove(m); this.g.pack.add('kit_soprador', 1); this.close(); this.g.toast('Soprador na mão: coloque em outra frente de escavação (Construir → Extração)', '#9cff8a'); },
-    setFilter: (a) => { if (this.machine) this.machine.filter = a; this.render(); },
+    siloDump: () => { const m = this.machine; if (!m) return; let n = 0; for (const k in m.inb) { this.g.stock.add(k, m.inb[k], false, m.g[k]); n += m.inb[k]; m.inb[k] = 0; } this.g.toast(`${Math.round(n)} kg do silo foram para o Estoque (para construir). Melhorias só com o que fica no silo.`, '#ffd04a'); this.render(); },
+    setFilter: (a) => { if (this.machine) this.machine.filter = a || undefined; this.render(); },
     pin: (a) => { this.g.hotbar[this.g.selected] = { type: 'build', key: a }; this.g.toast(`Fixado no slot ${(this.g.selected + 1) % 10}`, '#9cff8a'); },
     pinItem: (a) => { this.g.hotbar[this.g.selected] = { type: 'item', key: a }; this.g.toast(`Fixado no slot ${(this.g.selected + 1) % 10}`, '#9cff8a'); },
     research: (a) => { const e = this.g.research.start(a); if (e) { this.g.toast(e, '#ff8a3a'); this.g.audio.error(); } else this.g.audio.success(); this.render(); },
@@ -199,8 +201,8 @@ export class Panels {
     return `<div class="tabs">${list.map(t => `<button class="${this.st[key] === t.key ? 'on' : ''}" data-act="tab" data-arg="${key}:${t.key}">${esc(t.name)}</button>`).join('')}${extra}</div>`;
   }
   private icon(k: string, s = 28) { return `<img class="ic" style="width:${s}px;height:${s}px" src="${this.g.sprites.itemUrl(k)}">`; }
-  private costCells(cost: Record<string, number>) {
-    return `<div class="costs">${Object.entries(cost).map(([k, n]) => { const have = this.g.stock.count(k) + this.g.pack.count(k); return `<div class="cc ${have >= n ? 'ok' : 'no'}">${this.icon(k, 26)}<span>${esc(itemName(k))}</span><b>${fmtShort(n)}</b><small>${fmtShort(have)}</small></div>`; }).join('')}</div>`;
+  private costCells(cost: Record<string, number>, silo = false) {
+    return `<div class="costs">${Object.entries(cost).map(([k, n]) => { const s = silo && SILO_KEYS.has(k); const have = silo ? this.g.upHave(k) : this.g.stock.count(k) + this.g.pack.count(k); return `<div class="cc ${have >= n ? 'ok' : 'no'}">${this.icon(k, 26)}<span>${s ? '🛢 ' : ''}${esc(itemName(k))}</span><b>${fmtShort(n)}</b><small>${fmtShort(have)}</small></div>`; }).join('')}</div>`;
   }
   private bar(v: number, max: number, color = '#3ab4ff') { return `<div class="pbar"><i style="width:${Math.min(100, (v / Math.max(1e-9, max)) * 100)}%;background:${color}"></i></div>`; }
 
@@ -272,15 +274,16 @@ export class Panels {
   // =============== MELHORIAS: árvore única ===============
   r_upgrades() {
     const g = this.g, p = g.player;
-    const BR: { key: string; name: string }[] = [{ key: 'perf', name: '⛏ Perfurador' }, { key: 'traje', name: '🧑‍🚀 Traje e Aspirador' },
+    const BR: { key: string; name: string }[] = [{ key: 'fab', name: '🏭 Fábrica' }, { key: 'perf', name: '⛏ Perfurador' }, { key: 'traje', name: '🧑‍🚀 Traje e Aspirador' },
       ...RESEARCH_CATS.filter(c => c.key !== 'energia').map(c => ({ key: c.key, name: c.key === 'robotica' ? 'Drones' : c.key === 'mineracao' ? 'Extração' : c.name }))];
     const br = this.st.upBr;
     let h = `<div class="tabs branches">${BR.map(b => {
-      const avail = b.key === 'perf' ? !!DRILLS[p.drillLevel + 1] && g.stock.has(DRILLS[p.drillLevel + 1].cost, g.pack.items) && (!DRILLS[p.drillLevel + 1].research || g.research.has(DRILLS[p.drillLevel + 1].research!))
-        : b.key === 'traje' ? false : RESEARCH.some(r => r.cat === b.key && !g.research.blocked(r) && g.stock.credits >= g.research.cost(r).credits && g.stock.has(g.research.cost(r).items, g.pack.items));
+      const avail = b.key === 'perf' ? !!DRILLS[p.drillLevel + 1] && g.upHas(DRILLS[p.drillLevel + 1].cost) && (!DRILLS[p.drillLevel + 1].research || g.research.has(DRILLS[p.drillLevel + 1].research!))
+        : b.key === 'traje' ? false : b.key === 'fab' ? FAB_UPS.some(u => { const c = u.costs[fabLevel(g.flags, u.key)]; return !!c && g.upHas(c); }) : RESEARCH.some(r => r.cat === b.key && !g.research.blocked(r) && g.stock.credits >= g.research.cost(r).credits && g.upHas(g.research.cost(r).items));
       return `<button class="${br === b.key ? 'on' : ''}" data-act="tab" data-arg="upBr:${b.key}">${esc(b.name)}${avail ? ' <i class="dotn"></i>' : ''}</button>`;
     }).join('')}</div>`;
     if (br === 'traje') return h + this.equipList(false);
+    if (br === 'fab') return h + this.fabList();
     if (br === 'perf') {
       // cadeia visual P-01 -> P-06
       const sel = Math.min(DRILLS.length - 1, Number(this.st.drillSel ?? p.drillLevel + 1));
@@ -293,7 +296,7 @@ export class Panels {
       h += `<div class="detail"><h2>${esc(d.name)}</h2><div class="stats"><div><small>CLASSE (DUREZA)</small><b>${d.tier}</b></div><div><small>POTÊNCIA</small><b>${d.power}×</b></div><div><small>RAIO DO FEIXE</small><b>${d.radius}</b></div><div><small>ALCANCE</small><b>${d.range} px</b></div><div><small>CAMADAS QUE MINERA</small><b>${layers.length ? layers[0] + '–' + layers[layers.length - 1] : '—'}</b></div></div>`;
       if (sel === p.drillLevel + 1) {
         const lock = d.research && !g.research.has(d.research) ? `🔒 Antes desbloqueie: ${esc(RESEARCH.find(r => r.key === d.research)?.name ?? '')}` : '';
-        h += `${this.costCells(d.cost)}${lock ? `<p class="warn">${lock}</p>` : ''}<button class="btn orange big" data-act="upgrade" data-arg="drill" ${lock || !g.stock.has(d.cost, g.pack.items) ? 'disabled' : ''}>MELHORAR PARA P-0${sel + 1}</button>`;
+        h += `${this.costCells(d.cost, true)}${lock ? `<p class="warn">${lock}</p>` : ''}<button class="btn orange big" data-act="upgrade" data-arg="drill" ${lock || !g.upHas(d.cost) ? 'disabled' : ''}>MELHORAR PARA P-0${sel + 1}</button>`;
       } else if (sel <= p.drillLevel) h += '<p class="ok">✔ Você já tem este perfurador (ou melhor).</p>';
       else h += '<p class="muted">Melhore os anteriores primeiro.</p>';
       return h + '</div>';
@@ -328,7 +331,7 @@ export class Panels {
     const item = (key: string, title: string, sub: string, cur: string, next: string | null, cost: Record<string, number> | null, req: string | null) => `
       <div class="up"><div class="uh"><b>${esc(title)}</b><small>${esc(sub)}</small></div>
         <div class="uv"><span>${cur}</span>${next ? `<span class="arr">➜</span><span class="nx">${next}</span>` : '<span class="max">MÁXIMO</span>'}</div>
-        ${next && cost ? `${this.costCells(cost)}${req ? `<div class="req">${req}</div>` : ''}<button class="btn orange" data-act="upgrade" data-arg="${key}" ${req || !g.stock.has(cost, g.pack.items) ? 'disabled' : ''}>MELHORAR</button>` : ''}</div>`;
+        ${next && cost ? `${this.costCells(cost, true)}${req ? `<div class="req">${req}</div>` : ''}<button class="btn orange" data-act="upgrade" data-arg="${key}" ${req || !g.upHas(cost) ? 'disabled' : ''}>MELHORAR</button>` : ''}</div>`;
     const rq = (r?: string) => r && !g.research.has(r) ? `🔒 Pesquisa: ${RESEARCH.find(x => x.key === r)?.name}` : null;
     const d = DRILLS[p.drillLevel], dn = DRILLS[p.drillLevel + 1];
     let h = `<div class="ups scroll tall">`;
@@ -358,6 +361,24 @@ export class Panels {
     return { title: m.name, rows: [['Proteção', lv ? m.levels[lv - 1].prot + '%' : '0%']], note: m.desc };
   }
 
+  /** melhorias da fábrica: pagas só com o que está nos SILOS */
+  private fabList() {
+    const g = this.g;
+    const silos = g.machines.list.filter(m => m.def.behavior === 'silo');
+    const tot: Record<string, number> = {};
+    for (const m of silos) for (const k in m.inb) if ((m.inb[k] ?? 0) > 0) tot[k] = (tot[k] ?? 0) + m.inb[k];
+    let h = `<p class="muted">🛢 Melhorias são pagas com minerais guardados nos <b>SILOS</b> (não com o Estoque). Separe com o <b>Ímã</b> e o <b>Ressonador</b> e encha um silo para cada mineral.</p>`;
+    h += `<div class="silo-sum">${silos.length ? Object.keys(tot).length ? Object.entries(tot).map(([k, n]) => `<span>${this.icon(k, 16)} ${esc(itemName(k))} <b>${fmtShort(n)} kg</b></span>`).join('') : '<span>Silos vazios</span>' : '<span class="warn">Nenhum silo construído (Construir → Logística → Silo)</span>'}</div>`;
+    h += `<div class="ups scroll tall">`;
+    for (const u of FAB_UPS) {
+      const lv = fabLevel(g.flags, u.key), cost = u.costs[lv], next = u.vals[lv + 1];
+      h += `<div class="up"><div class="uh"><b>${esc(u.name)}</b><small>${esc(u.desc)}</small></div>
+        <div class="uv"><span>${fmtShort(u.vals[lv])} ${u.unit}</span>${next !== undefined ? `<span class="arr">➜</span><span class="nx">${fmtShort(next)} ${u.unit}</span>` : '<span class="max">MÁXIMO</span>'}</div>
+        ${cost ? `${this.costCells(cost, true)}<button class="btn orange" data-act="upgrade" data-arg="fab:${u.key}" ${!g.upHas(cost) ? 'disabled' : ''}>MELHORAR</button>` : ''}</div>`;
+    }
+    return h + '</div>';
+  }
+
   private doUpgrade(a: string) {
     const g = this.g, p = g.player;
     let cost: Record<string, number> | undefined; let apply: () => void = () => {};
@@ -366,9 +387,16 @@ export class Panels {
     if (a === 'pack') { const n = PACKS[g.pack.level + 1]; cost = n?.cost; apply = () => g.pack.level++; }
     if (a === 'energy') { const n = ENERGY_LEVELS[p.energyLevel + 1]; cost = n?.cost; apply = () => { p.energyLevel++; p.energy = p.maxEnergy; }; }
     if (a === 'health') { const n = HEALTH_LEVELS[p.healthLevel + 1]; cost = n?.cost; apply = () => { p.healthLevel++; p.hp = p.maxHp; }; }
+    if (a.startsWith('fab:')) {
+      const k = a.slice(4), u = FAB_UPS.find(x => x.key === k); const lv = fabLevel(g.flags, k); const c = u?.costs[lv];
+      if (!u || !c) return;
+      if (!g.upPay(c)) { g.toast('Faltam minerais nos SILOS', '#ff8a3a'); g.audio.error(); return; }
+      g.flags.fab = { ...(g.flags.fab ?? {}), [k]: lv + 1 }; g.audio.success();
+      g.toast(`${u.name}: ${fmtShort(u.vals[lv])} ➜ ${fmtShort(u.vals[lv + 1])} ${u.unit}`, '#9cff8a'); this.render(); return;
+    }
     if (a.startsWith('suit:')) { const k = a.slice(5); const m = SUIT_MODULES.find(x => x.key === k)!; const lv = p.suit[k] ?? 0; cost = m.levels[lv]?.cost; apply = () => (p.suit[k] = lv + 1); }
     if (!cost) return;
-    if (!g.stock.pay(cost, g.pack.items)) { g.toast('Recursos insuficientes', '#ff8a3a'); g.audio.error(); return; }
+    if (!g.upPay(cost)) { g.toast('Faltam minerais nos SILOS (ou peças no estoque)', '#ff8a3a'); g.audio.error(); return; }
     // antes/depois para a tela de melhoria
     const before = this.upgradeStats(a);
     apply();
@@ -404,7 +432,7 @@ export class Panels {
         ${sel.certified ? `<div class="${g.sectors.certified(sel.certified) ? 'ok' : 'no'}">${g.sectors.certified(sel.certified) ? '✔' : '✖'} Chegar à Camada ${sel.certified}</div>` : ''}
         ${sel.lore ? `<div class="${g.lore.unlocked.size >= sel.lore ? 'ok' : 'no'}">${g.lore.unlocked.size >= sel.lore ? '✔' : '✖'} ${sel.lore} registros de Khelos (${g.lore.unlocked.size})</div>` : ''}
         ${!sel.req.length && !sel.certified && !sel.lore ? '<div class="ok">✔ Nenhum</div>' : ''}</div>
-        <h4>CUSTO DA PESQUISA</h4>${this.costCells(c.items)}<div class="kv"><span>Créditos</span><b style="color:${g.stock.credits >= c.credits ? '#9cff8a' : '#ff7a5a'}">${fmtInt(c.credits)} ◆</b></div>
+        <h4>CUSTO DA PESQUISA</h4>${this.costCells(c.items, true)}<div class="kv"><span>Créditos</span><b style="color:${g.stock.credits >= c.credits ? '#9cff8a' : '#ff7a5a'}">${fmtInt(c.credits)} ◆</b></div>
         ${sel.corporate ? '<p class="muted">◆ Tecnologia corporativa: permanece no próximo contrato.</p>' : ''}
         <button class="btn orange" data-act="research" data-arg="${sel.key}" ${b ? 'disabled' : ''}>${R.done.has(sel.key) ? '✔ DESBLOQUEADO' : 'DESBLOQUEAR'}</button>${b && !R.done.has(sel.key) ? `<p class="warn">${esc(b)}</p>` : ''}</div></div>`;
     }
@@ -536,7 +564,13 @@ export class Panels {
     let h = `<div class="mc-head"><img src="${g.sprites.machineUrl(d)}"><div><b>${esc(d.name)}</b><span style="color:${stCol}">● ${esc(m.state === 'ok' ? 'Pronta' : m.state)}</span></div><button class="x" data-act="close">✕</button></div>`;
     h += this.howtoHtml(d, m.dir, true);
     h += `<p class="mc-how">${esc(howTo(d, g.planet.layer))}</p>`;
-    if (d.behavior === 'filter') {
+    if (d.behavior === 'silo') {
+      const t = Object.values(m.inb).reduce((a, b) => a + b, 0), cap = g.machines.siloCap();
+      h += `<div class="mc-silo">${this.bar(t, cap, '#ffb04a')}<small>${fmtShort(t)} / ${fmtShort(cap)} kg</small>${t > 0 ? '<button class="btn ghost" data-act="siloDump">📤 P/ ESTOQUE</button>' : ''}</div>`;
+      const L = g.planet.layer, opts = compOf(L).minerals.map(x => x.k).concat(compOf(L).rare.k).filter(k => SILO_KEYS.has(k));
+      h += `<div class="mc-filter"><small>GUARDA:</small><button class="${!m.filter ? 'on' : ''}" data-act="setFilter" data-arg="">auto</button>${opts.map(k => `<button class="${m.filter === k ? 'on' : ''}" data-act="setFilter" data-arg="${k}" title="${esc(itemName(k))}">${this.icon(k, 18)}</button>`).join('')}</div>`;
+    }
+    if (d.behavior === 'filter' && !d.pick) {
       const L = g.planet.layer, opts = [...compOf(L).minerals.map(x => x.k), 'residuo', RAW_BY_LAYER[L], 'fragmentado'];
       h += `<div class="mc-filter"><small>PASSA POR BAIXO:</small>${opts.map(k => `<button class="${m.filter === k ? 'on' : ''}" data-act="setFilter" data-arg="${k}" title="${esc(itemName(k))}">${this.icon(k, 18)}</button>`).join('')}</div>`;
     }

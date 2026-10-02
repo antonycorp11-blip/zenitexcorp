@@ -29,7 +29,9 @@ export function ioSpec(def: MachineDef, dir: number, layer: number): IOSpec {
     }
     case 'prep': return { inTop: Object.keys(def.takes ?? {}).filter(k => RAW_BY_LAYER.includes(k)).slice(0, 3), outs: [{ side: def.outMode === 'bottom' ? 'down' : right, keys: ['fragmentado'], label: 'fragmentado' }] };
     case 'compactor': return { inTop: ['residuo'], outs: [{ side: def.outMode === 'bottom' ? 'down' : right, keys: ['bloco_massa'], label: 'blocos' }], base: true };
-    case 'filter': return { inTop: 'tudo', outs: [{ side: 'down', keys: [], label: 'tipo escolhido' }, { side: right, keys: [], label: 'o resto' }] };
+    case 'filter': return def.pick ? { inTop: 'tudo', outs: [{ side: right, keys: def.pick.filter(k => minerals.includes(k) || k === comp.rare.k).slice(0, 3), label: def.key === 'ima' ? 'metálicos' : 'cristais' }, { side: 'down', keys: [], label: 'o resto' }] }
+      : { inTop: 'tudo', outs: [{ side: 'down', keys: [], label: 'tipo escolhido' }, { side: right, keys: [], label: 'o resto' }] };
+    case 'silo': return { inTop: minerals, outs: [{ side: right, keys: [], label: 'transborda' }] };
     case 'refinery': return { inTop: minerals, outs: [{ side: right, keys: minerals.map(k => REFINE_MAP[k]).filter(Boolean), label: 'barras' }] };
     case 'blower': return { inTop: null, outs: [{ side: right, keys: [], label: 'pilhas soltas' }] };
     case 'riser': return { inTop: 'tudo', outs: [{ side: right, keys: [], label: 'sai no topo' }] };
@@ -56,7 +58,9 @@ export function howTo(def: MachineDef, layer: number): string {
     case 'separator': return def.outMode === 'sieve' ? `Deixe ${rawName} CAIR em cima (elevador, lançador ou soprando). Os minerais passam pela grade e caem POR BAIXO — ponha um Coletor embaixo. O resíduo escorrega para o lado da seta — ponha uma Prensa ali.` : `Entra ${rawName} pelo funil ou pela lateral; tudo sai pela calha da seta.`;
     case 'prep': return 'A rocha cai por cima e sai fragmentada POR BAIXO: empilhe uma Peneira logo embaixo e a terra cai direto nela.';
     case 'compactor': return 'Resíduo cai por cima e vira Bloco de Massa. Perto da base, os blocos vão direto ao estoque (o Terminal exporta) e ela também puxa o resíduo do pátio sozinha.';
-    case 'filter': return 'Grão que cai em cima: se for do tipo escolhido (toque na peça para escolher), passa e cai por baixo; o resto desvia para o lado da seta.';
+    case 'silo': return 'Deixe UM mineral cair no funil (o Ímã ou o Ressonador mandam pelo lado). As MELHORIAS da aba Fábrica, do perfurador e as pesquisas são pagas com o que está nos silos. Cheio ou tipo errado: transborda pelo lado da seta — encoste um Coletor ali.';
+    case 'filter': if (def.pick) return def.key === 'ima' ? 'Ponha embaixo da Peneira. Os minerais caem nele: os METÁLICOS (Ferronox) são puxados para o lado da seta — ponha um Silo ali — e o resto cai por baixo (num Coletor ou no próximo separador).' : 'Os CRISTAIS (Lumenita) saltam para o lado da seta — ponha um Silo ali — e o resto cai por baixo. Empilhe embaixo de um Ímã para separar tudo.';
+      return 'Grão que cai em cima: se for do tipo escolhido (toque na peça para escolher), passa e cai por baixo; o resto desvia para o lado da seta.';
     case 'scaffold': return 'Viga para subir a fábrica: você pisa nela, os grãos ficam em cima, e peças podem ser apoiadas nela.';
     case 'refinery': return 'Jogue minerais no funil: 2 kg viram 1 barra refinada, que vai para um armazém encostado.';
     case 'analyzer': return 'Toque E: escolha o material, dê o pulso de frequência e veja o que existe dentro. Processamento manual.';

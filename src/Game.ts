@@ -34,6 +34,7 @@ import { SECTORS, LAYER_COUNT } from './data/sectors';
 import { ITEM } from './data/items';
 import { RAW_BY_LAYER, separate, KG_PER_UNIT } from './data/composition';
 import type { UI } from './ui/UI';
+import { SILO_KEYS } from './data/factory';
 import type { LoreDef } from './data/lore';
 
 export type HotSlot = { type: 'tool' | 'item' | 'build'; key: string } | null;
@@ -420,6 +421,16 @@ export class Game {
     else this.exitBuild();
     this.audio.click();
   }
+  // ---- melhorias: minerais saem dos SILOS; o resto (barras, peças) do estoque ----
+  upHave(k: string) { return SILO_KEYS.has(k) ? this.machines.siloCount(k) : this.stock.count(k) + this.pack.count(k); }
+  upHas(cost: Record<string, number>) { for (const k in cost) if (this.upHave(k) < cost[k] - 1e-6) return false; return true; }
+  upPay(cost: Record<string, number>) {
+    if (!this.upHas(cost)) return false;
+    const rest: Record<string, number> = {};
+    for (const k in cost) { if (SILO_KEYS.has(k)) this.machines.siloTake(k, cost[k]); else rest[k] = cost[k]; }
+    return this.stock.pay(rest, this.pack.items);
+  }
+
   canBuildKey(k: string) { const d = MACHINE[k]; return !!d && (!d.research || this.research.has(d.research)) && d.behavior !== 'command'; }
   startBuild(k: string) {
     const [tx, ty] = this.freeSpotFor(k);

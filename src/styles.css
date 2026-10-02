@@ -713,3 +713,7 @@ body.touch #mobile div.mobile-actions { top: 148px !important; bottom: auto !imp
 
 .mc-filter { display: flex; align-items: center; gap: 4px; margin: 4px 0; flex-wrap: wrap; } .mc-filter small { font-size: 10px; color: #8ab; margin-right: 4px; }
 .mc-filter button { width: 30px; height: 30px; border-radius: 8px; border: 1px solid #2a4a60; background: #0e1e2c; } .mc-filter button.on { border-color: #ffb84a; background: #3a2a10; }
+.mc-filter button[data-arg=""] { width: auto; padding: 0 6px; font-size: 10px; color: #cde; }
+.mc-silo { display: flex; align-items: center; gap: 6px; margin: 4px 0; } .mc-silo .pbar { flex: 1; } .mc-silo small { font-size: 10px; color: #ffd8a0; white-space: nowrap; }
+.silo-sum { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; font-size: 11px; } .silo-sum span { background: #1a2632; border: 1px solid #2c4256; border-radius: 8px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px; } .silo-sum b { color: #ffd04a; }
+.mc-silo .btn { padding: 3px 8px; font-size: 10px; min-height: 0; }

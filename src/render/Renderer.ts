@@ -522,6 +522,18 @@ export class Renderer {
     ctx.drawImage(img, x, y, img.width / SPRITE_K, img.height / SPRITE_K);
     ctx.imageSmoothingEnabled = true;
     this.animate(m, x, y + oy);
+    if (m.def.behavior === 'silo') {
+      // visor com o nível e a cor do mineral guardado
+      const k = Object.keys(m.inb).find(q => (m.inb[q] ?? 0) > 0) ?? m.filter;
+      const t = Object.values(m.inb).reduce((a, b) => a + b, 0), f = Math.min(1, t / g.machines.siloCap());
+      const vx = m.tx * TILE + 13, vy = m.ty * TILE + 6, vw = 6, vh = 22;
+      ctx.fillStyle = 'rgba(8,12,18,0.9)'; ctx.fillRect(vx, vy, vw, vh);
+      const c = k ? (ITEM[k]?.color ?? [200, 200, 200]) : [60, 60, 60];
+      ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.fillRect(vx + 1, vy + vh - 1 - (vh - 2) * f, vw - 2, (vh - 2) * f);
+      ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.fillRect(vx + 1, vy + 1, 1, vh - 2);
+      if (k) ctx.drawImage(g.sprites.item(k, 8), m.tx * TILE + 3, m.ty * TILE + 10);
+      if (f >= 0.999) this.alert(m.tx * TILE + 16, m.ty * TILE - 10, '#ffb04a');
+    }
     if (m.working && m.def.behavior === 'compactor' && Math.random() < 0.08) g.fx.dust(x + m.def.w * 8, m.ty * TILE + 8, 2);
     const [cx, cy] = g.machines.centerPx(m);
     if (m.broken) { ctx.fillStyle = 'rgba(30,0,0,0.45)'; ctx.fillRect(x, y, img.width, img.height); if (Math.random() < 0.15) g.fx.smoke(cx, cy - 6, [80, 80, 80]); }
@@ -889,7 +901,7 @@ export class Renderer {
       ctx.fillStyle = col;
       ctx.beginPath(); ctx.moveTo(x + ddx * 5, y + ddy * 5); ctx.lineTo(x - ddy * 4 - ddx * 1.5, y + ddx * 4 - ddy * 1.5); ctx.lineTo(x + ddy * 4 - ddx * 1.5, y - ddx * 4 - ddy * 1.5); ctx.closePath(); ctx.fill();
     };
-    const takesGrains = ['separator', 'prep', 'compactor', 'storage', 'link', 'command', 'riser', 'launcher', 'terminal', 'filter'].includes(bh);
+    const takesGrains = ['separator', 'prep', 'compactor', 'storage', 'link', 'command', 'riser', 'launcher', 'terminal', 'filter', 'silo'].includes(bh);
     if (takesGrains) tri(x0 + W / 2, y0 - 10 + bob, 0, 1, '#7aff8a');                  // funil: entra por cima
     const right = dir !== 2;
     const outSide = (r: boolean, col: string) => tri(r ? x0 + W + 7 + bob : x0 - 7 - bob, y0 + H - 6, r ? 1 : -1, 0, col);
@@ -899,6 +911,7 @@ export class Renderer {
     else if (def.outMode === 'bottom') downOut();
     else if (bh === 'separator') outSide(right, '#6ab4ff');
     else if (bh === 'filter') { downOut(); outSide(right, '#ffb04a'); }
+    else if (bh === 'silo') outSide(right, '#ffb04a');
     else if (bh === 'refinery' || bh === 'launcher') outSide(right, '#ffb04a');
     if (bh === 'drill') {
       const [dx, dy] = DIRS[dir];

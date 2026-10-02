@@ -17,17 +17,20 @@ export class Blueprint {
     const c = this.g.machines.list.find(m => m.def.behavior === 'command');
     if (!c) { this.items = []; return; }
     const tx0 = c.tx + 1, gy = c.ty + c.def.h;     // gy = primeira fileira de chão
-    // FÁBRICA VERTICAL, à direita da cápsula (tudo cai por gravidade), alimentada por um SOPRADOR numa frente de escavação:
-    //            ◀═══════ tubo ══╗
-    //   [PENEIRA ◀]              ║
-    // [PRENSA][COLETOR]          ╚[SOPRADOR ◀]  ← cave aqui perto
+    // TORRE DE SEPARAÇÃO, à direita da cápsula (tudo cai por gravidade), alimentada por um SOPRADOR numa frente de escavação:
+    //            ◀════════ tubo ═══╗
+    //   [PENEIRA ◀]                ║
+    //   [ÍMÃ ▶]                    ║
+    // [PRENSA][COLETOR][SILO ◀]    ╚[SOPRADOR ◀]  ← cave aqui perto
     const x = tx0 + 4;
     this.items = [
       { id: 'armazem', key: 'armazem', tx: x, ty: gy - 2, dir: 0, label: 'COLETOR' },
-      { id: 'peneira', key: 'peneira', tx: x, ty: gy - 3, dir: 2, label: 'PENEIRA ◀' },
+      { id: 'ima', key: 'ima', tx: x, ty: gy - 3, dir: 0, label: 'ÍMÃ ▶' },
+      { id: 'peneira', key: 'peneira', tx: x, ty: gy - 4, dir: 2, label: 'PENEIRA ◀' },
       { id: 'compactador', key: 'compactador', tx: x - 1, ty: gy - 2, dir: 0, label: 'PRENSA' },
+      { id: 'silo', key: 'silo', tx: x + 2, ty: gy - 2, dir: 2, label: 'SILO ◀' },
       { id: 'soprador', key: 'soprador', tx: x + 9, ty: gy - 1, dir: 2, label: 'SOPRADOR ◀' },
-      { id: 'tubo', key: 'tubo', tx: x + 8, ty: gy - 1, tx2: x + 2, ty2: gy - 4, dir: 3, label: 'TUBO' },
+      { id: 'tubo', key: 'tubo', tx: x + 8, ty: gy - 1, tx2: x + 2, ty2: gy - 5, dir: 3, label: 'TUBO' },
     ];
   }
 
@@ -92,12 +95,14 @@ export class Blueprint {
   checkLine(): { ok: boolean; msg: string; stage: number } {
     const order: [string, string][] = [
       ['armazem', 'Falta o Coletor no quadrado marcado.'],
-      ['peneira', 'A Peneira tem que ficar EM CIMA do Coletor, com a seta ◀ (resíduo para a esquerda).'],
+      ['ima', 'O Ímã vai EM CIMA do Coletor, com a seta ▶ (os metálicos são puxados para a direita, para o Silo).'],
+      ['peneira', 'A Peneira vai EM CIMA do Ímã, com a seta ◀ (resíduo para a esquerda).'],
       ['compactador', 'A Prensa vai do lado esquerdo, embaixo da borda por onde o resíduo escorrega.'],
+      ['silo', 'O Silo vai à direita do Coletor, com a seta ◀ (transborda para dentro do Coletor).'],
       ['soprador', 'O Soprador vai no quadrado marcado, com o bocal ◀ virado para a fábrica.'],
       ['tubo', 'O tubo sai do bocal do soprador, SOBE e vai até em cima da Peneira (arraste do 1 até o 2).'],
     ];
     for (let i = 0; i < order.length; i++) if (!this.placed(order[i][0])) return { ok: false, msg: order[i][1], stage: i };
-    return { ok: true, msg: 'Fábrica montada: soprador → tubo → peneira → minerais no coletor, resíduo na prensa.', stage: order.length };
+    return { ok: true, msg: 'Fábrica montada: soprador → tubo → peneira → ímã → Ferronox no silo, o resto no coletor, resíduo na prensa.', stage: order.length };
   }
 }

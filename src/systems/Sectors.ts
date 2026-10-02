@@ -50,6 +50,7 @@ export class SectorSystem {
       case 'deliver': return [this.s[layer].counters.delivered ?? 0, m.kg];
       case 'counter': return [this.s[layer].counters[m.key] ?? 0, m.max];
       case 'drill': return [g.player.drillLevel + 1, m.level];
+      case 'silo': return [M.siloCount(m.key), m.kg];
       case 'layer': return [g.planet.layerFraction(layer) * 100, m.frac * 100];
     }
   }
