@@ -81,6 +81,19 @@ export class WorldGen {
       out[y * WORLD_W + x] = this.cell(x, y, S, sd, sec);
     }
     for (const r of this.ruins) for (let y = r.y0; y < r.y0 + r.h; y++) for (let x = r.x0; x < r.x0 + r.w; x++) out[y * WORLD_W + x] = this.ruinCell(r, x - r.x0, y - r.y0);
+    // líquidos já assentados: em cada coluna, descem até o fundo da cavidade
+    for (let x = 0; x < WORLD_W; x++) {
+      let floor = -1;   // primeira célula livre acima de algo sólido, de baixo para cima
+      for (let y = WORLD_H - 1; y >= 0; y--) {
+        const i = y * WORLD_W + x, m = out[i];
+        if (m === MAT.AIR) { if (floor < 0) floor = y; continue; }
+        if (m === MAT.LAVA || m === MAT.WATER || m === MAT.ACID) {
+          if (floor > y) { out[floor * WORLD_W + x] = m; out[i] = MAT.AIR; floor--; } else floor = -1;
+          continue;
+        }
+        floor = -1;
+      }
+    }
   }
 
   private cell(x: number, y: number, S: number, sd: SectorDef, sec: number): number {

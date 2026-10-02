@@ -5,6 +5,17 @@ A Zenitex compra **mundos mortos** — núcleo resfriado, sem tectônica, sem ma
 colonização — classificados como RECURSO PLANETÁRIO RECUPERÁVEL. Você é um minerador contratado pela Zenitex para desmontar o planeta K-37. Começa quebrando pedra à mão,
 monta perfuradoras e esteiras, e termina operando máquinas planetárias até o planeta deixar de existir.
 
+## Vista lateral com areia (referência: Sandustry)
+Cada camada é um **corte vertical** do planeta: céu (ou o vazio já escavado) em cima, chão com um platô para a base
+e, abaixo, rocha com estratos, cavernas, veios ricos, bolsões de líquido e ruínas de Khelos.
+- Células de 4 px. Terreno fixo é minerável; **grãos soltos** caem e escorregam (areia), **blocos** só caem,
+  **líquidos** escorrem e assentam. Só chunks com algo se movendo são simulados (`World.simulate`).
+- O feixe do jogador solta o chão em grãos do material bruto da camada (o teor do lugar viaja no grão);
+  o aspirador do traje puxa os grãos soltos para a mochila. Jogador anda, sobe degraus de areia e voa de jetpack.
+- Máquinas são físicas: grãos que caem em cima entram pelo funil (se a máquina aceitar; senão empilham),
+  a saída sai pela lateral (o Separador solta minerais de um lado e resíduo do outro), esteiras horizontais
+  empurram os grãos apoiados nelas, e o Elevador de Grãos sobe o material do fundo dos buracos.
+
 ## Estrutura: 7 camadas
 Terra → Pedra → Basalto → Cristalina → Manto → Núcleo Externo → Núcleo. Cada camada é um mapa (disco visto de cima),
 menor e mais duro que o anterior. A **barra da camada** é a meta principal; em 100% aparece **DESCER**:

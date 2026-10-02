@@ -1,5 +1,8 @@
 import { CELL, CHUNK, WORLD_W, WORLD_H, WORLD_CW, WORLD_CH, WORLD_TW, WORLD_TH, TILE, TILE_CELLS } from '../core/constants';
 import { MAT, IS_SOLID, IS_BLOCKING, IS_LIQUID, IS_LOOSE, matById } from '../data/materials';
+
+const MOBILE = new Uint8Array(256);
+for (let i = 0; i < 256; i++) MOBILE[i] = IS_LOOSE[i] || IS_LIQUID[i] ? 1 : 0;
 import { WorldGen } from './WorldGen';
 
 /** Chamado quando um grão tenta entrar numa célula ocupada por máquina. true = a máquina absorveu. */
@@ -29,6 +32,7 @@ export class World {
   readonly sectorTileExplored = new Int32Array(13);
   regrowQueue: { x: number; y: number; m: number; t: number }[] = [];
   sink: GrainSink | null = null;
+  private quiet = false;
   moving = 0;           // grãos que se moveram no último passo (telemetria)
 
   constructor(seed: number, layer = 1) {
@@ -36,7 +40,13 @@ export class World {
     this.gen.generate(this.mat);
     this.sectorTiles = this.gen.buildSectorTiles(WORLD_TW, WORLD_TH);
     this.sectorTileTotal[layer] = this.sectorTiles.length;
-    this.active.fill(1); // assentar líquidos na primeira vez
+    this.active.fill(1);
+    // assenta os líquidos em silêncio antes do primeiro quadro
+    this.quiet = true;
+    for (let k = 0; k < 260; k++) { this.simulate(); if (this.moving < 4) break; }
+    this.quiet = false;
+    this.active.fill(0);
+    this.stamp.fill(0);
   }
 
   // compatibilidade (o mapa inteiro já é gerado no construtor)
@@ -105,9 +115,8 @@ export class World {
             const x = flip ? x0 + xi : x0 + CHUNK - 1 - xi;
             const i = y * WORLD_W + x;
             const m = mat[i];
+            if (!MOBILE[m] || st[i] === T) continue;
             const loose = IS_LOOSE[m], liq = IS_LIQUID[m];
-            if (!loose && !liq) continue;
-            if (st[i] === T) continue;
             let to = -1;
             const below = i + WORLD_W;
             if (this.canEnter(below, m, x, y + 1)) to = below;
@@ -135,7 +144,8 @@ export class World {
             st[to] = T; st[i] = T;
             this.dmg[i] = 0;
             const tx = to % WORLD_W, ty = (to / WORLD_W) | 0;
-            this.touch(x, y); this.touch(tx, ty);
+            if (this.quiet) { this.nextActive[((ty / CHUNK) | 0) * WORLD_CW + ((tx / CHUNK) | 0)] = 1; if (cy > 0) this.nextActive[(cy - 1) * WORLD_CW + cx] = 1; }
+            else { this.touch(x, y); this.touch(tx, ty); }
             any = true; moved++;
           }
         }
