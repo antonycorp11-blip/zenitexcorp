@@ -717,3 +717,13 @@ body.touch #mobile div.mobile-actions { top: 148px !important; bottom: auto !imp
 .mc-silo { display: flex; align-items: center; gap: 6px; margin: 4px 0; } .mc-silo .pbar { flex: 1; } .mc-silo small { font-size: 10px; color: #ffd8a0; white-space: nowrap; }
 .silo-sum { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; font-size: 11px; } .silo-sum span { background: #1a2632; border: 1px solid #2c4256; border-radius: 8px; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px; } .silo-sum b { color: #ffd04a; }
 .mc-silo .btn { padding: 3px 8px; font-size: 10px; min-height: 0; }
+/* tutorial: cartão compacto à esquerda, fora do caminho da fábrica e do personagem */
+body.touch .hud .hcard.meta.tut { left: max(6px, env(safe-area-inset-left)) !important; top: 44px !important; transform: none !important; width: 250px !important; padding: 6px 9px 7px !important; border-color: #ffb84a !important; background: rgba(8, 16, 26, .92) !important; }
+body.touch .hud .hcard.meta.tut .mt { font-size: 9px !important; color: #ffb84a !important; margin-bottom: 2px; }
+body.touch .hud .hcard.meta.tut .mx { font-size: 11.5px !important; line-height: 1.32 !important; max-height: 112px !important; }
+body.touch .hud .hcard.meta.tut .mx u.tutskip { display: block; margin-top: 4px; font-size: 9px; color: #7a9ab0; }
+.hud .meta.tut { left: 14px; top: 90px; transform: none; width: 330px; }
+body.touch.tut-r .hud .hcard.meta.tut { left: auto !important; right: calc(max(6px, env(safe-area-inset-right)) + 66px) !important; }
+body.tut-r .hud .meta.tut { left: auto; right: 90px; }
+body.touch.tut-r .hud .toasts { right: auto !important; left: max(6px, env(safe-area-inset-left)) !important; }
+body.touch.tut-on:not(.tut-r) .hud .toasts { top: 46px !important; }

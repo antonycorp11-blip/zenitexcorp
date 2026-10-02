@@ -134,6 +134,62 @@ export class Game {
     this.world.reveal(this.player.x, this.player.y, 22);
   }
 
+  /** Jogo novo: mapa vazio. O jogador monta a Plataforma Orbital e a cápsula desce sobre ela. */
+  setupLanding() {
+    const L = this.world.gen.landing;
+    const tx = Math.floor((L.x * CELL) / TILE), gy = Math.floor((SURFACE_Y * CELL) / TILE);
+    this.flags.awaitCapsule = true;
+    this.blueprint.layout();
+    this.player.x = (tx + 4.5) * TILE; this.player.y = gy * TILE;
+    this.camera.x = this.player.x; this.camera.y = this.player.y;
+    this.world.reveal(this.player.x, this.player.y, 22);
+  }
+
+  /** cápsula descendo do céu (animação de pouso) */
+  capsuleDrop: { tx: number; ty: number; t: number } | null = null;
+  static readonly DROP_TIME = 3.2;
+  /** procura uma Plataforma Orbital de 6+ peças em linha com espaço livre em cima */
+  private findPad(): { tx: number; ty: number; x0: number; x1: number } | null {
+    const pads = this.machines.list.filter(m => m.key === 'piso_orbital');
+    const set = new Set(pads.map(m => m.tx + ',' + m.ty));
+    const cdef = MACHINE.comando;
+    for (const m of pads) {
+      if (set.has((m.tx - 1) + ',' + m.ty)) continue;           // começo de uma fileira
+      let x1 = m.tx; while (set.has((x1 + 1) + ',' + m.ty)) x1++;
+      if (x1 - m.tx + 1 < 6) continue;
+      for (let cx = x1 - 3; cx >= m.tx; cx--) if (!this.machines.canPlace(cdef, cx, m.ty - 3)) return { tx: cx, ty: m.ty - 3, x0: m.tx, x1 };
+    }
+    return null;
+  }
+  private updateCapsule(dt: number) {
+    if (!this.flags.awaitCapsule) return;
+    if (!this.capsuleDrop) {
+      const pad = this.findPad();
+      if (!pad) return;
+      this.capsuleDrop = { tx: pad.tx, ty: pad.ty, t: 0 };
+      this.audio.rumble(); this.dialogue.line('zena', 'Plataforma Orbital confirmada. Liberando a cápsula de comando: afaste-se do piso.');
+      return;
+    }
+    const d = this.capsuleDrop;
+    d.t += dt;
+    const cx = (d.tx + 1.5) * TILE, by = (d.ty + 3) * TILE;
+    if (d.t > Game.DROP_TIME - 0.9) { if (Math.random() < 0.6) this.fx.dust(cx + (Math.random() - 0.5) * 60, by, 2); this.shake(1.5); }
+    if (d.t < Game.DROP_TIME) return;
+    // pousou: cápsula + carga (Analisador em cima do piso, Terminal no chão ao lado)
+    const p = this.player;
+    if (p.x > d.tx * TILE - 4 && p.x < (d.tx + 3) * TILE + 4 && p.y > d.ty * TILE && p.y < by + 2) p.x = (d.tx + 3) * TILE + 10;
+    this.machines.place('comando', d.tx, d.ty, 0);
+    this.capsuleDrop = null; this.flags.awaitCapsule = false;
+    this.shake(8); this.fx.dust(cx, by, 30); this.audio.success();
+    const pad = { y: d.ty + 3 };
+    for (let x = d.tx - 2; x >= d.tx - 8; x--) if (this.machines.place('analisador', x, pad.y - 2, 0)) break;
+    if (!this.machines.count('analisador')) this.placeAnalyzer();
+    const gy = Math.floor((SURFACE_Y * CELL) / TILE);
+    for (const dx of [-8, -10, -12, 6, 8, 12]) if (this.machines.place('terminal_orbital', d.tx + dx, gy - 3, 0)) break;
+    this.blueprint.layout();
+    this.toast('Cápsula de comando pousou: base ativa', '#9cff8a');
+  }
+
   /** Analisador de Matriz: a primeira "máquina" de processamento, manual, ao lado da cápsula. */
   placeAnalyzer() {
     if (this.machines.count('analisador')) return;
@@ -186,9 +242,9 @@ export class Game {
   }
 
   setupNew() {
-    this.setupBase();
+    this.setupLanding();
     this.markLayerStart();
-    this.stock.add('ferronox', 180, false); this.stock.add('lumenita', 90, false);   // kit inicial: a primeira fábrica vertical inteira, com folga
+    this.stock.add('ferronox', 200, false); this.stock.add('lumenita', 90, false);   // kit inicial: a primeira fábrica vertical inteira, com folga
     this.pack.add('kit_soprador', 2);   // dois sopradores na mão
     this.stock.credits = 300;
     this.pack.add('sinalizador', 3); this.pack.add('kit_reparo', 1);
@@ -332,6 +388,7 @@ export class Game {
     this.stock.tick(this.time);
     for (const f of this.flares) f.t -= dt;
     this.flares = this.flares.filter(f => f.t > 0);
+    this.updateCapsule(dt);
     this.tutorial();
     this.finalLogic();
     // ambiente: brasas, bolhas, poeira
@@ -526,7 +583,7 @@ export class Game {
       if (!this.stock.pay(def.cost, this.pack.items)) { poor = true; break; }
       if (this.machines.place(def.key, tx, ty, dir)) { placed++; this.stats.built++; }
     }
-    if (placed || turned) { this.audio.click(); this.toast(`${placed} ${def.behavior === 'tube' ? 'tubo(s)' : def.behavior === 'riser' ? 'peça(s) de elevador' : 'esteira(s)'} instalada(s)${turned ? `, ${turned} girada(s)` : ''}`, '#9cff8a'); }
+    if (placed || turned) { this.audio.click(); this.toast(`${placed} ${def.behavior === 'tube' ? 'tubo(s)' : def.behavior === 'scaffold' ? 'peça(s) de piso' : def.behavior === 'riser' ? 'peça(s) de elevador' : 'esteira(s)'} instalada(s)${turned ? `, ${turned} girada(s)` : ''}`, '#9cff8a'); }
     if (blocked) this.toast(`${blocked} trecho(s) obstruído(s) foram pulados`, '#ffd04a');
     if (poor) { this.toast('Recursos acabaram no meio da linha', '#ff8a3a'); this.audio.error(); }
     // linha instalada: volta ao perfurador (ficar preso no modo construção parecia travamento)
@@ -793,7 +850,7 @@ export class Game {
     this.scanner.mapMarkers = s.markers ?? []; this.final = s.final ?? this.final; this.flares = s.flares ?? []; this.mining.drops = s.drops ?? [];
     this.flags.intro = false; this.flags.ending = false;
     // camada nova (acabou de descer): monta a cápsula no poço central
-    if (!this.machines.list.some(m => m.def.behavior === 'command')) this.setupBase();
+    if (!this.machines.list.some(m => m.def.behavior === 'command')) { if (!this.flags.awaitCapsule) this.setupBase(); }
     else this.placeAnalyzer();
     this.blueprint.layout();
     this.camera.x = this.player.x; this.camera.y = this.player.y;

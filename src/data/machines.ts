@@ -56,6 +56,7 @@ m({ key: 'esteira2', name: 'Esteira Mk II', cat: 'logistica', behavior: 'belt', 
 m({ key: 'esteira3', name: 'Esteira Mk III', cat: 'logistica', behavior: 'belt', look: 'belt', w: 1, h: 1, rotatable: true, cost: { placa_ferronox: 1, polimero_solvex: 1 }, power: 0, speed: 5.5, wear: 0.02, research: 'esteira3', desc: 'Transporte de alta vazão.' });
 m({ key: 'tubo', name: 'Tubo Pneumático', cat: 'logistica', behavior: 'tube', look: 'belt', w: 1, h: 1, rotatable: true, cost: { ferronox: 2 }, power: 0, speed: 6, desc: 'Arraste para montar: leva grãos em qualquer direção, até para cima. A pressão de um soprador ou reforçador empurra por 14 tiles; mais longe, ponha um Reforçador no meio.' });
 m({ key: 'reforcador', name: 'Reforçador de Pressão', cat: 'logistica', behavior: 'tube', look: 'belt', w: 1, h: 1, rotatable: true, cost: { ferronox: 10, lumenita: 4 }, power: 0, speed: 6, desc: 'Peça de tubo com compressor: renova a pressão por mais 14 tiles. Linhas longas precisam de vários.' });
+m({ key: 'piso_orbital', name: 'Plataforma Orbital', cat: 'base', behavior: 'scaffold', look: 'platform', w: 1, h: 1, cost: { ferronox: 3 }, power: 0, desc: 'Piso de liga orbital: se sustenta SOZINHO, mesmo sem terra embaixo. Você, os grãos e qualquer máquina ficam em cima. É a base de tudo: a cápsula de comando só pousa numa plataforma de 6+ peças.' });
 m({ key: 'plataforma_metal', name: 'Plataforma', cat: 'logistica', behavior: 'scaffold', look: 'platform', w: 1, h: 1, cost: { ferronox: 1 }, power: 0, desc: 'Viga de 1 tile: você pisa em cima e os grãos também. Use para subir a fábrica e apoiar peças no alto.' });
 m({ key: 'elevador_grao', name: 'Elevador de Grãos', cat: 'logistica', behavior: 'riser', look: 'lift', w: 1, h: 1, rotatable: true, cost: { ferronox: 4, lumenita: 1 }, power: 0, desc: 'Empilhe na vertical: grãos que entram embaixo (por esteira ou caindo) saem no topo, para o lado da seta. Tire material do fundo do buraco.' });
 m({ key: 'lancador_grao', name: 'Lançador de Grãos', cat: 'logistica', behavior: 'launcher', look: 'lift', w: 1, h: 1, rotatable: true, cost: { ferronox: 8, lumenita: 4 }, power: 0, desc: 'Grão que entra (por esteira ou caindo em cima) é arremessado em arco para o lado da seta. Atravessa buracos e alimenta funis de longe.' });
@@ -155,8 +156,8 @@ export const MACHINES: readonly MachineDef[] = D;
 export const nextDir = (def: MachineDef | undefined, dir: number) => def?.behavior === 'drill' || def?.behavior === 'tube' ? (dir + 1) % 4 : dir === 0 ? 2 : 0;
 export const MACHINE: Record<string, MachineDef> = Object.fromEntries(D.map(d => [d.key, d]));
 export const MACHINE_CATS: { key: MachineCat; name: string }[] = [
-  { key: 'extracao', name: 'Extração' }, { key: 'logistica', name: 'Logística' }, { key: 'processamento', name: 'Processamento' },
-  { key: 'drones', name: 'Drones' }, { key: 'estabilizacao', name: 'Segurança' }, { key: 'base', name: 'Base' }, { key: 'mega', name: 'Planetária' },
+  { key: 'base', name: 'Base' }, { key: 'extracao', name: 'Extração' }, { key: 'logistica', name: 'Logística' }, { key: 'processamento', name: 'Processamento' },
+  { key: 'drones', name: 'Drones' }, { key: 'estabilizacao', name: 'Segurança' }, { key: 'mega', name: 'Planetária' },
 ];
 
 // Níveis do Complexo de Extração Profunda (t/min de reserva removida)

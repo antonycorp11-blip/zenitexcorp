@@ -28,11 +28,10 @@ export class MobileControls {
     this.rb = this.root.querySelector('.right .base')!; this.rk = this.root.querySelector('.right .knob')!;
     this.root.querySelectorAll<HTMLButtonElement>('[data-b]').forEach(b => {
       if (b.dataset.b === 'jet') {
-        // segurar = voar
-        const on = (e: Event) => { e.preventDefault(); e.stopPropagation(); input.jetHeld = true; b.classList.add('on'); onButton('jet'); };
-        const off = (e: Event) => { e.preventDefault(); input.jetHeld = false; b.classList.remove('on'); };
-        b.addEventListener('touchstart', on, { passive: false }); b.addEventListener('touchend', off); b.addEventListener('touchcancel', off);
-        b.addEventListener('mousedown', on); b.addEventListener('mouseup', off); b.addEventListener('mouseleave', off);
+        // toque = liga/desliga o voo livre (sem limite de tempo)
+        const tog = (e: Event) => { e.preventDefault(); e.stopPropagation(); input.jetHeld = !input.jetHeld; b.classList.toggle('on', input.jetHeld); onButton('jet'); };
+        b.addEventListener('touchstart', tog, { passive: false });
+        b.addEventListener('mousedown', tog);
         return;
       }
       b.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); onButton(b.dataset.b!); });

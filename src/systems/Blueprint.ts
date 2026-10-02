@@ -1,3 +1,4 @@
+import { CELL, SURFACE_Y, TILE } from '../core/constants';
 import { MACHINE } from '../data/machines';
 import type { Game } from '../Game';
 import type { Machine } from './Machines';
@@ -14,9 +15,9 @@ export class Blueprint {
 
   /** monta o projeto a partir da posição da cápsula (vale para qualquer camada) */
   layout() {
-    const c = this.g.machines.list.find(m => m.def.behavior === 'command');
-    if (!c) { this.items = []; return; }
-    const tx0 = c.tx + 1, gy = c.ty + c.def.h;     // gy = primeira fileira de chão
+    // tudo é medido a partir do ponto de pouso (o centro do platô), exista a cápsula ou não
+    const L = this.g.world.gen.landing;
+    const tx0 = Math.floor((L.x * CELL) / TILE), gy = Math.floor((SURFACE_Y * CELL) / TILE);   // gy = primeira fileira de chão
     // TORRE DE SEPARAÇÃO, à direita da cápsula (tudo cai por gravidade), alimentada por um SOPRADOR numa frente de escavação:
     //            ◀════════ tubo ═══╗
     //   [PENEIRA ◀]                ║
@@ -24,6 +25,8 @@ export class Blueprint {
     // [PRENSA][COLETOR][SILO ◀]    ╚[SOPRADOR ◀]  ← cave aqui perto
     const x = tx0 + 4;
     this.items = [
+      // PLATAFORMA ORBITAL: piso de 8 peças onde a cápsula pousa (tx0-6 … tx0+1)
+      { id: 'piso', key: 'piso_orbital', tx: tx0 - 6, tx2: tx0 + 1, ty: gy - 1, dir: 0, label: 'PLATAFORMA ORBITAL' },
       { id: 'armazem', key: 'armazem', tx: x, ty: gy - 2, dir: 0, label: 'COLETOR' },
       { id: 'ima', key: 'ima', tx: x, ty: gy - 3, dir: 0, label: 'ÍMÃ ▶' },
       { id: 'peneira', key: 'peneira', tx: x, ty: gy - 4, dir: 2, label: 'PENEIRA ◀' },
@@ -58,6 +61,10 @@ export class Blueprint {
     }
     if (it.key === 'esteira') {
       for (let x = Math.min(it.tx, it.tx2!); x <= Math.max(it.tx, it.tx2!); x++) { const m = this.g.machines.at(x, it.ty); if (!m?.belt || m.dir !== it.dir) return false; }
+      return true;
+    }
+    if (it.tx2 !== undefined) {
+      for (let x = Math.min(it.tx, it.tx2); x <= Math.max(it.tx, it.tx2); x++) { const m = this.g.machines.at(x, it.ty); if (!m || m.key !== it.key) return false; }
       return true;
     }
     if (it.ty2 !== undefined) {

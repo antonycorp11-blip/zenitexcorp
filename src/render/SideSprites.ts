@@ -377,6 +377,18 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
     for (let k = 3; k < W - 2; k += 2) { x.beginPath(); x.moveTo(k, top + 4); x.lineTo(k, top + H - 4); x.stroke(); }
     x.fillStyle = css(P.yellow);
     const ax = right ? W - 3 : 3; x.beginPath(); x.moveTo(ax, top + H / 2); x.lineTo(W / 2, top + 4); x.lineTo(W / 2, top + H - 3); x.closePath(); x.globalAlpha = 0.85; x.fill(); x.globalAlpha = 1;
+  } else if (def.key === 'piso_orbital') {
+    // piso de liga orbital: chapa grossa com borda de perigo, rebites e luz azul; treliça curta embaixo
+    const x = p.x;
+    x.fillStyle = css(P.stD); x.fillRect(1.5, top + 6, 1.4, H - 6); x.fillRect(W - 2.9, top + 6, 1.4, H - 6);
+    x.strokeStyle = css(P.st); x.lineWidth = 0.9; x.beginPath(); x.moveTo(2.5, top + 6); x.lineTo(W - 2.5, bot - 1); x.moveTo(W - 2.5, top + 6); x.lineTo(2.5, bot - 1); x.stroke();
+    x.beginPath(); x.rect(0, top, W, 6);
+    const g = x.createLinearGradient(0, top, 0, top + 6); g.addColorStop(0, css(P.stLL)); g.addColorStop(0.5, css(P.stL)); g.addColorStop(1, css(P.stD));
+    x.fillStyle = g; x.fill(); x.strokeStyle = 'rgba(16,18,24,0.95)'; x.lineWidth = 0.5; x.stroke();
+    p.hazard(0, top + 4, W, 2);
+    x.fillStyle = 'rgba(255,255,255,0.35)'; x.fillRect(0, top + 0.4, W, 0.6);
+    for (const rx of [2.5, W - 2.5]) { x.fillStyle = css(P.stD); x.beginPath(); x.arc(rx, top + 2.2, 0.7, 0, 7); x.fill(); }
+    x.fillStyle = css([90, 200, 255]); x.fillRect(W / 2 - 1, top + 1.6, 2, 1.2);
   } else if (def.behavior === 'scaffold') {
     const x = p.x;
     x.beginPath(); x.roundRect(0.3, top + 0.3, W - 0.6, 4, 0.8);

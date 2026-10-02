@@ -383,7 +383,7 @@ export class UI {
         : !g.flags.finalSeq ? 'Abra o Cortador Planetário [E] e inicie a desmontagem final.'
         : !g.flags.finalArmed ? `Ajuste os estabilizadores do núcleo (${st.filter(s => s.done).length}/4).` : 'Volte ao Cortador e DISPARE.';
     } else if (tut) {
-      title = `TUTORIAL ${tut.n}/${tut.total} · ${tut.title}`; text = tut.text;
+      title = `PASSO ${tut.n}/${tut.total} · ${tut.title}`; text = tut.text;
     } else if (g.canDescend()) {
       title = 'CAMADA ESGOTADA'; text = g.descendBlocked() ?? 'Toque em ▼ DESCER no cartão da camada para ir à próxima.';
     } else {

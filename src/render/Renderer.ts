@@ -129,6 +129,21 @@ export class Renderer {
       // empilhadas: as de cima desenham por cima das de baixo (funil do coletor não cobre a peneira)
       objs.push({ y: b === 'tube' ? -200000 - y : -100000 - y, draw: () => b === 'tube' ? this.drawTube(m) : this.drawMachine(m) });
     }
+    const drop = g.capsuleDrop;
+    if (drop) objs.push({ y: -50000, draw: () => {
+      // cápsula descendo com retrofoguetes, freando perto do piso
+      const def = MACHINE.comando, { img, oy } = g.sprites.machine(def, 0);
+      const k = Math.min(1, drop.t / 3.2), fall = Math.pow(1 - k, 2.2) * 700;
+      const x = drop.tx * TILE, y = drop.ty * TILE - oy - fall, cx = x + def.w * TILE / 2, by = y + oy + def.h * TILE;
+      const fl = 10 + Math.random() * 8 + (1 - k) * 10;
+      const gr = ctx.createLinearGradient(0, by - 2, 0, by + fl);
+      gr.addColorStop(0, 'rgba(255,250,220,0.95)'); gr.addColorStop(0.4, 'rgba(255,170,60,0.85)'); gr.addColorStop(1, 'rgba(255,90,30,0)');
+      ctx.fillStyle = gr;
+      for (const ox of [-12, 12]) { ctx.beginPath(); ctx.moveTo(cx + ox - 4, by - 2); ctx.lineTo(cx + ox + 4, by - 2); ctx.lineTo(cx + ox, by + fl); ctx.closePath(); ctx.fill(); }
+      ctx.drawImage(img, x, y, img.width / SPRITE_K, img.height / SPRITE_K);
+      g.lighting.add(cx, by + 4, 120, [255, 170, 80], 1);
+      if (Math.random() < 0.5) g.fx.smoke(cx + (Math.random() - 0.5) * 30, by + fl * 0.6, [190, 170, 150]);
+    } });
     for (const r of g.robots.list) {
       if (r.x < L - 20 || r.x > R + 20 || r.y < T - 20 || r.y > B + 20) continue;
       objs.push({ y: r.y, draw: () => {
@@ -798,14 +813,14 @@ export class Renderer {
     const pulse = 0.5 + 0.5 * Math.sin(this.time * 4);
     ctx.save();
     ctx.setLineDash([3, 2]); ctx.lineWidth = 1.2; ctx.strokeStyle = `rgba(120,255,150,${0.6 + pulse * 0.4})`;
-    if (it.key === 'esteira') {
+    if (it.key === 'esteira' || it.key === 'piso_orbital') {
       const x0 = Math.min(it.tx, it.tx2!) * TILE, x1 = (Math.max(it.tx, it.tx2!) + 1) * TILE, y = it.ty * TILE;
       ctx.fillStyle = `rgba(120,255,150,${0.12 + pulse * 0.1})`; ctx.fillRect(x0, y, x1 - x0, TILE);
       ctx.strokeRect(x0, y, x1 - x0, TILE);
       ctx.setLineDash([]);
       // setas de fluxo andando para o armazém + marcadores de início e fim
       const dir = it.dir === 2 ? -1 : 1;
-      for (let k = 0; k < (x1 - x0) / 10; k++) {
+      if (it.key === 'esteira') for (let k = 0; k < (x1 - x0) / 10; k++) {
         const ax = (dir < 0 ? x1 : x0) + dir * (((this.time * 18) % 10) + k * 10);
         if (ax < x0 || ax > x1) continue;
         ctx.fillStyle = 'rgba(160,255,180,0.9)'; ctx.beginPath(); ctx.moveTo(ax + dir * 4, y + 8); ctx.lineTo(ax, y + 5); ctx.lineTo(ax, y + 11); ctx.closePath(); ctx.fill();
@@ -862,7 +877,7 @@ export class Renderer {
       }
     }
     // etiqueta
-    const lx = (it.key === 'tubo' ? (it.tx + it.tx2!) / 2 + 0.5 : it.key === 'esteira' ? (it.tx + it.tx2!) / 2 + 0.5 : it.tx + d.w / 2) * TILE, ly = it.key === 'tubo' ? it.ty2! * TILE - 6 : it.key === 'esteira' ? it.ty * TILE - 16 : it.ty2 !== undefined ? Math.min(it.ty, it.ty2) * TILE - 6 : (it.ty + d.h / 2) * TILE + 2;   // dentro do quadrado: não briga com o rótulo de toque
+    const lx = (it.key === 'tubo' || it.key === 'piso_orbital' ? (it.tx + it.tx2!) / 2 + 0.5 : it.key === 'esteira' ? (it.tx + it.tx2!) / 2 + 0.5 : it.tx + d.w / 2) * TILE, ly = it.key === 'tubo' ? it.ty2! * TILE - 6 : it.key === 'esteira' || it.key === 'piso_orbital' ? it.ty * TILE - 16 : it.ty2 !== undefined ? Math.min(it.ty, it.ty2) * TILE - 6 : (it.ty + d.h / 2) * TILE + 2;   // dentro do quadrado: não briga com o rótulo de toque
     ctx.font = 'bold 6px sans-serif'; ctx.textAlign = 'center';
     const tw = ctx.measureText(it.label).width + 8;
     ctx.fillStyle = 'rgba(10,30,16,0.88)'; ctx.fillRect(lx - tw / 2, ly - 7, tw, 9);

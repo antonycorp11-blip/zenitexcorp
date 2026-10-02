@@ -44,14 +44,22 @@ export class Player {
     this.vx += (want - this.vx) * Math.min(1, dt * (this.grounded ? 14 : 6));
     // jetpack: para cima no joystick / W / espaço
     // celular: botão JATO; teclado: W/↑/Espaço
-    const jetting = (g.input.touch ? g.input.jetHeld : (my < -0.35 || g.input.down(' '))) && this.energy > 0.5;
-    this.vy += (inLiquid ? 260 : 620) * dt;
-    if (jetting) {
-      this.vy -= 1450 * dt;
-      if (this.vy < -150) this.vy = -150;
-      this.energy = Math.max(0, this.energy - 9 * dt);
+    // celular: JATO liga o VOO LIVRE (joystick move em qualquer direção, sem gastar energia); teclado: segurar W/Espaço
+    const flying = g.input.touch && g.input.jetHeld;
+    const jetting = flying || (!g.input.touch && (my < -0.35 || g.input.down(' ')));
+    if (flying) {
+      const fs = 150 * (inLiquid ? 0.6 : 1);
+      this.vx += (ax * fs - this.vx) * Math.min(1, dt * 8);
+      this.vy += (Math.max(-1, Math.min(1, my)) * fs - this.vy) * Math.min(1, dt * 8);
       this.jet = 0.12;
-    } else this.jet = Math.max(0, this.jet - dt);
+    } else {
+      this.vy += (inLiquid ? 260 : 620) * dt;
+      if (jetting) {
+        this.vy -= 1450 * dt;
+        if (this.vy < -150) this.vy = -150;
+        this.jet = 0.12;
+      } else this.jet = Math.max(0, this.jet - dt);
+    }
     if (my > 0.5 && !jetting) this.vy += 300 * dt;    // descer mais rápido
     if (this.vy > 330) this.vy = 330;
     this.moveX(this.vx * dt);
