@@ -613,3 +613,5 @@ body.touch .ly-warn { font-size: 9px; padding: 3px 5px; margin-top: 3px; }
 .geocard .gh { color: #3ae6ff; font-weight: 800; letter-spacing: 2px; font-size: 11px; } .geocard .gm { font-size: 16px; font-weight: 700; margin: 1px 0 3px; }
 .geocard .gr { display: flex; justify-content: space-between; gap: 12px; } .geocard .gr span { color: #9bc; } .geocard .gt { color: #ffd04a; margin-top: 3px; font-size: 12px; }
 body.touch .geocard { bottom: 52px; font-size: 11px; transform: translateX(-50%) scale(.85); transform-origin: bottom center; }
+#mobile .stick span { position: fixed; bottom: 4px; font: 700 10px Rajdhani, sans-serif; letter-spacing: 1px; color: rgba(255,255,255,.5); pointer-events: none; }
+#mobile .stick.left span { left: 30px; } #mobile .stick.right span { right: 120px; }

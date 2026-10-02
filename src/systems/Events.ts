@@ -1,4 +1,6 @@
 import { CELL, TILE } from '../core/constants';
+import { GRAIN, matById as matDef } from '../data/materials';
+import { rawOf } from '../data/composition';
 import { MAT, IS_SOLID, matById } from '../data/materials';
 import { SECTORS } from '../data/sectors';
 import { POOLS } from '../data/dialogue';
@@ -171,18 +173,17 @@ export class Events {
   caveIn(x: number, y: number, announce: boolean) {
     const g = this.g, w = g.world;
     if (this.supported({ tx: Math.floor(x / TILE), ty: Math.floor(y / TILE) })) return;
+    // vista lateral: o teto se solta em grãos de material bruto que despencam
     const R = 5 + Math.random() * 4;
-    const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
+    const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL) - 6;
     let filled = 0;
+    const raw = GRAIN[rawOf(g.planet.layer)];
     for (let j = -Math.ceil(R); j <= R; j++) for (let i = -Math.ceil(R); i <= R; i++) {
       if (Math.hypot(i, j) > R - Math.random() * 1.5) continue;
-      const px = (cx + i) * CELL, py = (cy + j) * CELL;
-      if (w.get(cx + i, cy + j) !== MAT.AIR) continue;
-      const tx = Math.floor(px / TILE), ty = Math.floor(py / TILE);
-      const occ = w.occ[ty * 640 + tx];
-      if (occ) { const m = g.machines.byId.get(occ); if (m && m.def.behavior !== 'belt') { m.buried = 1; continue; } }
-      if (Math.hypot(px - g.player.x, py - g.player.y) < 8) continue;
-      w.set(cx + i, cy + j, MAT.RUBBLE);
+      const m = w.get(cx + i, cy + j), d = matDef(m);
+      if (!IS_SOLID[m] || d.kind !== 'rock' || d.tier > 3) continue;
+      if (w.occAtCell(cx + i, cy + j)) continue;
+      w.set(cx + i, cy + j, raw, 40);
       filled++;
     }
     for (const r of g.robots.list) if (Math.hypot(r.x - x, r.y - y) < R * CELL) r.stuck = true;

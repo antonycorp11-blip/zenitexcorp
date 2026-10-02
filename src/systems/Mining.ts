@@ -1,6 +1,6 @@
-import { CELL, TILE, WORLD_CELLS } from '../core/constants';
+import { CELL, TILE, WORLD_W, WORLD_TW } from '../core/constants';
 import { hash2 } from '../core/rng';
-import { MAT, IS_SOLID, matById } from '../data/materials';
+import { MAT, IS_SOLID, IS_LOOSE, GRAIN, GRAIN_ITEM, GRAIN_KG, matById } from '../data/materials';
 import { DRILLS } from '../data/equipment';
 import { ITEM } from '../data/items';
 import { rawOf, gradeAt, KG_PER_UNIT, VEIN_GRADE, MAX_GRADE } from '../data/composition';
@@ -36,17 +36,21 @@ export class Mining {
     const ux = dx / len, uy = dy / len;
     const maxR = Math.min(dr.range, len + 6);
     // marcha do raio
-    let hx = p.x, hy = p.y - 4, hit = false;
+    let hx = p.x, hy = p.y - 9, hit = false, loose = false;
     for (let d = 4; d <= maxR; d += 1) {
-      hx = p.x + ux * d; hy = p.y - 4 + uy * d;
+      hx = p.x + ux * d; hy = p.y - 9 + uy * d;
       const cx = Math.floor(hx / CELL), cy = Math.floor(hy / CELL);
-      if (IS_SOLID[w.get(cx, cy)]) { hit = true; break; }
+      const cm = w.get(cx, cy);
+      if (IS_SOLID[cm]) { hit = true; break; }
+      if (IS_LOOSE[cm]) { loose = true; break; }
       const m = g.machines.at(Math.floor(hx / TILE), Math.floor(hy / TILE));
       if (m && m.buried > 0) { m.buried = Math.max(0, m.buried - dt * 0.35 * dr.power); hit = true; if (m.buried <= 0) g.toast(`${m.def.name} desenterrada`, '#9cff8a'); break; }
     }
     this.hitX = hx; this.hitY = hy; this.hitting = true;
-    p.energy = Math.max(0, p.energy - dr.energy * dt * (hit ? 1 : 0.3));
-    if (!hit) return;
+    p.energy = Math.max(0, p.energy - dr.energy * dt * (hit ? 0.25 : 0.05));
+    // aspirador do traje: puxa os grãos soltos perto do ponto de impacto para a mochila
+    this.vacuum(dt, hx, hy, dr.radius + 3);
+    if (!hit || loose) return;
     const cx = Math.floor(hx / CELL), cy = Math.floor(hy / CELL);
     const mat = w.get(cx, cy);
     this.hitMat = mat;
@@ -61,7 +65,7 @@ export class Mining {
       g.audio.tick('metal', 0.3);
       return;
     }
-    const power = dr.power * 2.4 * (1 + g.research.eff('mineSpeed')) * dt;
+    const power = dr.power * 6 * (1 + g.research.eff('mineSpeed')) * dt;
     const R = dr.radius;
     const r0 = Math.ceil(R);
     for (let j = -r0; j <= r0; j++) for (let i = -r0; i <= r0; i++) {
@@ -73,7 +77,7 @@ export class Mining {
       if (matById(m2).tier > dr.tier) continue;
       const fall = 1 - Math.sqrt(d2) / (R + 0.6);
       if (w.damage(x, y, power * fall)) this.removeCell(x, y, 'player', 1);
-      else this.cracks.set(y * WORLD_CELLS + x, g.time);
+      else this.cracks.set(y * WORLD_W + x, g.time);
     }
     // efeitos
     const col = def.top;
@@ -84,43 +88,74 @@ export class Mining {
     if (this.sfxT <= 0) { g.audio.tick(def.sound, 0.5); this.sfxT = 0.09; }
   }
 
+  private vacAcc = 0;
+  private vacuum(dt: number, hx: number, hy: number, R: number) {
+    const g = this.g, w = g.world;
+    this.vacAcc += dt * (60 + g.player.drillLevel * 30);
+    if (this.vacAcc < 1) return;
+    let budget = Math.floor(this.vacAcc); this.vacAcc -= budget;
+    const cx = Math.floor(hx / CELL), cy = Math.floor(hy / CELL), r = Math.ceil(R);
+    for (let j = r; j >= -r && budget > 0; j--) for (let i = -r; i <= r && budget > 0; i++) {
+      if (i * i + j * j > R * R) continue;
+      const x = cx + i, y = cy + j, m = w.get(x, y);
+      if (!IS_LOOSE[m]) continue;
+      const item = GRAIN_ITEM[m]; if (!item) continue;
+      const q = item === 'bloco_massa' ? 1 : GRAIN_KG;
+      const got = g.pack.add(item, q, w.aux[y * WORLD_W + x] / 40);
+      if (got < q - 1e-6) { if (got > 0) g.pack.take(item, got); g.say('pack_full', 90); if (this.hardWarnT <= 0) { g.toast('Mochila cheia: entregue na cápsula [E]', '#ffd04a'); this.hardWarnT = 4; } budget = 0; break; }
+      w.set(x, y, MAT.AIR);
+      budget--;
+      this.collected(item, q, x, y);
+    }
+  }
+
+  /** um grão chegou à mochila */
+  private collected(item: string, q: number, x: number, y: number) {
+    const g = this.g;
+    g.stats.mined[item] = (g.stats.mined[item] ?? 0) + q;
+    if (ITEM[item]?.cat === 'bruto') g.stats.manualKg += q;
+    g.contracts.onMine(item, q);
+    const md = GRAIN[item] !== undefined ? matById(GRAIN[item]) : null;
+    if (md?.glow && ['lumenita_pura', 'nexolita_condensada', 'pyroxis_volatil', 'lumenita_instavel', 'fragmento_nucleo'].includes(item)) {
+      const bonus = Math.round(q * (ITEM[item]?.value ?? 10) * 2);
+      g.stock.credits += bonus;
+      g.fx.text(x * CELL + 2, y * CELL - 10, `+${bonus} ◆ RARO`, [255, 220, 90]);
+      g.audio.discover();
+    } else if (Math.random() < 0.08) g.fx.pickup(x * CELL + 2, y * CELL + 2, item, q);
+    if (!g.flags.firstOre) { g.flags.firstOre = true; g.say('first_ore'); }
+  }
+
   /** Remove uma célula do terreno: material bruto da camada (com o teor da região), raros, regeneração. */
   removeCell(x: number, y: number, cause: 'player' | 'drill' | 'robot' | 'explosive' | 'event', mult: number, machine?: Machine): { item?: string; kg: number; grade?: number } {
     const g = this.g, w = g.world;
     const mat = w.get(x, y);
     const def = matById(mat);
     if (!IS_SOLID[mat] || def.kind === 'edge') return { kg: 0 };
+    // jogador e explosivos soltam a célula como grão (cai, amontoa, é aspirado); máquinas recolhem direto
+    const toGrain = cause === 'player' || cause === 'explosive' || cause === 'event';
     w.set(x, y, MAT.AIR);
-    this.cracks.delete(y * WORLD_CELLS + x);
+    this.cracks.delete(y * WORLD_W + x);
     // escavar não remove massa do planeta: ela só conta quando é separada ou exportada
     g.planet.dig(mult);
     g.stats.cells++;
     g.lore.onCellRemoved(x, y, cause);
     if (def.regrow) w.regrowQueue.push({ x, y, m: mat, t: g.time + 90 + Math.random() * 120 });
-    if (def.rare && def.item) return this.rareCell(x, y, def.item, (def.yieldKg ?? 1) * mult, mult, cause, machine);
+    if (def.rare && def.item) {
+      if (toGrain && GRAIN[def.item] !== undefined) { g.planet.addUnits(mult); w.set(x, y, GRAIN[def.item], 40); if (cause === 'player') this.revealRares(x, y); return { item: def.item, kg: GRAIN_KG }; }
+      return this.rareCell(x, y, def.item, (def.yieldKg ?? 1) * mult, mult, cause, machine);
+    }
     // material bruto da camada: veios visíveis têm teor muito maior
     const item = rawOf(g.planet.layer);
     const kg = KG_PER_UNIT * mult;
     let grade = gradeAt(w.gen.seed, g.planet.layer, x, y) * (def.kind === 'ore' ? VEIN_GRADE : 1);
-    if (cause === 'player') {
-      grade *= 1 + g.research.eff('oreBonus');
-      g.stats.manualKg += kg;
-      g.stats.mined[item] = (g.stats.mined[item] ?? 0) + kg;
-    }
+    if (cause === 'player') grade *= 1 + g.research.eff('oreBonus');
     grade = Math.min(MAX_GRADE, grade);
-    if (cause === 'player') {
-      const got = g.pack.add(item, kg, grade);
-      g.contracts.onMine(item, got);
-      if (got < kg - 0.01) {
-        this.spawnDrop(x * CELL + 2, y * CELL + 2, item, kg - got, grade);
-        g.say('pack_full', 90);
-      } else if (Math.random() < 0.15) g.fx.pickup(x * CELL + 2, y * CELL + 2, item, kg);
-      if (!g.flags.firstOre) { g.flags.firstOre = true; g.say('first_ore'); }
-      if (def.kind === 'ore') this.announce(x, y, mat);
+    if (toGrain) {
+      // a célula vira um grão do material bruto da camada, com o teor do lugar
+      w.set(x, y, GRAIN[item], Math.min(255, Math.round(grade * 40)));
+      if (cause === 'player' && def.kind === 'ore') this.announce(x, y, mat);
     } else if (cause === 'drill' && machine) {
       g.machines.drillYield(machine, item, kg, grade);
-    } else if (cause === 'explosive' || cause === 'event') {
-      this.spawnDrop(x * CELL + 2, y * CELL + 2, item, kg, grade);
     }
     if (cause === 'player') this.revealRares(x, y);
     return { item, kg, grade };
@@ -225,7 +260,7 @@ export class Mining {
       const px = r.x * CELL, py = r.y * CELL;
       if (g.hazards.inhibited(px, py)) continue;
       if (Math.hypot(px - p.x, py - p.y) < 20) { r.t = g.time + 20; q.push(r); continue; }
-      if (w.get(r.x, r.y) === MAT.AIR && !w.occ[Math.floor(py / TILE) * (WORLD_CELLS / 4) + Math.floor(px / TILE)]) {
+      if (w.get(r.x, r.y) === MAT.AIR && !w.occ[Math.floor(py / TILE) * WORLD_TW + Math.floor(px / TILE)]) {
         w.set(r.x, r.y, r.m);
         g.stats.regrown++;
       }

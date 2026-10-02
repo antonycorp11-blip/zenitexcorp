@@ -1,218 +1,278 @@
-import { CELL, CHUNK, WORLD_CELLS, WORLD_CHUNKS, WORLD_TILES, TILE, TILE_CELLS } from '../core/constants';
-import { MAT, IS_SOLID, IS_BLOCKING, IS_LIQUID, matById } from '../data/materials';
+import { CELL, CHUNK, WORLD_W, WORLD_H, WORLD_CW, WORLD_CH, WORLD_TW, WORLD_TH, TILE, TILE_CELLS } from '../core/constants';
+import { MAT, IS_SOLID, IS_BLOCKING, IS_LIQUID, IS_LOOSE, matById } from '../data/materials';
 import { WorldGen } from './WorldGen';
 
+/** Chamado quando um grão tenta entrar numa célula ocupada por máquina. true = a máquina absorveu. */
+export type GrainSink = (machineId: number, mat: number, aux: number, x: number, y: number) => boolean;
+
 /**
- * Armazena o terreno em células (4 px). Chunks são gerados sob demanda.
- * Só chunks modificados vão para o save (como diferença do gerado).
+ * Terreno em VISTA LATERAL: grade de células (4 px). Terreno fixo, grãos soltos que caem e escorregam
+ * (areia), blocos que só caem, e líquidos que escorrem. Só chunks "acordados" são simulados.
+ * `aux` guarda o teor (0..255 = 0..6,375) de cada grão de material bruto e viaja junto com ele.
  */
 export class World {
   readonly gen: WorldGen;
-  readonly mat = new Uint8Array(WORLD_CELLS * WORLD_CELLS);
-  readonly dmg = new Uint8Array(WORLD_CELLS * WORLD_CELLS);    // dano acumulado 0..255
-  readonly chunkReady = new Uint8Array(WORLD_CHUNKS * WORLD_CHUNKS);
-  readonly modified = new Set<number>();
+  readonly mat = new Uint8Array(WORLD_W * WORLD_H);
+  readonly aux = new Uint8Array(WORLD_W * WORLD_H);
+  readonly dmg = new Uint8Array(WORLD_W * WORLD_H);
+  private readonly stamp = new Uint8Array(WORLD_W * WORLD_H);
+  private tick = 1;
+  readonly active = new Uint8Array(WORLD_CW * WORLD_CH);
+  private nextActive = new Uint8Array(WORLD_CW * WORLD_CH);
   readonly dirty = new Set<number>();
-  /** retângulo sujo por chunk, em células locais [x0,y0,x1,y1] (ausente = chunk inteiro) */
   readonly dirtyRect = new Map<number, [number, number, number, number]>();
   readonly sectorTiles: Uint8Array;
-  readonly explored = new Uint8Array(WORLD_TILES * WORLD_TILES);
-  readonly platform = new Uint8Array(WORLD_TILES * WORLD_TILES); // tile caminhável sobre líquido
-  readonly occ = new Int32Array(WORLD_TILES * WORLD_TILES);      // id de máquina + 1
+  readonly explored = new Uint8Array(WORLD_TW * WORLD_TH);
+  readonly platform = new Uint8Array(WORLD_TW * WORLD_TH);
+  readonly occ = new Int32Array(WORLD_TW * WORLD_TH);      // id de máquina
   readonly sectorTileTotal = new Int32Array(13);
   readonly sectorTileExplored = new Int32Array(13);
-  /** células removidas em setores de regeneração (necrocristais) */
   regrowQueue: { x: number; y: number; m: number; t: number }[] = [];
+  sink: GrainSink | null = null;
+  moving = 0;           // grãos que se moveram no último passo (telemetria)
 
   constructor(seed: number, layer = 1) {
     this.gen = new WorldGen(seed, layer);
-    this.sectorTiles = this.gen.buildSectorTiles(WORLD_TILES);
-    for (let i = 0; i < this.sectorTiles.length; i++) this.sectorTileTotal[this.sectorTiles[i]]++;
+    this.gen.generate(this.mat);
+    this.sectorTiles = this.gen.buildSectorTiles(WORLD_TW, WORLD_TH);
+    this.sectorTileTotal[layer] = this.sectorTiles.length;
+    this.active.fill(1); // assentar líquidos na primeira vez
   }
 
-  ensureChunk(cx: number, cy: number) {
-    if (cx < 0 || cy < 0 || cx >= WORLD_CHUNKS || cy >= WORLD_CHUNKS) return;
-    const k = cy * WORLD_CHUNKS + cx;
-    if (this.chunkReady[k]) return;
-    this.gen.generateChunk(cx, cy, this.mat, WORLD_CELLS);
-    this.chunkReady[k] = 1;
+  // compatibilidade (o mapa inteiro já é gerado no construtor)
+  ensureChunk(_cx: number, _cy: number) {}
+  ensureAroundPx(_px: number, _py: number, _r: number) {}
+
+  inside(x: number, y: number) { return x >= 0 && y >= 0 && x < WORLD_W && y < WORLD_H; }
+  get(x: number, y: number): number { return x < 0 || y < 0 || x >= WORLD_W || y >= WORLD_H ? MAT.EDGE : this.mat[y * WORLD_W + x]; }
+  peek(x: number, y: number): number { return this.get(x, y); }
+  occAtCell(x: number, y: number): number { return this.occ[(y >> 2) * WORLD_TW + (x >> 2)]; }
+
+  set(x: number, y: number, m: number, aux = 0) {
+    if (!this.inside(x, y)) return;
+    const i = y * WORLD_W + x;
+    if (this.mat[i] === m && this.aux[i] === aux) return;
+    this.mat[i] = m; this.aux[i] = aux; this.dmg[i] = 0;
+    this.touch(x, y);
   }
 
-  ensureAroundPx(px: number, py: number, radiusPx: number) {
-    const c0x = Math.floor((px - radiusPx) / (CHUNK * CELL)), c1x = Math.floor((px + radiusPx) / (CHUNK * CELL));
-    const c0y = Math.floor((py - radiusPx) / (CHUNK * CELL)), c1y = Math.floor((py + radiusPx) / (CHUNK * CELL));
-    for (let y = c0y; y <= c1y; y++) for (let x = c0x; x <= c1x; x++) this.ensureChunk(x, y);
+  /** marca re-renderização e acorda a simulação ao redor */
+  touch(x: number, y: number) {
+    const cx = (x / CHUNK) | 0, cy = (y / CHUNK) | 0;
+    const k = cy * WORLD_CW + cx;
+    const lx = x - cx * CHUNK, ly = y - cy * CHUNK;
+    this.markDirty(k, lx - 1, ly - 1, lx + 1, ly + 1);
+    if (lx < 1 && cx > 0) this.markDirty(k - 1, CHUNK - 1, ly - 1, CHUNK - 1, ly + 1);
+    if (lx > CHUNK - 2 && cx < WORLD_CW - 1) this.markDirty(k + 1, 0, ly - 1, 0, ly + 1);
+    if (ly < 1 && cy > 0) this.markDirty(k - WORLD_CW, lx - 1, CHUNK - 1, lx + 1, CHUNK - 1);
+    if (ly > CHUNK - 2 && cy < WORLD_CH - 1) this.markDirty(k + WORLD_CW, lx - 1, 0, lx + 1, 0);
+    this.wakeChunk(cx, cy);
+    if (cy > 0) this.wakeChunk(cx, cy - 1);
+    if (lx < 2 && cx > 0) this.wakeChunk(cx - 1, cy);
+    if (lx > CHUNK - 3 && cx < WORLD_CW - 1) this.wakeChunk(cx + 1, cy);
   }
-
-  get(x: number, y: number): number {
-    if (x < 0 || y < 0 || x >= WORLD_CELLS || y >= WORLD_CELLS) return MAT.EDGE;
-    const k = (y >> 6) * WORLD_CHUNKS + (x >> 6);
-    if (!this.chunkReady[k]) this.ensureChunk(x >> 6, y >> 6);
-    return this.mat[y * WORLD_CELLS + x];
-  }
-
-  /** Versão sem geração (para renderização de bordas já geradas) */
-  peek(x: number, y: number): number {
-    if (x < 0 || y < 0 || x >= WORLD_CELLS || y >= WORLD_CELLS) return MAT.EDGE;
-    return this.mat[y * WORLD_CELLS + x];
-  }
-
-  set(x: number, y: number, m: number) {
-    if (x < 0 || y < 0 || x >= WORLD_CELLS || y >= WORLD_CELLS) return;
-    this.get(x, y);
-    const i = y * WORLD_CELLS + x;
-    if (this.mat[i] === m) return;
-    this.mat[i] = m;
-    this.dmg[i] = 0;
-    const cx = x >> 6, cy = y >> 6;
-    const k = cy * WORLD_CHUNKS + cx;
-    this.modified.add(k);
-    const lx = x & 63, ly = y & 63;
-    this.markDirty(k, lx - 2, ly - 4, lx + 2, ly + 2);
-    // vizinhos: bordas e faces 3/4 dependem das células ao redor
-    if (lx < 2) this.markDirty(k - 1, 60, ly - 4, 63, ly + 2);
-    if (lx > 61) this.markDirty(k + 1, 0, ly - 4, 3, ly + 2);
-    if (ly < 5) this.markDirty(k - WORLD_CHUNKS, lx - 2, 58, lx + 2, 63);
-    if (ly > 61) this.markDirty(k + WORLD_CHUNKS, lx - 2, 0, lx + 2, 3);
-  }
+  wake(x: number, y: number) { this.wakeChunk((x / CHUNK) | 0, (y / CHUNK) | 0); }
+  private wakeChunk(cx: number, cy: number) { if (cx >= 0 && cy >= 0 && cx < WORLD_CW && cy < WORLD_CH) { this.active[cy * WORLD_CW + cx] = 1; this.nextActive[cy * WORLD_CW + cx] = 1; } }
 
   private markDirty(k: number, x0: number, y0: number, x1: number, y1: number) {
-    if (k < 0 || k >= WORLD_CHUNKS * WORLD_CHUNKS) return;
-    x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(63, x1); y1 = Math.min(63, y1);
+    if (k < 0 || k >= WORLD_CW * WORLD_CH) return;
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(CHUNK - 1, x1); y1 = Math.min(CHUNK - 1, y1);
     if (!this.dirty.has(k)) { this.dirty.add(k); this.dirtyRect.set(k, [x0, y0, x1, y1]); return; }
     const r = this.dirtyRect.get(k);
-    if (!r) return; // já marcado como inteiro
+    if (!r) return;
     r[0] = Math.min(r[0], x0); r[1] = Math.min(r[1], y0); r[2] = Math.max(r[2], x1); r[3] = Math.max(r[3], y1);
   }
-
-  /** marca o chunk inteiro para re-renderização */
   dirtyFull(k: number) { this.dirty.add(k); this.dirtyRect.delete(k); }
 
-  solidAt(x: number, y: number) { return IS_SOLID[this.get(x, y)] === 1; }
-
-  /** Caminhável em px de mundo (considera plataformas sobre líquidos). */
-  blockedPx(px: number, py: number): boolean {
-    const x = Math.floor(px / CELL), y = Math.floor(py / CELL);
-    const m = this.get(x, y);
-    if (!IS_BLOCKING[m]) return false;
-    if (IS_LIQUID[m]) {
-      const tx = Math.floor(px / TILE), ty = Math.floor(py / TILE);
-      if (this.platform[ty * WORLD_TILES + tx]) return false;
+  // ---------------- simulação de areia ----------------
+  /** Um passo: grãos caem/escorregam, blocos caem, líquidos escorrem. Só chunks acordados. */
+  simulate() {
+    this.tick = (this.tick % 250) + 1;
+    const T = this.tick;
+    const mat = this.mat, aux = this.aux, st = this.stamp;
+    this.nextActive.fill(0);
+    let moved = 0;
+    const flip = T & 1;
+    for (let cy = WORLD_CH - 1; cy >= 0; cy--) {
+      for (let cxi = 0; cxi < WORLD_CW; cxi++) {
+        const cx = flip ? cxi : WORLD_CW - 1 - cxi;
+        if (!this.active[cy * WORLD_CW + cx]) continue;
+        const x0 = cx * CHUNK, y0 = cy * CHUNK;
+        let any = false;
+        for (let y = y0 + CHUNK - 1; y >= y0; y--) {
+          if (y >= WORLD_H - 1) continue;
+          for (let xi = 0; xi < CHUNK; xi++) {
+            const x = flip ? x0 + xi : x0 + CHUNK - 1 - xi;
+            const i = y * WORLD_W + x;
+            const m = mat[i];
+            const loose = IS_LOOSE[m], liq = IS_LIQUID[m];
+            if (!loose && !liq) continue;
+            if (st[i] === T) continue;
+            let to = -1;
+            const below = i + WORLD_W;
+            if (this.canEnter(below, m, x, y + 1)) to = below;
+            else if (loose !== 2) {
+              const d = (Math.random() < 0.5) ? 1 : -1;
+              if (x + d > 0 && x + d < WORLD_W - 1 && this.canEnter(below + d, m, x + d, y + 1) && this.free(i + d)) to = below + d;
+              else if (x - d > 0 && x - d < WORLD_W - 1 && this.canEnter(below - d, m, x - d, y + 1) && this.free(i - d)) to = below - d;
+              else if (liq) {
+                // líquido só escorre de lado se houver um degrau para descer por perto (assim as poças assentam)
+                const fl = this.flowDir(x, y, d) || this.flowDir(x, y, -d);
+                if (fl) to = i + fl;
+              }
+            }
+            if (to < 0) {
+              // grão parado em cima de máquina: a máquina pode puxar (funil)
+              if (loose && this.sink) {
+                const tid = this.occ[((y + 1) >> 2) * WORLD_TW + (x >> 2)];
+                if (tid && this.sink(tid, m, aux[i], x, y + 1)) { mat[i] = MAT.AIR; aux[i] = 0; this.touch(x, y); any = true; moved++; }
+              }
+              continue;
+            }
+            // troca (grão afunda em líquido)
+            const tm = mat[to], ta = aux[to];
+            mat[to] = m; aux[to] = aux[i]; mat[i] = tm; aux[i] = ta;
+            st[to] = T; st[i] = T;
+            this.dmg[i] = 0;
+            const tx = to % WORLD_W, ty = (to / WORLD_W) | 0;
+            this.touch(x, y); this.touch(tx, ty);
+            any = true; moved++;
+          }
+        }
+        if (any) this.nextActive[cy * WORLD_CW + cx] = 1;
+      }
     }
-    return true;
+    this.moving = moved;
+    this.active.set(this.nextActive);
   }
 
-  liquidUnder(px: number, py: number): number {
-    const m = this.get(Math.floor(px / CELL), Math.floor(py / CELL));
-    if (!IS_LIQUID[m]) return 0;
-    const tx = Math.floor(px / TILE), ty = Math.floor(py / TILE);
-    return this.platform[ty * WORLD_TILES + tx] ? 0 : m;
+  private flowDir(x: number, y: number, d: number): number {
+    for (let k = 1; k <= 6; k++) {
+      const nx = x + d * k;
+      if (nx <= 0 || nx >= WORLD_W - 1) return 0;
+      const j = y * WORLD_W + nx;
+      if (this.mat[j] !== MAT.AIR || this.occ[(y >> 2) * WORLD_TW + (nx >> 2)]) return 0;
+      if (this.mat[j + WORLD_W] === MAT.AIR) return d;
+    }
+    return 0;
+  }
+  private free(i: number) { const m = this.mat[i]; return m === MAT.AIR || IS_LIQUID[m] === 1; }
+  /** pode entrar na célula i? (vazia, ou líquido para um grão afundar) */
+  private canEnter(i: number, m: number, x: number, y: number): boolean {
+    const t = this.mat[i];
+    if (t !== MAT.AIR && !(IS_LIQUID[t] && !IS_LIQUID[m])) return false;
+    return !this.occ[(y >> 2) * WORLD_TW + (x >> 2)];
   }
 
-  /** Aplica dano de mineração. Retorna true se a célula foi removida. */
+  /** Coloca um grão solto na primeira célula livre perto de (x,y). Retorna false se não couber. */
+  spawnGrain(x: number, y: number, m: number, aux = 0, exact = false): boolean {
+    for (const [dx, dy] of exact ? [[0, 0]] : [[0, 0], [1, 0], [-1, 0], [0, -1], [1, -1], [-1, -1], [2, 0], [-2, 0]]) {
+      const nx = x + dx, ny = y + dy;
+      if (!this.inside(nx, ny)) continue;
+      const t = this.mat[ny * WORLD_W + nx];
+      if ((t === MAT.AIR || IS_LIQUID[t]) && !this.occAtCell(nx, ny)) { this.set(nx, ny, m, aux); return true; }
+    }
+    return false;
+  }
+
+  // ---------------- consultas ----------------
+  solidAt(x: number, y: number) { return IS_SOLID[this.get(x, y)] === 1; }
+  /** corpo sólido para o jogador (terreno, grãos, borda) */
+  blockedPx(px: number, py: number): boolean { return IS_BLOCKING[this.get(Math.floor(px / CELL), Math.floor(py / CELL))] === 1; }
+  liquidUnder(px: number, py: number): number { const m = this.get(Math.floor(px / CELL), Math.floor(py / CELL)); return IS_LIQUID[m] ? m : 0; }
+
   damage(x: number, y: number, amount: number): boolean {
     const m = this.get(x, y);
     if (!IS_SOLID[m]) return false;
     const def = matById(m);
-    const i = y * WORLD_CELLS + x;
-    const add = (amount / Math.max(0.01, def.hardness)) * 255;
-    const v = this.dmg[i] + add;
+    const i = y * WORLD_W + x;
+    const v = this.dmg[i] + (amount / Math.max(0.01, def.hardness)) * 255;
     if (v >= 255) return true;
-    // arredondamento estocástico: incrementos < 1 não se perdem no Uint8
     const f = Math.floor(v);
     this.dmg[i] = f + (Math.random() < v - f ? 1 : 0);
     return false;
   }
 
-  sectorAtPx(px: number, py: number): number {
-    const tx = Math.floor(px / TILE), ty = Math.floor(py / TILE);
-    if (tx < 0 || ty < 0 || tx >= WORLD_TILES || ty >= WORLD_TILES) return 0;
-    return this.sectorTiles[ty * WORLD_TILES + tx];
-  }
-  sectorAtTile(tx: number, ty: number): number {
-    if (tx < 0 || ty < 0 || tx >= WORLD_TILES || ty >= WORLD_TILES) return 0;
-    return this.sectorTiles[ty * WORLD_TILES + tx];
-  }
+  sectorAtPx(px: number, py: number): number { return this.sectorAtTile(Math.floor(px / TILE), Math.floor(py / TILE)); }
+  sectorAtTile(tx: number, ty: number): number { return tx < 0 || ty < 0 || tx >= WORLD_TW || ty >= WORLD_TH ? 0 : this.gen.layer; }
 
   reveal(px: number, py: number, radiusTiles: number): number {
     const cx = Math.floor(px / TILE), cy = Math.floor(py / TILE);
     const r2 = radiusTiles * radiusTiles;
     let newly = 0;
     for (let y = cy - radiusTiles; y <= cy + radiusTiles; y++) {
-      if (y < 0 || y >= WORLD_TILES) continue;
+      if (y < 0 || y >= WORLD_TH) continue;
       for (let x = cx - radiusTiles; x <= cx + radiusTiles; x++) {
-        if (x < 0 || x >= WORLD_TILES) continue;
+        if (x < 0 || x >= WORLD_TW) continue;
         const dx = x - cx, dy = y - cy;
         if (dx * dx + dy * dy > r2) continue;
-        const i = y * WORLD_TILES + x;
-        if (!this.explored[i]) { this.explored[i] = 1; this.sectorTileExplored[this.sectorTiles[i]]++; newly++; }
+        const i = y * WORLD_TW + x;
+        if (!this.explored[i]) { this.explored[i] = 1; this.sectorTileExplored[this.gen.layer]++; newly++; }
       }
     }
     return newly;
   }
+  exploredFrac(sector: number) { const t = this.sectorTileTotal[sector]; return t ? this.sectorTileExplored[sector] / t : 0; }
 
-  exploredFrac(sector: number) {
-    const t = this.sectorTileTotal[sector];
-    return t ? this.sectorTileExplored[sector] / t : 0;
-  }
-
-  /** Um tile está livre para construção se todas as suas células forem chão. */
-  tileFree(tx: number, ty: number, onLiquid = false): boolean {
-    if (tx < 0 || ty < 0 || tx >= WORLD_TILES || ty >= WORLD_TILES) return false;
-    const i = ty * WORLD_TILES + tx;
-    if (this.occ[i]) return false;
-    let liquid = 0;
+  /** Tile livre para construir: sem terreno fixo, sem máquina (grãos e líquido são empurrados/apagados). */
+  tileFree(tx: number, ty: number, _onLiquid = false): boolean {
+    if (tx < 0 || ty < 0 || tx >= WORLD_TW || ty >= WORLD_TH) return false;
+    if (this.occ[ty * WORLD_TW + tx]) return false;
     for (let y = 0; y < TILE_CELLS; y++) for (let x = 0; x < TILE_CELLS; x++) {
-      const m = this.get(tx * TILE_CELLS + x, ty * TILE_CELLS + y);
-      if (IS_SOLID[m]) return false;
-      if (IS_LIQUID[m]) liquid++;
+      if (IS_SOLID[this.get(tx * TILE_CELLS + x, ty * TILE_CELLS + y)]) return false;
     }
-    if (onLiquid) return liquid > 0 && !this.platform[i];
-    return liquid === 0 || this.platform[i] === 1;
+    return true;
   }
-
-  tileHasLiquid(tx: number, ty: number): boolean {
-    for (let y = 0; y < TILE_CELLS; y++) for (let x = 0; x < TILE_CELLS; x++)
-      if (IS_LIQUID[this.get(tx * TILE_CELLS + x, ty * TILE_CELLS + y)]) return true;
+  /** apoio: há terreno/grão/máquina logo abaixo do tile? */
+  tileSupported(tx: number, ty: number): boolean {
+    const y = (ty + 1) * TILE_CELLS;
+    if (ty + 1 < WORLD_TH && this.occ[(ty + 1) * WORLD_TW + tx]) return true;
+    for (let x = 0; x < TILE_CELLS; x++) if (IS_BLOCKING[this.get(tx * TILE_CELLS + x, y)]) return true;
     return false;
   }
-
-  // ---------- Save ----------
-  serializeChunks(): Record<number, string> {
-    const out: Record<number, string> = {};
-    for (const k of this.modified) {
-      const cx = k % WORLD_CHUNKS, cy = Math.floor(k / WORLD_CHUNKS);
-      const arr: number[] = [];
-      let prev = -1, run = 0;
-      for (let y = 0; y < CHUNK; y++) for (let x = 0; x < CHUNK; x++) {
-        const v = this.mat[(cy * CHUNK + y) * WORLD_CELLS + cx * CHUNK + x];
-        if (v === prev && run < 255) run++;
-        else { if (prev >= 0) arr.push(prev, run); prev = v; run = 1; }
-      }
-      arr.push(prev, run);
-      let s = '';
-      for (const v of arr) s += String.fromCharCode(v);
-      out[k] = btoa(s);
+  tileHasLiquid(tx: number, ty: number): boolean {
+    for (let y = 0; y < TILE_CELLS; y++) for (let x = 0; x < TILE_CELLS; x++) if (IS_LIQUID[this.get(tx * TILE_CELLS + x, ty * TILE_CELLS + y)]) return true;
+    return false;
+  }
+  /** apaga grãos/líquidos dentro de um tile (ao construir em cima) — devolve os grãos removidos */
+  clearTile(tx: number, ty: number): { m: number; a: number }[] {
+    const out: { m: number; a: number }[] = [];
+    for (let y = 0; y < TILE_CELLS; y++) for (let x = 0; x < TILE_CELLS; x++) {
+      const cx = tx * TILE_CELLS + x, cy = ty * TILE_CELLS + y, i = cy * WORLD_W + cx;
+      const m = this.mat[i];
+      if (IS_LOOSE[m]) out.push({ m, a: this.aux[i] });
+      if (IS_LOOSE[m] || IS_LIQUID[m]) this.set(cx, cy, MAT.AIR);
     }
     return out;
   }
 
+  // ---------------- save (RLE do mapa inteiro) ----------------
+  serializeChunks(): Record<string, string> { return { mat: rle(this.mat), aux: rle(this.aux) }; }
   loadChunks(data: Record<string, string>) {
-    for (const key of Object.keys(data)) {
-      const k = Number(key);
-      const cx = k % WORLD_CHUNKS, cy = Math.floor(k / WORLD_CHUNKS);
-      this.ensureChunk(cx, cy);
-      const s = atob(data[key]);
-      let p = 0;
-      for (let i = 0; i < s.length; i += 2) {
-        const v = s.charCodeAt(i), run = s.charCodeAt(i + 1);
-        for (let r = 0; r < run; r++, p++) {
-          const x = p % CHUNK, y = Math.floor(p / CHUNK);
-          this.mat[(cy * CHUNK + y) * WORLD_CELLS + cx * CHUNK + x] = v;
-        }
-      }
-      this.modified.add(k);
-      this.dirtyFull(k);
-    }
+    if (!data?.mat) return;
+    unrle(data.mat, this.mat);
+    if (data.aux) unrle(data.aux, this.aux);
+    for (let k = 0; k < WORLD_CW * WORLD_CH; k++) this.dirtyFull(k);
+    this.active.fill(1);
   }
+}
+
+function rle(a: Uint8Array): string {
+  let s = '';
+  let prev = a[0], run = 0;
+  const parts: string[] = [];
+  for (let i = 0; i <= a.length; i++) {
+    const v = i < a.length ? a[i] : -1;
+    if (v === prev && run < 255) { run++; continue; }
+    s += String.fromCharCode(prev, run);
+    if (s.length > 8192) { parts.push(s); s = ''; }
+    prev = v; run = 1;
+  }
+  parts.push(s);
+  return btoa(parts.join(''));
+}
+function unrle(b: string, out: Uint8Array) {
+  const s = atob(b);
+  let p = 0;
+  for (let i = 0; i < s.length; i += 2) { const v = s.charCodeAt(i), run = s.charCodeAt(i + 1); out.fill(v, p, p + run); p += run; }
 }

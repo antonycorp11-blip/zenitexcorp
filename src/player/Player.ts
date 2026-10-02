@@ -1,6 +1,7 @@
 import { CELL, TILE } from '../core/constants';
 import { DRILLS, ENERGY_LEVELS, HEALTH_LEVELS, SUIT_MODULES } from '../data/equipment';
 import type { HazardKey } from '../data/sectors';
+import { MAT, IS_BLOCKING } from '../data/materials';
 import type { Game } from '../Game';
 
 export class Player {
@@ -30,49 +31,99 @@ export class Player {
     return p;
   }
 
+  vy0 = 0; grounded = false; jet = 0;
+  readonly hw = 4; readonly hh = 15;     // meia largura e altura do corpo (px)
+
+  /** Vista lateral: anda, cai, sobe degraus de areia e voa com o jetpack (consome energia). */
   update(dt: number, mx: number, my: number, run: boolean) {
     const g = this.g;
-    const speed = 72 * (run ? 1.35 : 1) * (g.hazards.slow ? 0.7 : 1);
-    let ax = mx, ay = my;
-    const l = Math.hypot(ax, ay);
-    if (l > 1) { ax /= l; ay /= l; }
-    this.moving = l > 0.1;
-    const drift = g.hazards.drift;
-    this.vx = ax * speed + drift[0];
-    this.vy = ay * speed + drift[1];
-    this.moveAxis(this.vx * dt, 0);
-    this.moveAxis(0, this.vy * dt);
+    const inLiquid = g.world.liquidUnder(this.x, this.y - 4) !== 0;
+    const speed = 70 * (run ? 1.35 : 1) * (g.hazards.slow ? 0.7 : 1) * (inLiquid ? 0.6 : 1);
+    const ax = Math.max(-1, Math.min(1, mx));
+    const want = ax * speed + g.hazards.drift[0];
+    this.vx += (want - this.vx) * Math.min(1, dt * (this.grounded ? 14 : 6));
+    // jetpack: para cima no joystick / W / espaço
+    const jetting = (my < -0.35 || g.input.down(' ')) && this.energy > 0.5;
+    this.vy += (inLiquid ? 260 : 620) * dt;
+    if (jetting) {
+      this.vy -= 1450 * dt;
+      if (this.vy < -150) this.vy = -150;
+      this.energy = Math.max(0, this.energy - 9 * dt);
+      this.jet = 0.12;
+    } else this.jet = Math.max(0, this.jet - dt);
+    if (my > 0.5 && !jetting) this.vy += 300 * dt;    // descer mais rápido
+    if (this.vy > 330) this.vy = 330;
+    this.moveX(this.vx * dt);
+    this.grounded = false;
+    this.moveY(this.vy * dt);
+    this.moving = Math.abs(ax) > 0.1;
     if (this.moving) {
       this.animT += dt * (run ? 12 : 9);
-      this.frame = Math.floor(this.animT) % 4 === 1 ? 1 : Math.floor(this.animT) % 4 === 3 ? 2 : 0;
-      if (Math.abs(ax) > Math.abs(ay)) this.facing = ax > 0 ? 0 : 2; else this.facing = ay > 0 ? 1 : 3;
-    } else this.frame = 0;
-    // energia regenera devagar; rápido perto da base / geradores
+      this.frame = this.grounded ? (Math.floor(this.animT) % 4 === 1 ? 1 : Math.floor(this.animT) % 4 === 3 ? 2 : 0) : 1;
+      this.facing = ax > 0 ? 0 : 2;
+    } else this.frame = this.grounded ? 0 : 1;
+    // energia recarrega no chão; muito rápido perto da base
     const nearPower = g.nearPowerSource(this.x, this.y);
-    this.energy = Math.min(this.maxEnergy, this.energy + dt * (nearPower ? 25 : 2.2));
+    if (this.grounded || nearPower) this.energy = Math.min(this.maxEnergy, this.energy + dt * (nearPower ? 30 : 14));
     if (nearPower) this.hp = Math.min(this.maxHp, this.hp + dt * 4);
     this.invuln -= dt;
-    // líquido sob os pés
-    const liq = g.world.liquidUnder(this.x, this.y);
-    if (liq) this.hurt(20 * dt, 'líquido');
+    const liq = g.world.liquidUnder(this.x, this.y - 2);
+    if (liq) this.hurt((g.world.get(Math.floor(this.x / CELL), Math.floor((this.y - 2) / CELL)) === MAT.WATER ? 0 : 20) * dt, 'líquido');
     g.world.reveal(this.x, this.y, 9 + g.player.scannerLevel);
   }
 
-  private moveAxis(dx: number, dy: number) {
+  /** o corpo colide nesta posição? (terreno, grãos) */
+  private hits(px: number, py: number): boolean {
     const w = this.g.world;
-    const nx = this.x + dx, ny = this.y + dy;
-    const r = this.r;
-    const pts: [number, number][] = [[nx - r, ny - 1], [nx + r, ny - 1], [nx - r, ny + 2], [nx + r, ny + 2], [nx, ny - 3], [nx, ny + 3]];
-    for (const [px, py] of pts) {
-      if (w.blockedPx(px, py)) return;
-      const m = this.g.machines.at(Math.floor(px / TILE), Math.floor(py / TILE));
-      if (m && this.blocksWalk(m.def.behavior)) return;
+    const x0 = Math.floor((px - this.hw) / CELL), x1 = Math.floor((px + this.hw - 0.01) / CELL);
+    const y0 = Math.floor((py - this.hh) / CELL), y1 = Math.floor((py - 0.01) / CELL);
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (IS_BLOCKING[w.get(x, y)]) return true;
+    return false;
+  }
+  /** topo de máquina sob os pés (plataforma de mão única) */
+  private onMachineTop(px: number, oldY: number, newY: number): number | null {
+    for (const sx of [px - this.hw + 1, px + this.hw - 1]) {
+      const tx = Math.floor(sx / TILE);
+      const ty = Math.floor(newY / TILE);
+      const m = this.g.machines.at(tx, ty);
+      if (!m) continue;
+      const top = m.ty * TILE;
+      if (oldY <= top + 0.01 && newY >= top) return top;
     }
-    this.x = nx; this.y = ny;
+    return null;
   }
 
-  private blocksWalk(b: string) {
-    return !(b === 'belt' || b === 'platform' || b === 'lamp' || b === 'support' || b === 'splitter' || b === 'lift' || b === 'surge' || b === 'pad' || b === 'launchpad');
+  private moveX(dx: number) {
+    if (!dx) return;
+    const steps = Math.ceil(Math.abs(dx) / 2);
+    const sx = dx / steps;
+    for (let i = 0; i < steps; i++) {
+      const nx = this.x + sx;
+      if (!this.hits(nx, this.y)) { this.x = nx; continue; }
+      // degrau: sobe até 3 células (pilhas de areia, bordas)
+      let climbed = false;
+      for (let up = CELL; up <= CELL * 3; up += CELL) {
+        if (!this.hits(nx, this.y - up) && !this.hits(this.x, this.y - up)) { this.x = nx; this.y -= up; climbed = true; break; }
+      }
+      if (!climbed) { this.vx = 0; return; }
+    }
+  }
+
+  private moveY(dy: number) {
+    if (!dy) return;
+    const steps = Math.ceil(Math.abs(dy) / 2);
+    const sy = dy / steps;
+    for (let i = 0; i < steps; i++) {
+      const ny = this.y + sy;
+      if (sy > 0) {
+        const top = this.onMachineTop(this.x, this.y, ny);
+        if (top !== null) { this.y = top; this.vy = 0; this.grounded = true; return; }
+      }
+      if (!this.hits(this.x, ny)) { this.y = ny; continue; }
+      if (sy > 0) this.grounded = true;
+      this.vy = 0;
+      return;
+    }
   }
 
   hurt(n: number, cause: string) {

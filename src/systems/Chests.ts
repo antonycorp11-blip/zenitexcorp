@@ -1,4 +1,4 @@
-import { CELL, WORLD_CELLS } from '../core/constants';
+import { CELL, WORLD_W, WORLD_H } from '../core/constants';
 import { RNG } from '../core/rng';
 import { IS_SOLID, IS_BLOCKING, matById } from '../data/materials';
 import { SECTORS } from '../data/sectors';
@@ -18,19 +18,14 @@ export class Chests {
   constructor(private g: Game) {
     const w = g.world, gen = w.gen;
     const rng = new RNG((gen.seed ^ 0x5eed) >>> 0);
-    const c = WORLD_CELLS / 2, R = gen.R * 0.93;
-    const n = 26 + gen.layer * 4;
-    for (let i = 0, tries = 0; this.list.length < n && tries < n * 60; tries++) {
-      const a = rng.next() * Math.PI * 2, r = Math.sqrt(rng.next()) * R;
-      const cx = Math.round(c + Math.cos(a) * r), cy = Math.round(c + Math.sin(a) * r);
-      if (Math.hypot(cx - gen.landing.x, cy - gen.landing.y) < 70) continue;
+    const n = 18 + gen.layer * 3;
+    for (let i = 0, tries = 0; this.list.length < n && tries < n * 80; tries++) {
+      const cx = 8 + Math.floor(rng.next() * (WORLD_W - 16)), cy = Math.floor(gen.surfaceAt(cx) + 20 + rng.next() * (WORLD_H - gen.surfaceAt(cx) - 40));
+      if (Math.abs(cx - gen.landing.x) < 60 && cy < gen.landing.y + 50) continue;
       if (!gen.insidePlanet(cx, cy)) continue;
-      // dois terços em cavernas abertas, o resto enterrado
+      // a maioria repousa no chão de cavernas; um terço fica enterrada
       const buried = rng.next() < 0.33;
-      if (!buried && tries % 3 !== 0) {
-        w.ensureChunk(cx >> 6, cy >> 6);
-        if (IS_BLOCKING[w.get(cx, cy)] || IS_SOLID[w.get(cx, cy + 1)]) continue;
-      }
+      if (!buried && (IS_BLOCKING[w.get(cx, cy)] || !IS_SOLID[w.get(cx, cy + 1)])) continue;
       this.list.push({ id: i++, x: cx * CELL + 2, y: cy * CELL + 2, cx, cy, opened: false });
     }
   }

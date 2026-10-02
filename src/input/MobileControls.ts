@@ -15,8 +15,8 @@ export class MobileControls {
     this.root = document.createElement('div');
     this.root.id = 'mobile';
     this.root.innerHTML = `
-      <div class="stick left"><div class="base"></div><div class="knob"></div></div>
-      <div class="stick right"><div class="base"></div><div class="knob"></div><span>MIRAR / USAR</span></div>
+      <div class="stick left"><div class="base"></div><div class="knob"></div><span>ANDAR · ↑ VOAR</span></div>
+      <div class="stick right"><div class="base"></div><div class="knob"></div><span>CAVAR / ASPIRAR</span></div>
       <div class="mobile-actions">
         <button data-b="interact" aria-label="Interagir">E<small>USAR</small></button>
         <button data-b="scan" aria-label="Scanner">◎<small>SCANNER</small></button>

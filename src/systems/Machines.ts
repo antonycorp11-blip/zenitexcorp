@@ -1,8 +1,8 @@
 import { LAYER_COUNT } from '../data/sectors';
-import { CELL, TILE, TILE_CELLS, WORLD_TILES } from '../core/constants';
+import { CELL, TILE, TILE_CELLS, WORLD_TW, WORLD_TH, WORLD_W } from '../core/constants';
 import { DIRS } from '../core/math';
 import { MACHINE, COMPLEX_LEVELS, TECTONIC_RATE, MANTLE_RATE, COLLECTOR_RATE, type MachineDef } from '../data/machines';
-import { MAT, IS_SOLID, IS_LIQUID, matById } from '../data/materials';
+import { MAT, IS_SOLID, IS_LIQUID, IS_LOOSE, GRAIN, GRAIN_ITEM, GRAIN_KG, matById } from '../data/materials';
 import { ITEM } from '../data/items';
 import { RAW_BY_LAYER, rawOf, gradeAt, gradeLabel, gradeMix, separate, KG_PER_UNIT, BLOCK_KG, type Grades } from '../data/composition';
 import { REFINE_MAP, RECIPES, RECIPE, type Recipe } from '../data/recipes';
@@ -78,7 +78,10 @@ export class Machines {
   private belts: Machine[] = [];
   private acc = 0;
 
-  constructor(private g: Game) {}
+  constructor(private g: Game) {
+    // grãos que caem/andam para dentro de uma máquina: funil
+    g.world.sink = (id, mat, aux) => { this.lastAux = aux; return this.sinkGrain(id, mat); };
+  }
 
   // ---------------- construção ----------------
   canPlace(def: MachineDef, tx: number, ty: number): string | null {
@@ -88,6 +91,13 @@ export class Machines {
     }
     const sec = w.sectorAtTile(tx, ty);
     if (!sec) return 'Fora do planeta';
+    // vista lateral: construções precisam de apoio (esteiras e elevadores podem ficar suspensos)
+    if (!['belt', 'riser', 'lamp', 'support'].includes(def.behavior)) {
+      let sup = false;
+      for (let x = 0; x < def.w && !sup; x++) sup = w.tileSupported(tx + x, ty + def.h - 1);
+      if (!sup && def.behavior === 'drill') sup = true;
+      if (!sup) return 'Precisa de chão embaixo';
+    }
     if (def.behavior === 'storage') {
       const cmd = this.list.find(m => m.def.behavior === 'command');
       if (cmd && Math.hypot(tx - (cmd.tx + 1), ty - (cmd.ty + 1)) > BASE_RADIUS) return `Armazéns só na base (até ${BASE_RADIUS} tiles do Centro de Comando)`;
@@ -114,6 +124,10 @@ export class Machines {
       g: {}, fin: 0, fout: 0, fres: 0, mix: {},
     };
     if (def.behavior === 'belt') m.belt = [];
+    // construir em cima de grãos soltos: eles vão para o estoque
+    for (let y = 0; y < def.h; y++) for (let x = 0; x < def.w; x++) for (const gr of this.g.world.clearTile(tx + x, ty + y)) {
+      const k = GRAIN_ITEM[gr.m]; if (k) this.g.stock.add(k, k === 'bloco_massa' ? 1 : GRAIN_KG, false, gr.a / 40);
+    }
     this.add(m);
     if (def.behavior === 'dronepad') this.g.robots.spawnForPad(m);
     void free;
@@ -126,7 +140,7 @@ export class Machines {
     if (m.belt) this.belts.push(m);
     const w = this.g.world;
     for (let y = 0; y < m.def.h; y++) for (let x = 0; x < m.def.w; x++) {
-      const i = (m.ty + y) * WORLD_TILES + m.tx + x;
+      const i = (m.ty + y) * WORLD_TW + m.tx + x;
       if (m.def.behavior === 'platform') w.platform[i] = 1;
       else w.occ[i] = m.id;
     }
@@ -135,12 +149,14 @@ export class Machines {
   remove(m: Machine) {
     const w = this.g.world;
     for (let y = 0; y < m.def.h; y++) for (let x = 0; x < m.def.w; x++) {
-      const i = (m.ty + y) * WORLD_TILES + m.tx + x;
+      const i = (m.ty + y) * WORLD_TW + m.tx + x;
       if (m.def.behavior === 'platform') w.platform[i] = 0;
       else if (w.occ[i] === m.id) w.occ[i] = 0;
     }
     this.list.splice(this.list.indexOf(m), 1);
     this.byId.delete(m.id);
+    // o que estava apoiado em cima volta a cair
+    for (let x = 0; x < m.def.w * TILE_CELLS; x++) w.touch(m.tx * TILE_CELLS + x, m.ty * TILE_CELLS - 1);
     if (m.def.behavior === 'dronepad') this.g.robots.removeForPad(m);
     if (m.belt) this.belts.splice(this.belts.indexOf(m), 1);
     // devolve conteúdo ao estoque
@@ -169,8 +185,8 @@ export class Machines {
   }
 
   at(tx: number, ty: number): Machine | undefined {
-    if (tx < 0 || ty < 0 || tx >= WORLD_TILES || ty >= WORLD_TILES) return undefined;
-    const id = this.g.world.occ[ty * WORLD_TILES + tx];
+    if (tx < 0 || ty < 0 || tx >= WORLD_TW || ty >= WORLD_TH) return undefined;
+    const id = this.g.world.occ[ty * WORLD_TW + tx];
     return id ? this.byId.get(id) : undefined;
   }
   count(key: string, sector?: number) { let n = 0; for (const m of this.list) if (m.key === key && (sector === undefined || m.sector === sector)) n++; return n; }
@@ -183,6 +199,7 @@ export class Machines {
     const step = 0.1;
     while (this.acc >= step) { this.acc -= step; this.step(step); }
     this.updateBelts(dt);
+    this.updateRisers();
   }
 
   private step(dt: number) {
@@ -357,6 +374,7 @@ export class Machines {
         return true;
       case 'tectonic': case 'mantle': case 'collector':
         return true;
+      case 'belt': case 'riser': return true;
       case 'link': case 'terminal': case 'launchpad': case 'lamp': case 'field': case 'lift': case 'workshop': case 'lab': case 'robotics':
       case 'archaeo': case 'logcenter': case 'orbital': case 'splitter': case 'cannon': case 'cutter':
         return true;
@@ -666,85 +684,117 @@ export class Machines {
     return true;
   }
 
-  /** Empurra a saída para esteiras que saem da máquina, ou direto para armazéns/máquinas encostadas que aceitem. */
+  /**
+   * Saída física: a máquina cospe grãos pela lateral (porta). O Separador solta minerais por um lado
+   * e resíduo pelo outro. Itens sem forma de grão (barras) só passam para armazéns encostados.
+   */
   private pushOut(m: Machine) {
+    const d = m.def, w = this.g.world;
+    const per = Math.max(2, Math.ceil(((d.capacity ?? 600) / 60) * 0.1 / GRAIN_KG) + 1);
+    let n = 0;
+    for (const key of Object.keys(m.out)) {
+      const gm = GRAIN[key];
+      if (gm === undefined) { this.pushAdjacent(m, key); continue; }
+      const unit = key === 'bloco_massa' ? 1 : GRAIN_KG;
+      const ports = this.ports(m, key);
+      const aux = Math.min(255, Math.round((m.g[key] ?? 1) * 40));
+      while ((m.out[key] ?? 0) >= unit - 1e-6 && n < per) {
+        let ok = false;
+        for (const [x, y] of ports) if (w.spawnGrain(x, y, gm, aux, true)) { ok = true; break; }
+        if (!ok) { if (!m.state.startsWith('Saída')) m.state = 'Saída bloqueada: limpe a frente da porta'; break; }
+        bagAdd(m.out, key, -unit); n++;
+      }
+    }
+  }
+
+  /** células de saída (fora da máquina, na base da lateral) */
+  private ports(m: Machine, key: string): [number, number][] {
+    const d = m.def;
+    let side: number; // 0 = direita, 2 = esquerda
+    if (d.behavior === 'drill' || d.behavior === 'complex') side = m.dir === 0 ? 2 : m.dir === 2 ? 0 : 2;
+    else if (d.behavior === 'separator') side = key === 'residuo' ? (m.dir === 0 ? 2 : 0) : (m.dir === 2 ? 2 : 0);
+    else side = m.dir === 2 ? 2 : 0;
+    const x = side === 0 ? (m.tx + d.w) * TILE_CELLS : m.tx * TILE_CELLS - 1;
+    // de baixo para cima pela lateral inteira: se houver esteira encostada, o grão sai em cima dela
+    const out: [number, number][] = [];
+    for (let y = (m.ty + d.h) * TILE_CELLS - 1; y >= m.ty * TILE_CELLS - 1; y--) out.push([x, y]);
+    return out;
+  }
+
+  /** itens sem grão (barras, peças) só passam para armazéns/máquinas encostados */
+  private pushAdjacent(m: Machine, key: string) {
     const d = m.def;
     const per: [number, number][] = [];
     for (let x = 0; x < d.w; x++) { per.push([m.tx + x, m.ty - 1]); per.push([m.tx + x, m.ty + d.h]); }
     for (let y = 0; y < d.h; y++) { per.push([m.tx - 1, m.ty + y]); per.push([m.tx + d.w, m.ty + y]); }
-    const n = per.length;
-    let pushes = Math.max(1, Math.ceil((d.w * d.h) / 2));
-    for (let i = 0; i < n && pushes > 0; i++) {
-      const keys = Object.keys(m.out);
-      if (!keys.length) return;
-      const [tx, ty] = per[(m.rr + i) % n];
+    for (const [tx, ty] of per) {
       const o = this.at(tx, ty);
-      if (!o || o === m) continue;
-      if (o.belt) {
-        const [bx, by] = DIRS[o.dir];
-        if (this.at(tx + bx, ty + by) === m) continue; // esteira apontando para dentro
-        if (o.belt.length && o.belt[0].p < BELT_GAP) continue;
-        // várias saídas: minerais e resíduo se revezam na esteira
-        const key = keys[(m.kr = (m.kr ?? 0) + 1) % keys.length];
-        const q = Math.min(LOT, m.out[key]);
-        o.belt.unshift({ k: key, q, p: 0, g: m.g[key] });
-        bagAdd(m.out, key, -q);
-        pushes--;
-        continue;
-      }
-      if (!OUTLETS.has(o.def.behavior)) continue;
-      for (const key of keys) {
-        const q = Math.min(LOT, m.out[key]);
-        if (this.accept(o, key, q, m.g[key])) { bagAdd(m.out, key, -q); pushes--; break; }
-      }
+      if (!o || o === m || !OUTLETS.has(o.def.behavior)) continue;
+      const q = Math.min(LOT, m.out[key]);
+      if (this.accept(o, key, q, m.g[key])) { bagAdd(m.out, key, -q); return; }
     }
-    m.rr = (m.rr + 1) % n;
   }
 
+  /** um grão tenta entrar na máquina `id` (caindo em cima ou empurrado por esteira) */
+  sinkGrain(id: number, mat: number): boolean {
+    const m = this.byId.get(id);
+    const k = GRAIN_ITEM[mat];
+    if (!m || !k) return false;
+    const b = m.def.behavior;
+    if (b === 'belt') return false;
+    if (b === 'riser') return this.riserTake(m, mat);
+    const q = k === 'bloco_massa' ? 1 : GRAIN_KG;
+    return this.accept(m, k, q, this.lastAux / 40);
+  }
+  lastAux = 40;
+
+  // ---- esteiras: empurram os grãos apoiados em cima ----
   private updateBelts(dt: number) {
+    const w = this.g.world;
     for (const b of this.belts) {
-      const lots = b.belt!;
-      if (!lots.length) continue;
-      const sp = (b.def.speed ?? 1) * dt * (b.broken ? 0 : 1);
-      // do fim para o começo
-      for (let i = lots.length - 1; i >= 0; i--) {
-        const l = lots[i];
-        const limit = i === lots.length - 1 ? 1 : lots[i + 1].p - BELT_GAP;
-        l.p = Math.min(l.p + sp, Math.max(l.p, limit));
+      if (b.broken) continue;
+      b.prog += dt * (b.def.speed ?? 1) * TILE_CELLS * 1.5;
+      if (b.prog < 1) continue;
+      b.prog -= Math.floor(b.prog);
+      const d = b.dir === 2 ? -1 : 1;
+      const y = b.ty * TILE_CELLS - 1;
+      if (y < 0) continue;
+      let moved = 0, stuck = false;
+      for (let k = 0; k < TILE_CELLS; k++) {
+        const x = d > 0 ? b.tx * TILE_CELLS + TILE_CELLS - 1 - k : b.tx * TILE_CELLS + k;
+        const i = y * WORLD_W + x;
+        const m = w.mat[i];
+        if (!IS_LOOSE[m]) continue;
+        const nx = x + d, ni = i + d;
+        const occ = w.occAtCell(nx, y);
+        if (occ && occ !== b.id) {
+          const o = this.byId.get(occ);
+          if (o && o.def.behavior !== 'belt') {
+            this.lastAux = w.aux[i];
+            if (this.sinkGrain(occ, m)) { w.set(x, y, MAT.AIR); moved++; continue; }
+            stuck = true; continue;
+          }
+        }
+        const t = w.mat[ni];
+        if (t === MAT.AIR || IS_LIQUID[t]) { const a = w.aux[i]; w.set(x, y, t); w.set(nx, y, m, a); moved++; }
+        else stuck = true;
       }
-      const last = lots[lots.length - 1];
-      if (last.p >= 1) {
-        const [dx, dy] = DIRS[b.dir];
-        const nt = this.at(b.tx + dx, b.ty + dy);
-        if (!nt) { b.state = 'Sem destino'; continue; }
-        if (nt.belt) {
-          if (!nt.belt.length || nt.belt[0].p >= BELT_GAP) { lots.pop(); last.p = 0; nt.belt.unshift(last); b.state = 'ok'; }
-          else b.state = 'Fila';
-        } else if (nt.def.behavior === 'splitter') {
-          if (this.accept(nt, last.k, last.q, last.g)) { lots.pop(); nt.g[last.k] = last.g ?? 1; this.splitOut(nt); }
-        } else if (this.accept(nt, last.k, last.q, last.g)) { lots.pop(); b.state = 'ok'; }
-        else b.state = 'Travada: destino recusa ' + (ITEM[last.k]?.name ?? last.k);
-      }
+      b.state = stuck && !moved ? 'Travada: a ponta não tem para onde ir' : moved ? 'ok' : 'Vazia';
     }
-    for (const m of this.list) if (m.def.behavior === 'splitter' && bagTotal(m.inb) > 0) this.splitOut(m);
   }
 
-  private splitOut(m: Machine) {
-    const key = Object.keys(m.inb)[0]; if (!key) return;
-    const q = m.inb[key];
-    const fwd = m.dir, left = (m.dir + 3) % 4, right = (m.dir + 1) % 4;
-    const order = m.filter ? (key === m.filter ? [fwd] : (m.rr++ % 2 ? [left, right] : [right, left])) : [[fwd, left, right], [left, right, fwd], [right, fwd, left]][m.rr++ % 3];
-    for (const dir of order) {
-      const [dx, dy] = DIRS[dir];
-      const o = this.at(m.tx + dx, m.ty + dy);
-      if (!o) continue;
-      if (o.belt) {
-        if (o.belt.length && o.belt[0].p < BELT_GAP) continue;
-        o.belt.unshift({ k: key, q, p: 0, g: m.g[key] }); delete m.inb[key]; return;
-      }
-      if (this.accept(o, key, q, m.g[key])) { delete m.inb[key]; return; }
-    }
+  // ---- elevador de grãos: coluna vertical que leva grãos até o topo e solta para o lado ----
+  private riserTake(m: Machine, mat: number): boolean {
+    let top = m;
+    for (let guard = 0; guard < 80; guard++) { const up = this.at(top.tx, top.ty - 1); if (!up || up.def.behavior !== 'riser') break; top = up; }
+    const x = top.dir === 2 ? top.tx * TILE_CELLS - 1 : (top.tx + 1) * TILE_CELLS, y = top.ty * TILE_CELLS;
+    top.prog = (top.prog ?? 0);
+    if (top.loaders > 20) return false;           // vazão por passo
+    if (!this.g.world.spawnGrain(x, y, mat, this.lastAux)) { top.state = 'Saída do topo bloqueada'; return false; }
+    top.loaders++; top.produced += GRAIN_KG; top.state = 'Elevando';
+    return true;
   }
+  private updateRisers() { for (const m of this.list) if (m.def.behavior === 'riser') m.loaders = 0; }
 
   // ---- ações manuais ----
   repairCost(m: Machine): Record<string, number> {

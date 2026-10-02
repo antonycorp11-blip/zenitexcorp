@@ -1,7 +1,7 @@
 import { fmtInt, fmtShort, fmtTime, fmtMass } from '../core/math';
-import { TILE, WORLD_TILES, WORLD_PX, CELL } from '../core/constants';
+import { TILE, WORLD_TW, WORLD_TH, WORLD_PX_W, WORLD_PX_H, CELL } from '../core/constants';
 import { ITEM, ITEMS, itemName, type ItemCat } from '../data/items';
-import { MACHINES, MACHINE, MACHINE_CATS, COMPLEX_LEVELS, CANNON_SHOT_FRAC, type MachineCat } from '../data/machines';
+import { MACHINES, MACHINE, MACHINE_CATS, nextDir, COMPLEX_LEVELS, CANNON_SHOT_FRAC, type MachineCat } from '../data/machines';
 import { RESEARCH, RESEARCH_CATS, type ResearchCat } from '../data/research';
 import { RECIPE, RECIPES } from '../data/recipes';
 import { SECTORS, HAZARD_NAMES, type HazardKey } from '../data/sectors';
@@ -146,7 +146,7 @@ export class Panels {
     collect: () => { const m = this.machine; if (!m) return; for (const k of Object.keys(m.out)) { const got = this.g.pack.add(k, m.out[k], m.g[k]); m.out[k] -= got; if (m.out[k] <= 0.01) delete m.out[k]; } this.render(); },
     analyzer: () => { this.close(); this.ui.mini.analyzer(); },
     dismantle: () => { const m = this.machine; if (!m || m.def.behavior === 'command') return; for (const k in m.def.cost) this.g.stock.add(k, Math.floor(m.def.cost[k] * 0.75), false); this.g.machines.remove(m); this.close(); },
-    rotate: () => { const m = this.machine; if (m && m.def.rotatable) { m.dir = (m.dir + 1) % 4; m.depth = 0; m.exhausted = false; } this.render(); },
+    rotate: () => { const m = this.machine; if (m && m.def.rotatable) { m.dir = nextDir(m.def, m.dir); m.depth = 0; m.exhausted = false; } this.render(); },
     reset: () => { const m = this.machine; if (m) { m.depth = 0; m.exhausted = false; m.t = 0; } this.render(); },
     lift: (a) => { const m = this.g.machines.byId.get(Number(a)); if (m) { const [x, y] = this.g.machines.centerPx(m); this.g.player.x = x; this.g.player.y = y + m.def.h * 8 + 6; this.g.camera.x = x; this.g.camera.y = y; this.g.audio.success(); this.close(); } },
     ops: (a) => this.ops(a),
@@ -664,7 +664,7 @@ export class Panels {
       pc.onclick = e => {
         const r = pc.getBoundingClientRect();
         const u = (e.clientX - r.left) / r.width, vv = (e.clientY - r.top) / r.height;
-        const s = this.g.world.sectorAtPx(u * WORLD_PX, vv * WORLD_PX);
+        const s = this.g.world.sectorAtPx(u * WORLD_PX_W, vv * WORLD_PX_H);
         if (s) this.fireCannon(s);
       };
       this.el!.querySelectorAll<HTMLCanvasElement>('[data-stage]').forEach(sc => {
@@ -693,20 +693,10 @@ export class Panels {
     const W = c.width, H = c.height, v = this.mapView;
     const s = v.z * 0.25; // px de canvas por px de mundo
     x.fillStyle = '#020306'; x.fillRect(0, 0, W, H);
-    const step = Math.max(1, Math.floor(1 / (s * TILE) * 1.5));
-    const t0x = Math.floor((v.x - W / 2 / s) / TILE), t0y = Math.floor((v.y - H / 2 / s) / TILE);
-    const t1x = Math.ceil((v.x + W / 2 / s) / TILE), t1y = Math.ceil((v.y + H / 2 / s) / TILE);
-    const ts = TILE * s * step;
-    for (let ty = Math.max(0, t0y); ty < Math.min(WORLD_TILES, t1y); ty += step) for (let tx = Math.max(0, t0x); tx < Math.min(WORLD_TILES, t1x); tx += step) {
-      const i = ty * WORLD_TILES + tx;
-      if (!g.world.explored[i]) continue;
-      const sec = g.world.sectorTiles[i];
-      const col = sec ? hexRgb(SECTORS[sec - 1].accent) : [30, 30, 30];
-      const solid = g.world.solidAt(tx * 4 + 2, ty * 4 + 2);
-      const k = solid ? 0.28 : 0.7;
-      x.fillStyle = `rgb(${col[0] * k | 0},${col[1] * k | 0},${col[2] * k | 0})`;
-      x.fillRect((tx * TILE - v.x) * s + W / 2, (ty * TILE - v.y) * s + H / 2, ts + 0.5, ts + 0.5);
-    }
+    // corte inteiro da camada (1 px = 2 células = 8 px de mundo)
+    const ov = g.terrain.overview(performance.now());
+    x.imageSmoothingEnabled = false;
+    x.drawImage(ov, (0 - v.x) * s + W / 2, (0 - v.y) * s + H / 2, WORLD_PX_W * s, WORLD_PX_H * s);
     const P = (wx: number, wy: number): [number, number] => [(wx - v.x) * s + W / 2, (wy - v.y) * s + H / 2];
     for (const m of g.machines.list) {
       const [px, py] = P(m.tx * TILE, m.ty * TILE);
@@ -722,18 +712,10 @@ export class Panels {
     }
     for (const a of g.lore.artifacts) if (a.seen && !a.done && !a.destroyed) { const [px, py] = P(a.x, a.y); x.fillStyle = '#4af0e0'; x.fillRect(px - 2, py - 2, 4, 4); }
     if (g.player.cargo) { const [px, py] = P(g.player.cargo.x, g.player.cargo.y); x.fillStyle = '#ffb04a'; x.fillText('✖ carga perdida', px - 4, py + 3); }
-    // nomes dos setores descobertos
-    x.font = '700 14px Rajdhani, sans-serif';
-    for (const sd of SECTORS) {
-      if (!g.sectors.s[sd.id].discovered) continue;
-      const [px, py] = P(sd.pos[0] * WORLD_PX, sd.pos[1] * WORLD_PX);
-      x.fillStyle = 'rgba(0,0,0,0.5)'; x.fillText(`${sd.code} ${sd.name}`, px - 49, py + 1);
-      x.fillStyle = sd.accent; x.fillText(`${sd.code} ${sd.name}`, px - 50, py);
-    }
     const [px, py] = P(g.player.x, g.player.y);
     x.fillStyle = '#fff'; x.beginPath(); x.arc(px, py, 4, 0, 7); x.fill();
     x.strokeStyle = '#fff'; x.beginPath(); x.arc(px, py, 8 + Math.sin(performance.now() / 200) * 2, 0, 7); x.stroke();
-    void CELL;
+    void CELL; void WORLD_TW; void WORLD_TH; void TILE;
   }
 
   private drawOrbit() {

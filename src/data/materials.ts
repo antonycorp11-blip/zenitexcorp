@@ -1,6 +1,6 @@
 // Materiais de terreno. Cada célula do mundo guarda um id daqui.
 // kind: solid = pode ser minerado; liquid/chasm = bloqueia caminhada mas não é parede.
-export type MatKind = 'air' | 'rock' | 'ore' | 'liquid' | 'chasm' | 'ancient' | 'barrier' | 'edge';
+export type MatKind = 'air' | 'rock' | 'ore' | 'liquid' | 'chasm' | 'ancient' | 'barrier' | 'edge' | 'grain' | 'block';
 export type Pattern = 'cobble' | 'crystal' | 'organic' | 'basalt' | 'ice' | 'slime' | 'block' | 'bone' | 'dense' | 'core';
 export type MatSound = 'rock' | 'crystal' | 'metal' | 'organic' | 'ice' | 'glass' | 'ancient';
 
@@ -79,18 +79,45 @@ export const MAT = {
   CONT6: def({ key: 'contencao6', name: 'Contenção Classe VI', kind: 'barrier', tier: 6, hardness: 3.2, massT: 0.1, top: [80, 40, 24], face: [40, 16, 10], pattern: 'dense', sound: 'metal', glow: [255, 90, 30] }),
 };
 
+// ---------------- GRÃOS SOLTOS (vista lateral: caem, escorregam, se amontoam) ----------------
+// Cada grão é uma célula que carrega um item. O material bruto, os minerais separados e o resíduo
+// são grãos de verdade: andam em esteiras, entopem funis e se empilham no chão.
+export const GRAIN_KG = 2;                 // kg por grão (= 1 unidade de meta)
+const GRAIN_DEFS: [string, string, [number, number, number], number?][] = [
+  ['solo_k37', 'Solo K-37', [150, 100, 64]], ['rocha_bruta', 'Rocha Bruta', [128, 128, 132]], ['basalto_bruto', 'Basalto Bruto', [110, 52, 46]],
+  ['matriz_cristalina', 'Matriz Cristalina', [130, 168, 214]], ['rocha_manto', 'Rocha de Manto', [112, 92, 140]], ['matriz_profunda', 'Matriz Profunda', [74, 124, 128]],
+  ['materia_nucleo', 'Matéria de Núcleo', [196, 100, 44]], ['fragmentado', 'Material Fragmentado', [154, 146, 134]], ['residuo', 'Resíduo Planetário', [98, 88, 80]],
+  ['ferronox', 'Ferronox', [170, 172, 196]], ['lumenita', 'Lumenita', [70, 150, 255]], ['nexolita', 'Nexolita', [176, 90, 255]],
+  ['pyroxis', 'Pyroxis', [255, 84, 44]], ['ferronox_denso', 'Ferronox Denso', [104, 106, 128]], ['crysalis', 'Crysalis', [160, 236, 255]],
+  ['umbrium', 'Umbrium', [96, 60, 140]], ['necrocristal', 'Necrocristal', [212, 236, 214]], ['solvex', 'Solvex', [255, 214, 70]],
+  ['lumenita_pura', 'Lumenita Pura', [200, 230, 255]], ['nexolita_condensada', 'Nexolita Condensada', [238, 140, 255]], ['pyroxis_volatil', 'Pyroxis Volátil', [255, 170, 50]],
+  ['lumenita_instavel', 'Lumenita Instável', [100, 255, 255]], ['fragmento_nucleo', 'Fragmento de Núcleo', [255, 206, 120]],
+];
+export const GRAIN: Record<string, number> = {};
+export const GRAIN_ITEM: string[] = [];
+for (const [k, n, c] of GRAIN_DEFS) {
+  const glow = ['lumenita', 'lumenita_pura', 'nexolita_condensada', 'pyroxis_volatil', 'lumenita_instavel', 'fragmento_nucleo', 'pyroxis'].includes(k) ? c : undefined;
+  const id = def({ key: 'g_' + k, name: n, kind: 'grain', tier: 0, hardness: 0, massT: 0, top: c, face: c, pattern: 'cobble', sound: 'rock', item: k, yieldKg: GRAIN_KG, glow });
+  GRAIN[k] = id; GRAIN_ITEM[id] = k;
+}
+/** Bloco de Massa Planetária: cai, mas não escorrega (empilha reto). 1 bloco = 100 kg. */
+export const BLOCK_MAT = def({ key: 'g_bloco', name: 'Bloco de Massa Planetária', kind: 'block', tier: 0, hardness: 0, massT: 0, top: [150, 128, 104], face: [90, 76, 64], pattern: 'block', sound: 'rock', item: 'bloco_massa', yieldKg: 100 });
+GRAIN['bloco_massa'] = BLOCK_MAT; GRAIN_ITEM[BLOCK_MAT] = 'bloco_massa';
+
 export const MATERIALS: readonly MaterialDef[] = M;
 export const matById = (id: number) => M[id];
 export const SECTOR_ROCK = [MAT.R1, MAT.R2, MAT.R3, MAT.R4, MAT.R5, MAT.R6, MAT.R7, MAT.R8, MAT.R9, MAT.R10, MAT.R11, MAT.R12];
 export const BARRIER_BY_TIER: Record<number, number> = { 2: MAT.CONT2, 3: MAT.CONT3, 4: MAT.CONT4, 5: MAT.CONT5, 6: MAT.CONT6 };
 
-// Lookups rápidos por id (usados no laço quente de renderização / colisão)
-export const IS_SOLID = new Uint8Array(256);
-export const IS_BLOCKING = new Uint8Array(256); // bloqueia caminhada (sólido, líquido, abismo)
+// Lookups rápidos por id (usados no laço quente de simulação / renderização / colisão)
+export const IS_SOLID = new Uint8Array(256);    // terreno fixo (minerável)
+export const IS_LOOSE = new Uint8Array(256);    // grãos soltos (1) e blocos (2)
+export const IS_BLOCKING = new Uint8Array(256); // corpo sólido para o jogador (terreno + grãos)
 export const IS_LIQUID = new Uint8Array(256);
 for (const m of M) {
   const solid = m.kind === 'rock' || m.kind === 'ore' || m.kind === 'ancient' || m.kind === 'barrier' || m.kind === 'edge';
   IS_SOLID[m.id] = solid ? 1 : 0;
-  IS_BLOCKING[m.id] = solid || m.kind === 'liquid' || m.kind === 'chasm' ? 1 : 0;
-  IS_LIQUID[m.id] = m.kind === 'liquid' || m.kind === 'chasm' ? 1 : 0;
+  IS_LOOSE[m.id] = m.kind === 'grain' ? 1 : m.kind === 'block' ? 2 : 0;
+  IS_BLOCKING[m.id] = solid || IS_LOOSE[m.id] ? 1 : 0;
+  IS_LIQUID[m.id] = m.kind === 'liquid' ? 1 : 0;
 }

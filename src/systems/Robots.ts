@@ -1,4 +1,4 @@
-import { CELL, TILE, TILE_CELLS, WORLD_TILES } from '../core/constants';
+import { CELL, TILE, TILE_CELLS, WORLD_TW, WORLD_TH } from '../core/constants';
 import { ROBOT, type RobotKind } from '../data/robots';
 import { IS_SOLID, IS_BLOCKING, IS_LIQUID, matById } from '../data/materials';
 import { type Bag, bagAdd, bagTotal } from './Inventory';
@@ -81,8 +81,8 @@ export class Robots {
 
   walkableTile(tx: number, ty: number): boolean {
     const w = this.g.world;
-    if (tx < 0 || ty < 0 || tx >= WORLD_TILES || ty >= WORLD_TILES) return false;
-    const i = ty * WORLD_TILES + tx;
+    if (tx < 0 || ty < 0 || tx >= WORLD_TW || ty >= WORLD_TH) return false;
+    const i = ty * WORLD_TW + tx;
     const id = w.occ[i];
     if (id) { const m = this.g.machines.byId.get(id); if (m && !WALK_BLOCK.has(m.def.behavior)) return false; }
     const plat = w.platform[i];
@@ -224,7 +224,7 @@ export class Robots {
     const g = this.g;
     g.world.reveal(r.x, r.y, 6);
     if (r.path.length) { r.state = 'Explorando'; return; }
-    const p = this.path(r, (x, y) => this.inZone(r, x, y) && !g.world.explored[y * WORLD_TILES + x] && this.walkableTile(x, y), Math.min(46, r.zr + 6));
+    const p = this.path(r, (x, y) => this.inZone(r, x, y) && !g.world.explored[y * WORLD_TW + x] && this.walkableTile(x, y), Math.min(46, r.zr + 6));
     if (p) { r.path = p; r.state = 'Explorando'; }
     else { r.state = 'Zona explorada'; if (Math.hypot(r.x - r.zx, r.y - r.zy) > TILE * 3) this.goTo(r, r.zx, r.zy); }
   }

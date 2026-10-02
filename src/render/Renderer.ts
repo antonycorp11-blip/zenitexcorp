@@ -1,4 +1,4 @@
-import { CELL, CHUNK_PX, TILE, WORLD_CELLS, WORLD_TILES } from '../core/constants';
+import { CELL, CHUNK_PX, TILE, WORLD_CW, WORLD_PX_W } from '../core/constants';
 import { DIRS } from '../core/math';
 import { MATERIALS } from '../data/materials';
 import { SECTORS } from '../data/sectors';
@@ -45,8 +45,7 @@ export class Renderer {
     const L = Math.round(cam.left() * z) / z, T = Math.round(cam.top() * z) / z;
     const R = L + W / z, B = T + H / z;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, W, H);
+    this.drawSky(L, T, z, W, H);
     ctx.imageSmoothingEnabled = false;
     ctx.setTransform(z, 0, 0, z, -L * z, -T * z);
 
@@ -54,7 +53,7 @@ export class Renderer {
     // ---- terreno ----
     const c0x = Math.floor(L / CHUNK_PX), c1x = Math.floor(R / CHUNK_PX);
     const c0y = Math.floor(T / CHUNK_PX), c1y = Math.floor((B + 40) / CHUNK_PX);
-    let budget = g.input.touch ? 1 : 3;
+    let budget = g.input.touch ? 6 : 12;   // grãos se movem o tempo todo: re-render parcial é barato
     const sec = g.world.sectorAtPx(g.player.x, g.player.y) || 1;
     const sd = SECTORS[sec - 1];
     // prioriza o chunk do jogador
@@ -63,11 +62,11 @@ export class Renderer {
     const pcx = g.player.x / CHUNK_PX, pcy = g.player.y / CHUNK_PX;
     order.sort((a, b) => Math.hypot(a[0] + 0.5 - pcx, a[1] + 0.5 - pcy) - Math.hypot(b[0] + 0.5 - pcx, b[1] + 0.5 - pcy));
     for (const [cx, cy] of order) {
-      const k = cy * 40 + cx;
+      const k = cy * WORLD_CW + cx;
       const needs = g.world.dirty.has(k) || !g.terrain.get(cx, cy, false);
       const ch = g.terrain.get(cx, cy, needs && budget-- > 0);
       if (!ch) continue;
-      ctx.drawImage(ch.canvas, cx * CHUNK_PX, cy * CHUNK_PX);
+      ctx.drawImage(ch.canvas, cx * CHUNK_PX, cy * CHUNK_PX, CHUNK_PX, CHUNK_PX);
       if (ch.lights.length) {
         if (!ch.baked) ch.baked = g.lighting.bake(ch.lights, cx * CHUNK_PX, cy * CHUNK_PX, CHUNK_PX);
         g.lighting.addBaked(ch.baked, cx * CHUNK_PX, cy * CHUNK_PX, CHUNK_PX, 0.88 + 0.12 * Math.sin(this.time * 1.7 + cx * 3 + cy * 7));
@@ -75,17 +74,6 @@ export class Renderer {
     }
 
     this.mark('terrain');
-    // ---- rachaduras ----
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    for (const [idx] of g.mining.cracks) {
-      const x = idx % WORLD_CELLS, y = Math.floor(idx / WORLD_CELLS);
-      const d = g.world.dmg[idx] / 255;
-      if (d < 0.15) continue;
-      const px = x * CELL, py = y * CELL;
-      if (px < L || px > R || py < T || py > B) continue;
-      ctx.fillRect(px + 1, py, 1, 2 + d * 2); if (d > 0.5) ctx.fillRect(px, py + 2, 3, 1); if (d > 0.75) ctx.fillRect(px + 2, py + 1, 1, 3);
-    }
-
     // ---- marcas de scanner ----
     for (const m of g.scanner.marks) {
       const age = g.time - m.t;
@@ -190,7 +178,8 @@ export class Renderer {
     const p = g.player;
     objs.push({ y: p.y + 2, draw: () => {
       if (p.invuln > 0 && Math.floor(this.time * 10) % 2) return;
-      ctx.drawImage(g.sprites.player(p.facing, p.frame, p.suit.termico ?? 0), Math.round(p.x - 6), Math.round(p.y - 14));
+      ctx.drawImage(g.sprites.player(p.facing === 2 ? 2 : 0, p.frame, p.suit.termico ?? 0), Math.round(p.x - 6), Math.round(p.y - 16));
+      if (p.jet > 0) { g.fx.ember(p.x + (p.facing === 2 ? 3 : -3), p.y - 4, [255, 170, 60]); g.lighting.add(p.x, p.y - 2, 26, [255, 160, 60], 0.7); }
     } });
     objs.sort((a, b) => a.y - b.y);
     for (const o of objs) o.draw();
@@ -229,7 +218,9 @@ export class Renderer {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const storm = g.events.storm > 0 ? 0.15 : 0;
     const finalDark = g.flags.finalSeq ? 0.1 + 0.1 * Math.sin(this.time * 3) : 0;
-    g.lighting.render(L, T, z, W, H, sd.ambient, Math.min(0.97, sd.darkness + storm + finalDark));
+    // escuridão cresce com a profundidade (a superfície da Terra é dia)
+    const surfPx = g.world.gen.landing.y * CELL;
+    g.lighting.render(L, T, z, W, H, sd.ambient, Math.min(0.95, 0.55 + sd.darkness + storm + finalDark), surfPx, g.planet.layer === 1 ? storm + finalDark : Math.min(0.8, 0.3 + sd.darkness));
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(g.lighting.dark, 0, 0, W, H);
     ctx.globalCompositeOperation = 'lighter';
@@ -241,7 +232,6 @@ export class Renderer {
 
     this.mark('light');
     // ---- névoa de guerra ----
-    this.drawFog(L, T, R, B, z);
     ctx.imageSmoothingEnabled = false;
 
     // ---- textos em espaço de tela ----
@@ -252,39 +242,65 @@ export class Renderer {
     if (g.fx.screenFlash) { ctx.fillStyle = rgba(g.fx.screenFlash.c, g.fx.screenFlash.a); ctx.fillRect(0, 0, W, H); }
   }
 
+  /** Esteira vista de lado: estrutura, roletes girando e lona; os grãos andam por cima (são terreno). */
   private drawBelt(m: Machine, x: number, y: number) {
-    const ctx = this.ctx, g = this.g;
-    const [dx, dy] = DIRS[m.dir];
+    const ctx = this.ctx;
     const tier = m.key === 'esteira3' ? 2 : m.key === 'esteira2' ? 1 : 0;
-    const rail = tier === 2 ? '#7a3aa0' : tier === 1 ? '#2a6aa0' : '#5a4632';
-    ctx.fillStyle = '#16171c'; ctx.fillRect(x + 1, y + 2, 14, 13);
-    ctx.fillStyle = '#26282f';
-    if (dx) ctx.fillRect(x, y + 4, 16, 8); else ctx.fillRect(x + 4, y, 8, 16);
-    ctx.fillStyle = rail;
-    if (dx) { ctx.fillRect(x, y + 3, 16, 1); ctx.fillRect(x, y + 12, 16, 1); } else { ctx.fillRect(x + 3, y, 1, 16); ctx.fillRect(x + 12, y, 1, 16); }
-    // chevrons em movimento
+    const frame = tier === 2 ? '#7a3aa0' : tier === 1 ? '#2a6aa0' : '#b8742a';
+    const d = m.dir === 2 ? -1 : 1;
+    ctx.fillStyle = '#2a2c33'; ctx.fillRect(x, y, 16, 6);                  // lona
+    ctx.fillStyle = frame; ctx.fillRect(x, y + 6, 16, 3);                 // longarina
+    ctx.fillStyle = '#16171c'; ctx.fillRect(x + 2, y + 9, 2, 7); ctx.fillRect(x + 12, y + 9, 2, 7); // pés
     const sp = (m.def.speed ?? 1) * (m.broken ? 0 : 1);
-    const off = ((this.time * sp * 16) % 8 + 8) % 8;
-    ctx.fillStyle = '#3c3f48';
-    for (let k = -8; k < 16; k += 8) {
-      const o = k + off;
-      if (o < 0 || o > 15) continue;
-      if (dx) ctx.fillRect(dx > 0 ? x + o : x + 15 - o, y + 5, 1, 6); else ctx.fillRect(x + 5, dy > 0 ? y + o : y + 15 - o, 6, 1);
+    const off = (((this.time * sp * 24 * d) % 4) + 4) % 4;
+    ctx.fillStyle = '#4a4e58';
+    for (let k = -4; k < 20; k += 4) { const o = k + off; if (o >= 0 && o < 15) ctx.fillRect(x + o, y + 1, 1, 4); }
+    ctx.fillStyle = '#6a6e78'; ctx.fillRect(x, y, 16, 1);
+    // seta da direção
+    ctx.fillStyle = '#ffd04a'; ctx.fillRect(x + (d > 0 ? 11 : 4), y + 7, 1, 1);
+    if (m.state.startsWith('Travada') && Math.floor(this.time * 2) % 2) { ctx.fillStyle = 'rgba(255,60,40,0.45)'; ctx.fillRect(x, y, 16, 9); }
+  }
+
+  /** Céu da superfície (dia) ou o vazio escavado das camadas de baixo, com morros em paralaxe. */
+  private drawSky(L: number, T: number, z: number, W: number, H: number) {
+    const ctx = this.ctx, g = this.g;
+    const surfY = (g.world.gen.landing.y * CELL - T) * z;
+    const layer = g.planet.layer;
+    const SK: [string, string, string][] = [
+      ['#4f8fd0', '#9ccbe8', '#f0c890'], ['#1c2430', '#33404c', '#5a5450'], ['#1a0806', '#3a120a', '#7a2a10'],
+      ['#06101e', '#10243a', '#2a4a66'], ['#0c0818', '#1c1230', '#3a2450'], ['#04141a', '#0a2a30', '#1a4a50'], ['#200a02', '#4a1806', '#a04010'],
+    ];
+    const [a, b, c] = SK[layer - 1] ?? SK[0];
+    const gr = ctx.createLinearGradient(0, surfY - H, 0, surfY);
+    gr.addColorStop(0, a); gr.addColorStop(0.7, b); gr.addColorStop(1, c);
+    ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
+    // morros/paredões distantes em duas camadas de paralaxe
+    const hillCol = layer === 1 ? ['#6a86a0', '#4c6478'] : ['rgba(0,0,0,0.35)', 'rgba(0,0,0,0.55)'];
+    for (let k = 0; k < 2; k++) {
+      const par = 0.25 + k * 0.25, amp = (k ? 26 : 40) * z, base = surfY + (k ? 6 : -4) * z;
+      ctx.fillStyle = hillCol[k];
+      ctx.beginPath(); ctx.moveTo(0, H);
+      for (let sx = 0; sx <= W; sx += 8) {
+        const wx = (L * par + sx / z) * 0.01;
+        const hy = base - (Math.sin(wx * (1.3 + k)) * 0.5 + Math.sin(wx * 0.37 + k * 2) * 0.5 + 1) * amp;
+        ctx.lineTo(sx, hy);
+      }
+      ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
     }
-    // lotes
-    for (const l of m.belt!) {
-      const px = x + 8 + dx * (l.p - 0.5) * 16, py = y + 8 + dy * (l.p - 0.5) * 16;
-      ctx.drawImage(g.sprites.item(l.k, 7), Math.round(px - 3.5), Math.round(py - 4.5));
-      const c = ITEM[l.k]?.color;
-      if (c && (l.k.includes('lumen') || l.k.includes('pyrox') || l.k.includes('verd') || l.k.includes('nexol'))) g.lighting.add(px, py, 9, c, 0.35);
+    if (layer === 1) {
+      // sol baixo e algumas nuvens
+      ctx.fillStyle = 'rgba(255,230,170,0.9)'; ctx.beginPath(); ctx.arc(W * 0.78 - L * 0.02 * z, surfY - 150 * z, 16 * z, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      for (let i = 0; i < 6; i++) { const cx = ((i * 260 - L * 0.12 + this.time * 3) % (W / z + 200) + W / z + 200) % (W / z + 200) - 100; ctx.fillRect(cx * z, surfY - (90 + (i * 37) % 70) * z, (40 + (i * 13) % 30) * z, 5 * z); }
     }
-    if (m.state.startsWith('Travada') && Math.floor(this.time * 2) % 2) { ctx.fillStyle = 'rgba(255,60,40,0.5)'; ctx.fillRect(x, y, 16, 16); }
+    void WORLD_PX_W;
   }
 
   private drawMachine(m: Machine) {
     const g = this.g, ctx = this.ctx;
     const { img, oy } = g.sprites.machine(m.def, m.dir, m.def.behavior === 'complex' ? m.level : m.def.key.endsWith('2') ? 1 : m.def.key.endsWith('3') ? 2 : 0);
     const x = m.tx * TILE, y = m.ty * TILE - oy;
+    if (m.def.behavior === 'drill') this.drawDrillBit(m);
     ctx.drawImage(img, x, y);
     const [cx, cy] = g.machines.centerPx(m);
     if (m.broken) { ctx.fillStyle = 'rgba(30,0,0,0.45)'; ctx.fillRect(x, y, img.width, img.height); if (Math.random() < 0.15) g.fx.smoke(cx, cy - 6, [80, 80, 80]); }
@@ -297,12 +313,7 @@ export class Renderer {
       const pulse = 0.75 + 0.25 * Math.sin(this.time * 3 + m.id);
       g.lighting.add(cx, cy - oy * 0.5, 30 + m.def.w * 10, m.def.glow, 0.6 * pulse);
       if ((m.def.heat ?? 0) > 2 && Math.random() < 0.06) g.fx.smoke(x + img.width * 0.8, y + 4);
-      if (m.def.behavior === 'drill' && Math.random() < 0.5) {
-        const [dx, dy] = DIRS[m.dir];
-        const hx = cx + dx * (m.def.w * 8 + 4 + m.depth * CELL), hy = cy + dy * (m.def.h * 8 + 4 + m.depth * CELL) - 2;
-        g.fx.sparks(hx, hy, [255, 200, 120], 1);
-        g.lighting.add(hx, hy, 30, [255, 160, 60], 0.7);
-      }
+
     } else if (m.def.glow && !m.broken) g.lighting.add(cx, cy - oy * 0.4, 18 + m.def.w * 4, m.def.glow, 0.25);
     if (m.def.behavior === 'lamp' && !m.broken) g.lighting.add(cx, cy - 10, 110, [255, 200, 130], 0.8);
     if (m.def.behavior === 'command') g.lighting.add(cx, cy, 120, [255, 190, 120], 0.55);
@@ -310,6 +321,31 @@ export class Renderer {
     // alertas
     if (m.broken || m.overheat || m.buried > 0 || m.state.startsWith('Sem energia')) this.alert(cx, y - 4, m.broken ? '#ff4a3a' : m.overheat ? '#ff9a2a' : '#ffd04a');
     else if (m.exhausted || m.state === 'Saída cheia' || (m.eff < 0.6 && m.def.behavior === 'complex')) this.alert(cx, y - 4, '#ffd04a');
+  }
+
+  /** Haste e broca girando, entrando no buraco até a frente de escavação. */
+  private drawDrillBit(m: Machine) {
+    const ctx = this.ctx;
+    const [dx, dy] = DIRS[m.dir];
+    const w = m.def.w * TILE, h = m.def.h * TILE;
+    const cx = m.tx * TILE + w / 2, cy = m.ty * TILE + h / 2;
+    const ex = dx ? (dx > 0 ? m.tx * TILE + w : m.tx * TILE) : cx, ey = dy ? (dy > 0 ? m.ty * TILE + h : m.ty * TILE) : cy;
+    const len = Math.min(m.depth, 60) * CELL + 2;
+    const spin = Math.floor(this.time * (m.working ? 20 : 0)) % 4;
+    // haste
+    for (let k = 0; k < len; k += 2) {
+      const px = ex + dx * k, py = ey + dy * k;
+      ctx.fillStyle = (k / 2 + spin) % 2 ? '#5a5e68' : '#7a7e8a';
+      if (dx) ctx.fillRect(px, py - 2, 2, 4); else ctx.fillRect(px - 2, py, 4, 2);
+    }
+    // broca (cone com espiral)
+    const bx = ex + dx * len, by = ey + dy * len;
+    for (let k = 0; k < 9; k++) {
+      const half = 5 - k * 0.55;
+      ctx.fillStyle = (k + spin) % 2 ? '#c8ccd6' : '#e8962a';
+      if (dx) ctx.fillRect(bx + dx * k, by - half, 1, half * 2); else ctx.fillRect(bx - half, by + dy * k, half * 2, 1);
+    }
+    if (m.working && Math.random() < 0.4) this.g.fx.sparks(bx + dx * 9, by + dy * 9, [255, 200, 120], 1);
   }
 
   private alert(x: number, y: number, col: string) {
@@ -384,26 +420,6 @@ export class Renderer {
         ctx.strokeRect(fx, fy, dx ? d : w, dy ? d : w);
       }
     }
-    void WORLD_TILES;
-  }
-
-  private drawFog(L: number, T: number, R: number, B: number, z: number) {
-    const g = this.g, ctx = this.ctx;
-    const t0x = Math.floor(L / TILE) - 1, t0y = Math.floor(T / TILE) - 1;
-    const tw = Math.ceil((R - L) / TILE) + 3, th = Math.ceil((B - T) / TILE) + 3;
-    if (this.fog.width !== tw || this.fog.height !== th) { this.fog.width = tw; this.fog.height = th; this.fogImg = this.fctx.createImageData(tw, th); }
-    const img = this.fogImg!; const d = img.data;
-    const ex = g.world.explored;
-    for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
-      const tx = t0x + x, ty = t0y + y;
-      const o = (y * tw + x) * 4;
-      const seen = tx >= 0 && ty >= 0 && tx < WORLD_TILES && ty < WORLD_TILES && ex[ty * WORLD_TILES + tx];
-      d[o] = 0; d[o + 1] = 0; d[o + 2] = 0; d[o + 3] = seen ? 0 : 255;
-    }
-    this.fctx.putImageData(img, 0, 0);
-    ctx.imageSmoothingEnabled = true;
-    const sx = (t0x * TILE - L) * z, sy = (t0y * TILE - T) * z;
-    ctx.drawImage(this.fog, sx - TILE * z * 0.5, sy - TILE * z * 0.5, tw * TILE * z, th * TILE * z);
   }
 
   private drawOverlayTexts(L: number, T: number, z: number) {

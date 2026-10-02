@@ -69,12 +69,17 @@ export class Lighting {
   add(x: number, y: number, r: number, c: C3, a = 1) { this.lights.push({ x, y, r, c, a }); }
 
   /** sx, sy: conversão mundo->tela; zoom; ambient: cor escura do setor; darkness 0..1 */
-  render(camX: number, camY: number, zoom: number, w: number, h: number, ambient: C3, darkness: number) {
+  render(camX: number, camY: number, zoom: number, w: number, h: number, ambient: C3, darkness: number, surfacePx = -1e9, top = darkness) {
     const s = this.scale * zoom;
     const d = this.dctx, g = this.gctx;
     d.globalCompositeOperation = 'source-over';
-    d.fillStyle = `rgba(${ambient[0]},${ambient[1]},${ambient[2]},${darkness})`;
     d.clearRect(0, 0, this.dark.width, this.dark.height);
+    // vista lateral: claro acima do chão, escurece com a profundidade
+    const sy = (surfacePx - camY) * s;
+    const gr = d.createLinearGradient(0, sy, 0, sy + 260 * s);
+    const c = `${ambient[0]},${ambient[1]},${ambient[2]}`;
+    gr.addColorStop(0, `rgba(${c},${top})`); gr.addColorStop(1, `rgba(${c},${darkness})`);
+    d.fillStyle = gr;
     d.fillRect(0, 0, this.dark.width, this.dark.height);
     d.globalCompositeOperation = 'destination-out';
     g.clearRect(0, 0, this.glow.width, this.glow.height);

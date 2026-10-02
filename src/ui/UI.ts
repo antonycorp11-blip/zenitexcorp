@@ -1,10 +1,10 @@
 import { fmtInt, fmtShort, fmtMass, fmtTime } from '../core/math';
-import { TILE, WORLD_TILES, WORLD_PX } from '../core/constants';
+import { TILE, WORLD_TW, WORLD_TH, WORLD_PX_W, WORLD_PX_H, WORLD_W, WORLD_H, CELL } from '../core/constants';
 import { SECTORS, HAZARD_NAMES, type HazardKey } from '../data/sectors';
 import { SPEAKERS } from '../data/dialogue';
 import { ITEM, TOP_BAR_ITEMS, itemName } from '../data/items';
 import { SLOGANS } from '../data/slogans';
-import { MACHINE, MACHINES } from '../data/machines';
+import { MACHINE, MACHINES, nextDir } from '../data/machines';
 import { rawOf, compOf } from '../data/composition';
 import type { LoreDef } from '../data/lore';
 import type { Game } from '../Game';
@@ -63,7 +63,7 @@ export class UI {
       button.addEventListener('click', () => {
         const action = button.dataset.buildAction;
         if (action === 'confirm') g.confirmBuild();
-        else if (action === 'rotate') g.build.dir = (g.build.dir + 1) % 4;
+        else if (action === 'rotate') g.build.dir = nextDir(MACHINE[g.build.key ?? ''], g.build.dir);
         else if (action === 'cancel') g.exitBuild();
       });
     });
@@ -424,38 +424,22 @@ export class UI {
     const g = this.g, c = this.mctx;
     const W = this.minimap.width, H = this.minimap.height;
     const p = g.player;
-    const ptx = Math.floor(p.x / TILE), pty = Math.floor(p.y / TILE);
-    const scale = 1.5; // px por tile
-    const tw = Math.ceil(W / scale), th = Math.ceil(H / scale);
-    const img = c.createImageData(tw, th);
-    const d = img.data;
-    for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
-      const tx = ptx - (tw >> 1) + x, ty = pty - (th >> 1) + y;
-      const o = (y * tw + x) * 4;
-      if (tx < 0 || ty < 0 || tx >= WORLD_TILES || ty >= WORLD_TILES || !g.world.explored[ty * WORLD_TILES + tx]) { d[o + 3] = 255; continue; }
-      const s = g.world.sectorTiles[ty * WORLD_TILES + tx];
-      const col = s ? hexRgb(SECTORS[s - 1].accent) : [20, 20, 20];
-      const cx = tx * 4 + 2, cy = ty * 4 + 2;
-      const solid = g.world.solidAt(cx, cy);
-      const k = solid ? 0.35 : 0.85;
-      d[o] = col[0] * k; d[o + 1] = col[1] * k; d[o + 2] = col[2] * k; d[o + 3] = 255;
-      if (g.world.occ[ty * WORLD_TILES + tx]) { d[o] = 255; d[o + 1] = 170; d[o + 2] = 60; }
-    }
-    const tmp = this.tmpCanvas(tw, th);
-    tmp.getContext('2d')!.putImageData(img, 0, 0);
+    const ov = g.terrain.overview(performance.now());
+    // 1 px do minimapa = 2 células; centrado no jogador
+    const sx = p.x / CELL / 2 - W / 2, sy = p.y / CELL / 2 - H / 2;
+    c.fillStyle = '#05080c'; c.fillRect(0, 0, W, H);
     c.imageSmoothingEnabled = false;
-    c.drawImage(tmp, 0, 0, tw * scale, th * scale);
-    c.fillStyle = '#fff'; c.fillRect(W / 2 - 2, H / 2 - 2, 4, 4);
-    c.strokeStyle = 'rgba(255,255,255,0.6)';
-    const vw = (g.camera.w / g.camera.zoom) / TILE * scale, vh = (g.camera.h / g.camera.zoom) / TILE * scale;
+    c.drawImage(ov, -sx, -sy);
+    const P = (wx: number, wy: number): [number, number] => [wx / CELL / 2 - sx, wy / CELL / 2 - sy];
+    for (const m of g.machines.list) { const [x, y] = P(m.tx * TILE, m.ty * TILE); c.fillStyle = m.broken ? '#ff4a3a' : '#ffb04a'; c.fillRect(x, y, m.def.w * 2, m.def.h * 2); }
+    for (const m of g.scanner.mapMarkers) { const [x, y] = P(m.x, m.y); if (x < 0 || y < 0 || x > W || y > H) continue; c.fillStyle = m.color; c.fillRect(x - 2, y - 2, 4, 4); }
+    c.fillStyle = '#fff'; c.fillRect(W / 2 - 2, H / 2 - 3, 4, 5);
+    c.strokeStyle = 'rgba(255,255,255,0.5)';
+    const vw = (g.camera.w / g.camera.zoom) / CELL / 2, vh = (g.camera.h / g.camera.zoom) / CELL / 2;
     c.strokeRect(W / 2 - vw / 2, H / 2 - vh / 2, vw, vh);
-    for (const m of g.scanner.mapMarkers) {
-      const x = W / 2 + (m.x / TILE - ptx) * scale, y = H / 2 + (m.y / TILE - pty) * scale;
-      if (x < 0 || y < 0 || x > W || y > H) continue;
-      c.fillStyle = m.color; c.fillRect(x - 2, y - 2, 4, 4);
-    }
-    const sec = g.world.sectorAtPx(p.x, p.y) || 1;
-    this.el.mmName.textContent = `${SECTORS[sec - 1].name} · ${SECTORS[sec - 1].code}`;
+    const depth = Math.max(0, Math.round((p.y / CELL - g.world.gen.surfaceAt(p.x / CELL)) * 0.5));
+    this.el.mmName.textContent = `${g.planet.def.name} · ${depth > 0 ? depth + ' m de profundidade' : 'superfície'}`;
+    void WORLD_TW; void WORLD_TH; void WORLD_PX_W; void WORLD_PX_H; void WORLD_W; void WORLD_H;
   }
   private _tmp: HTMLCanvasElement | null = null;
   private tmpCanvas(w: number, h: number) { if (!this._tmp) this._tmp = document.createElement('canvas'); if (this._tmp.width !== w) this._tmp.width = w; if (this._tmp.height !== h) this._tmp.height = h; return this._tmp; }

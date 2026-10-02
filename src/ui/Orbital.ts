@@ -1,4 +1,4 @@
-import { WORLD_TILES } from '../core/constants';
+import { WORLD_TW as WORLD_TILES } from '../core/constants';
 import { fbm, valueNoise } from '../core/noise';
 import { SECTORS } from '../data/sectors';
 import type { Game } from '../Game';

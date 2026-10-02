@@ -1,5 +1,5 @@
 import './data/economy';
-import { CELL, TILE, SIM_DT, WORLD_TILES } from './core/constants';
+import { CELL, TILE, SIM_DT, WORLD_TW, SURFACE_Y } from './core/constants';
 import { bus, EventBus } from './core/events';
 import { World } from './world/World';
 import { Sprites } from './render/Sprites';
@@ -28,7 +28,7 @@ import { Mining } from './systems/Mining';
 import { Hazards } from './systems/Hazards';
 import { Stats } from './systems/Stats';
 import { saveSlot, packBytes, unpackBytes } from './systems/Save';
-import { MACHINE } from './data/machines';
+import { MACHINE, nextDir } from './data/machines';
 import { SECTORS, LAYER_COUNT } from './data/sectors';
 import { ITEM } from './data/items';
 import { RAW_BY_LAYER, separate, KG_PER_UNIT } from './data/composition';
@@ -118,13 +118,13 @@ export class Game {
   /** Base inicial: cápsula, gerador e terminal orbital na clareira de pouso. */
   /** Cápsula (Centro de Comando) e terminal no poço de pouso da camada atual. */
   setupBase() {
+    // vista lateral: a base fica em cima do platô, apoiada no chão
     const L = this.world.gen.landing;
-    const tx = Math.floor((L.x * CELL) / TILE), ty = Math.floor((L.y * CELL) / TILE);
-    this.world.ensureAroundPx(L.x * CELL, L.y * CELL, 400);
-    this.machines.place('comando', tx - 1, ty - 1, 0);
-    this.machines.place('terminal_orbital', tx - 5, ty - 2, 0);
+    const tx = Math.floor((L.x * CELL) / TILE), gy = Math.floor((SURFACE_Y * CELL) / TILE);
+    this.machines.place('comando', tx - 1, gy - 3, 0);
+    this.machines.place('terminal_orbital', tx - 7, gy - 3, 0);
     this.placeAnalyzer();
-    this.player.x = (tx + 0.5) * TILE; this.player.y = (ty + 3) * TILE;
+    this.player.x = (tx + 4.5) * TILE; this.player.y = gy * TILE;
     this.camera.x = this.player.x; this.camera.y = this.player.y;
     this.world.reveal(this.player.x, this.player.y, 22);
   }
@@ -133,9 +133,8 @@ export class Game {
   placeAnalyzer() {
     if (this.machines.count('analisador')) return;
     const c = this.machines.list.find(m => m.def.behavior === 'command'); if (!c) return;
-    for (const [dx, dy] of [[4, 0], [4, 2], [-2, 4], [1, 4], [4, -2], [-3, -3], [1, -3], [6, 0]]) {
-      if (this.machines.place('analisador', c.tx + dx, c.ty + dy, 0)) return;
-    }
+    const gy = Math.floor((SURFACE_Y * CELL) / TILE);
+    for (const dx of [5, 7, 9, -9, -11, 11]) if (this.machines.place('analisador', c.tx + dx, gy - 2, 0)) return;
   }
 
   /** Material bruto disponível para o Analisador (mochila + estoque). */
@@ -194,7 +193,7 @@ export class Game {
   basePos(): [number, number] {
     const c = this.machines.list.find(m => m.def.behavior === 'command');
     if (!c) return [this.player.x, this.player.y];
-    return [(c.tx + 1.5) * TILE, (c.ty + 3.6) * TILE];
+    return [(c.tx + 1.5) * TILE, (c.ty + c.def.h) * TILE];
   }
 
   nearPowerSource(x: number, y: number) {
@@ -260,7 +259,7 @@ export class Game {
     const dpr = cam.w / window.innerWidth;
     if (inp.touch && inp.aimActive) {
       const d = Math.hypot(inp.aimX, inp.aimY) || 1;
-      inp.worldX = this.player.x + (inp.aimX / d) * 60; inp.worldY = this.player.y - 4 + (inp.aimY / d) * 60;
+      inp.worldX = this.player.x + (inp.aimX / d) * 60; inp.worldY = this.player.y - 9 + (inp.aimY / d) * 60;
     } else {
       inp.worldX = cam.left() + (inp.mouseX * dpr) / cam.zoom;
       inp.worldY = cam.top() + (inp.mouseY * dpr) / cam.zoom;
@@ -290,7 +289,7 @@ export class Game {
     while (this.acc >= SIM_DT && n++ < 5) { this.acc -= SIM_DT; this.sim(SIM_DT); }
     if (n >= 5) this.acc = 0;
 
-    cam.follow(this.player.x, this.player.y - 6, dt);
+    cam.follow(this.player.x, this.player.y - 10, dt);
     this.fx.update(dt);
     this.updateAudio(dt);
     this.saveT += dt;
@@ -308,6 +307,8 @@ export class Game {
     this.mining.updatePlayer(dt, mining, this.input.worldX, this.input.worldY);
     this.mining.update(dt);
     this.machines.update(dt);
+    // areia: dois passos por tick (queda rápida)
+    this.world.simulate(); this.world.simulate();
     this.robots.update(dt);
     this.sectors.update(dt);
     this.planet.update(this.time);
@@ -325,7 +326,7 @@ export class Game {
     this.finalLogic();
     // ambiente: brasas, bolhas, poeira
     const sec = this.world.sectorAtPx(p.x, p.y);
-    if (Math.random() < 0.3) {
+    if (Math.random() < 0.3 && p.y > (this.world.gen.landing.y + 20) * CELL) {
       const x = p.x + (Math.random() - 0.5) * 500, y = p.y + (Math.random() - 0.5) * 300;
       if ([3, 6, 7].includes(sec)) this.fx.ember(x, y, [255, 120 + Math.random() * 80, 40]);
       else if ([1, 2, 5].includes(sec)) { if (sec !== 1 || Math.random() < 0.3) this.fx.ember(x, y, sec === 2 ? [160, 255, 60] : sec === 5 ? [200, 255, 220] : [80, 255, 140]); }
@@ -354,7 +355,7 @@ export class Game {
     if (inp.pressed('h') || inp.pressed('F1')) ui.open('help');
     if (inp.pressed('f')) this.scanner.pulse();
     if (inp.pressed('x')) { this.exitBuild(); this.build.active = true; this.build.deconstruct = true; }
-    if (inp.pressed('r')) this.build.dir = (this.build.dir + 1) % 4;
+    if (inp.pressed('r')) this.build.dir = nextDir(MACHINE[this.build.key ?? ''], this.build.dir);
     if (inp.pressed('q') && this.build.active) this.exitBuild();
     if (inp.pressed(' ')) this.dialogue.skip();
 
@@ -426,6 +427,13 @@ export class Game {
     const px = Math.floor(this.player.x / TILE), py = Math.floor(this.player.y / TILE);
     if (!def) return [px + 2, py];
     const hw = Math.floor((def.w - 1) / 2), hh = Math.floor((def.h - 1) / 2);
+    // vista lateral: primeiro tenta no chão em que o jogador está, para os lados
+    const foot = Math.floor((this.player.y - 1) / TILE);
+    for (let k = 1; k <= 14; k++) for (const sgn of [1, -1]) {
+      const ox = px + sgn * k - (sgn < 0 ? def.w - 1 : 0), oy = foot - def.h + 1;
+      if (px >= ox - 1 && px <= ox + def.w) continue;
+      if (!this.machines.canPlace(def, ox, oy)) return [ox + hw, oy + hh];
+    }
     for (let r = 1; r <= 12; r++) {
       for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
@@ -443,46 +451,16 @@ export class Game {
     this.build.active = false; this.build.deconstruct = false; this.build.key = null; this.build.anchor = null; this.build.dragging = false; this.input.placeMode = false; }
   isLineBuild() { const d = this.build.key ? MACHINE[this.build.key] : null; return !!d && d.behavior === 'belt'; }
 
-  /**
-   * Linha de esteiras em L. Escolhe a ordem (horizontal ou vertical primeiro) que desvia de obstáculos
-   * e não aponta para dentro de quem fornece; a última esteira aponta para o armazém/máquina encostada.
-   */
+  /** Linha de esteiras (vista lateral): horizontal, na altura do primeiro toque, andando para o lado arrastado. */
   beltPath(): [number, number, number][] {
     const b = this.build;
-    if (!b.anchor) return [[b.tx, b.ty, b.dir]];
-    const [ax, ay] = b.anchor, ex = b.tx, ey = b.ty;
-    const dirOf = (dx: number, dy: number) => (dx > 0 ? 0 : dy > 0 ? 1 : dx < 0 ? 2 : 3);
-    const D = [[1, 0], [0, 1], [-1, 0], [0, -1]];
-    const SINK = new Set(['storage', 'link', 'command', 'terminal', 'launchpad', 'crusher', 'refinery', 'purifier', 'foundry', 'synth', 'splitter', 'reactor']);
-    const def = MACHINE[b.key ?? 'esteira'] ?? MACHINE.esteira;
-    const build = (hFirst: boolean) => {
-      const pts: [number, number][] = [];
-      let x = ax, y = ay;
-      pts.push([x, y]);
-      const hx = () => { while (x !== ex) { x += Math.sign(ex - x); pts.push([x, y]); } };
-      const vy = () => { while (y !== ey) { y += Math.sign(ey - y); pts.push([x, y]); } };
-      if (hFirst) { hx(); vy(); } else { vy(); hx(); }
-      if (pts.length > 120) pts.length = 120;
-      const out: [number, number, number][] = pts.map(([px, py], i) => {
-        if (pts.length === 1) return [px, py, b.dir];
-        const [nx, ny] = i < pts.length - 1 ? pts[i + 1] : [px * 2 - pts[i - 1][0], py * 2 - pts[i - 1][1]];
-        return [px, py, dirOf(nx - px, ny - py)];
-      });
-      // a ponta aponta para quem recebe, se houver um encostado
-      const last = out[out.length - 1];
-      const order = [last[2], 0, 1, 2, 3];
-      for (const d of order) {
-        const m = this.machines.at(last[0] + D[d][0], last[1] + D[d][1]);
-        if (m && !m.belt && SINK.has(m.def.behavior)) { last[2] = d; break; }
-      }
-      let score = 0;
-      for (const [px, py] of out) { const m = this.machines.at(px, py); if (!(m?.belt) && this.machines.canPlace(def, px, py)) score += 10; }
-      const first = out[0], into = this.machines.at(first[0] + D[first[2]][0], first[1] + D[first[2]][1]);
-      if (into && !into.belt && !SINK.has(into.def.behavior)) score += 25;   // apontaria para dentro da perfuradora
-      return { out, score };
-    };
-    const h = build(true), v = build(false);
-    return (v.score < h.score ? v : h).out;
+    if (!b.anchor) return [[b.tx, b.ty, b.dir === 2 ? 2 : 0]];
+    const [ax, ay] = b.anchor, ex = b.tx;
+    const dir = ex > ax ? 0 : ex < ax ? 2 : (b.dir === 2 ? 2 : 0);
+    const out: [number, number, number][] = [];
+    const step = ex >= ax ? 1 : -1;
+    for (let x = ax; ; x += step) { out.push([x, ay, dir]); if (x === ex || out.length >= 120) break; }
+    return out;
   }
 
   private placeBeltLine() {
@@ -724,7 +702,7 @@ export class Game {
   // ---------------- save ----------------
   serialize() {
     return {
-      v: 2, opts: this.opts, time: this.time, flags: this.flags, selected: this.selected, hotbar: this.hotbar,
+      v: 3, opts: this.opts, time: this.time, flags: this.flags, selected: this.selected, hotbar: this.hotbar,
       chunks: this.world.serializeChunks(), explored: packBytes(this.world.explored),
       regrow: this.world.regrowQueue,
       player: this.player.serialize(), pack: { items: this.pack.items, level: this.pack.level, g: this.pack.g },
@@ -805,4 +783,4 @@ export class Game {
   }
 }
 
-export { WORLD_TILES };
+export { WORLD_TW };
