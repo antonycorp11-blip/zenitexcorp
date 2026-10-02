@@ -290,7 +290,8 @@ export class World {
   tileSupported(tx: number, ty: number): boolean {
     const y = (ty + 1) * TILE_CELLS;
     if (ty + 1 < WORLD_TH && this.occ[(ty + 1) * WORLD_TW + tx]) return true;
-    for (let x = 0; x < TILE_CELLS; x++) if (IS_BLOCKING[this.get(tx * TILE_CELLS + x, y)]) return true;
+    // chão irregular (rampa, pedrinhas): vale terreno até 1 tile abaixo (a máquina nivela o vão ao ser construída)
+    for (let dy = 0; dy < TILE_CELLS; dy++) for (let x = 0; x < TILE_CELLS; x++) if (IS_BLOCKING[this.get(tx * TILE_CELLS + x, y + dy)]) return true;
     return false;
   }
   tileHasLiquid(tx: number, ty: number): boolean {

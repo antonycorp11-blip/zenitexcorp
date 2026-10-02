@@ -278,11 +278,12 @@ export class Game {
         // esteira: o toque inicial fixa o começo da linha; arrastar estende até o dedo
         if (line && inp.placeStart) b.anchor = [tx, ty];
         b.tx = tx; b.ty = ty;
+        if (!line) this.snapBuild();
         inp.placeDirty = false; inp.placeStart = false;
       } else if (!inp.touch && !inp.uiCapture) {
         if (line && inp.clickPrimary()) { b.anchor = [Math.floor(inp.worldX / TILE), Math.floor(inp.worldY / TILE)]; b.dragging = true; }
         if (b.dragging && !inp.primary) b.dragging = false;
-        if (inp.mouseMoved && (!line || !b.anchor || b.dragging)) { b.tx = Math.floor(inp.worldX / TILE); b.ty = Math.floor(inp.worldY / TILE); }
+        if (inp.mouseMoved && (!line || !b.anchor || b.dragging)) { b.tx = Math.floor(inp.worldX / TILE); b.ty = Math.floor(inp.worldY / TILE); if (!line) this.snapBuild(); }
       }
     }
     if (inp.wheel && !inp.uiCapture && !inp.down('Control')) { cam.targetZoom = Math.max(dpr, Math.min(4 * dpr, cam.targetZoom - inp.wheel * 0.25 * dpr)); this.flags.userZoom = true; }
@@ -429,6 +430,15 @@ export class Game {
     const rest: Record<string, number> = {};
     for (const k in cost) { if (SILO_KEYS.has(k)) this.machines.siloTake(k, cost[k]); else rest[k] = cost[k]; }
     return this.stock.pay(rest, this.pack.items);
+  }
+
+  /** prévia de construção: se o tile apontado não serve (no ar ou dentro do chão), encaixa no chão mais próximo logo acima/abaixo */
+  private snapBuild() {
+    const b = this.build, def = b.key ? MACHINE[b.key] : null;
+    if (!def || this.ui.tutorial.currentBp()) return;
+    const ox = b.tx - Math.floor((def.w - 1) / 2), oy = b.ty - Math.floor((def.h - 1) / 2);
+    if (!this.machines.canPlace(def, ox, oy)) return;
+    for (const dy of [1, -1, 2, -2, 3, 4]) if (!this.machines.canPlace(def, ox, oy + dy)) { b.ty += dy; return; }
   }
 
   canBuildKey(k: string) { const d = MACHINE[k]; return !!d && (!d.research || this.research.has(d.research)) && d.behavior !== 'command'; }

@@ -132,6 +132,16 @@ export class Machines {
     for (let y = 0; y < def.h; y++) for (let x = 0; x < def.w; x++) for (const gr of this.g.world.clearTile(tx + x, ty + y)) {
       const k = GRAIN_ITEM[gr.m]; if (k) this.g.stock.add(k, k === 'bloco_massa' ? 1 : GRAIN_KG, false, gr.a / 40);
     }
+    // fundação: no chão irregular, preenche o vão embaixo da máquina com o terreno de baixo (fica assentada, sem flutuar)
+    if (!['belt', 'riser', 'lamp', 'support', 'scaffold', 'filter', 'launcher', 'tube', 'platform'].includes(def.behavior)) {
+      const w = this.g.world, y0 = (ty + def.h) * TILE_CELLS;
+      if (!this.at(tx, ty + def.h)) for (let x = tx * TILE_CELLS; x < (tx + def.w) * TILE_CELLS; x++) {
+        let d = 0; while (d < TILE_CELLS && !IS_SOLID[w.get(x, y0 + d)]) d++;
+        if (d >= TILE_CELLS) continue;
+        const mat = w.get(x, y0 + d);
+        for (let k = 0; k < d; k++) if (w.get(x, y0 + k) === MAT.AIR) w.set(x, y0 + k, mat);
+      }
+    }
     this.add(m);
     if (def.behavior === 'dronepad') this.g.robots.spawnForPad(m);
     void free;
