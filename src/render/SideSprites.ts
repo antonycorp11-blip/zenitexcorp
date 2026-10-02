@@ -103,11 +103,108 @@ class Pen {
   }
 }
 
+/** Escala dos sprites: desenhados em alta resolução e reduzidos na tela (visual HD). */
+export const SPRITE_K = 4;
+
+/**
+ * Caneta VETORIAL (HD ilustrado): mesmas operações da caneta de pixels, mas com cantos arredondados,
+ * degradês, vidro com reflexo e contornos finos. Coordenadas lógicas (16 por tile), canvas em SPRITE_K×.
+ */
+class VPen extends Pen {
+  private rr(a: number, b: number, w: number, h: number, r: number) { const x = this.x; x.beginPath(); x.roundRect(a, b, w, h, Math.min(r, w / 2, h / 2)); }
+  private grad(a: number, b: number, h: number, c: readonly number[], top = 1.28, bot = 0.68) {
+    const g = this.x.createLinearGradient(0, b, 0, b + h);
+    g.addColorStop(0, css(sh(c, top))); g.addColorStop(0.45, css(c)); g.addColorStop(1, css(sh(c, bot)));
+    return g;
+  }
+  private outline(w = 0.7) { this.x.strokeStyle = 'rgba(16,18,24,0.95)'; this.x.lineWidth = w; this.x.stroke(); }
+  r(a: number, b: number, w: number, h: number, c: readonly number[], al = 1) {
+    if (w <= 0 || h <= 0) return;
+    this.x.fillStyle = css(c, al); this.x.fillRect(a, b, w, h);
+  }
+  px(a: number, b: number, c: readonly number[], al = 1) { this.x.fillStyle = css(c, al); this.x.beginPath(); this.x.arc(a + 0.5, b + 0.5, 0.55, 0, 7); this.x.fill(); }
+  panel(a: number, b: number, w: number, h: number, c: readonly number[], o: { seams?: number; rivets?: boolean; ink?: boolean } = {}) {
+    const x = this.x;
+    this.rr(a, b, w, h, 1.6); x.fillStyle = this.grad(a, b, h, c); x.fill(); if (o.ink !== false) this.outline();
+    // brilho superior
+    this.rr(a + 0.8, b + 0.6, w - 1.6, Math.min(2, h * 0.2), 1); x.fillStyle = 'rgba(255,255,255,0.22)'; x.fill();
+    if (o.seams) for (let k = o.seams; k < w - 1; k += o.seams) { x.fillStyle = css(sh(c, 0.7), 0.7); x.fillRect(a + k, b + 1, 0.5, h - 2); x.fillStyle = 'rgba(255,255,255,0.15)'; x.fillRect(a + k + 0.5, b + 1, 0.4, h - 2); }
+    if (o.rivets && w > 6 && h > 6) for (const [rx, ry] of [[1.8, 1.8], [w - 1.8, 1.8], [1.8, h - 1.8], [w - 1.8, h - 1.8]]) {
+      x.fillStyle = css(sh(c, 0.55)); x.beginPath(); x.arc(a + rx, b + ry + 0.15, 0.7, 0, 7); x.fill();
+      x.fillStyle = css(sh(c, 1.5)); x.beginPath(); x.arc(a + rx - 0.1, b + ry - 0.1, 0.45, 0, 7); x.fill();
+    }
+  }
+  hazard(a: number, b: number, w: number, h: number) {
+    const x = this.x;
+    x.save(); this.rr(a, b, w, h, 0.6); x.clip();
+    x.fillStyle = css(P.yellow); x.fillRect(a, b, w, h);
+    x.fillStyle = css(P.ink);
+    for (let k = -h; k < w + h; k += 4) { x.beginPath(); x.moveTo(a + k, b + h); x.lineTo(a + k + 2, b + h); x.lineTo(a + k + 2 + h, b); x.lineTo(a + k + h, b); x.closePath(); x.fill(); }
+    x.restore();
+  }
+  window(a: number, b: number, w: number, h: number, glow: readonly number[] = P.glassL) {
+    const x = this.x;
+    this.rr(a, b, w, h, 1.2);
+    const g = x.createLinearGradient(a, b, a + w * 0.6, b + h);
+    g.addColorStop(0, css(sh(glow, 0.8))); g.addColorStop(1, css(sh(glow, 0.28)));
+    x.fillStyle = g; x.fill(); this.outline(0.6);
+    // reflexo diagonal
+    x.save(); this.rr(a, b, w, h, 1.2); x.clip();
+    x.fillStyle = 'rgba(255,255,255,0.35)';
+    x.beginPath(); x.moveTo(a + w * 0.15, b); x.lineTo(a + w * 0.4, b); x.lineTo(a + w * 0.1, b + h); x.lineTo(a - w * 0.15, b + h); x.closePath(); x.fill();
+    x.restore();
+  }
+  light(a: number, b: number, c: readonly number[]) {
+    const x = this.x, cx = a + 1, cy = b + 1;
+    const g = x.createRadialGradient(cx, cy, 0, cx, cy, 3);
+    g.addColorStop(0, css(c, 0.6)); g.addColorStop(1, css(c, 0));
+    x.fillStyle = g; x.fillRect(cx - 3, cy - 3, 6, 6);
+    x.beginPath(); x.arc(cx, cy, 1.2, 0, 7); x.fillStyle = css(c); x.fill(); this.outline(0.4);
+    x.beginPath(); x.arc(cx - 0.35, cy - 0.35, 0.4, 0, 7); x.fillStyle = 'rgba(255,255,255,0.9)'; x.fill();
+  }
+  hopper(a: number, b: number, w: number, h: number, c: readonly number[] = P.st) {
+    const x = this.x, ins = w * 0.28;
+    x.beginPath(); x.moveTo(a, b); x.lineTo(a + w, b); x.lineTo(a + w - ins, b + h); x.lineTo(a + ins, b + h); x.closePath();
+    x.fillStyle = this.grad(a, b, h, c, 1.4, 0.7); x.fill(); this.outline(0.6);
+    x.fillStyle = 'rgba(10,10,14,0.85)'; x.beginPath(); x.ellipse(a + w / 2, b + 0.6, w / 2 - 0.8, 0.9, 0, 0, 7); x.fill();
+  }
+  chute(a: number, b: number, right: boolean, c: readonly number[] = P.or) {
+    const x = this.x, d = right ? 1 : -1, x0 = right ? a - 5 : a + 5;
+    x.beginPath(); x.moveTo(x0, b - 1); x.lineTo(x0 + d * 6, b + 2); x.lineTo(x0 + d * 6, b + 4.5); x.lineTo(x0, b + 2); x.closePath();
+    x.fillStyle = this.grad(x0, b - 1, 5, c); x.fill(); this.outline(0.5);
+  }
+  pipe(a: number, b: number, w: number, h: number, c: readonly number[] = P.stL) {
+    const x = this.x;
+    const g = w > h ? x.createLinearGradient(0, b, 0, b + h) : x.createLinearGradient(a, 0, a + w, 0);
+    g.addColorStop(0, css(sh(c, 0.7))); g.addColorStop(0.35, css(sh(c, 1.35))); g.addColorStop(1, css(sh(c, 0.55)));
+    this.rr(a, b, w, h, Math.min(w, h) / 2); x.fillStyle = g; x.fill(); this.outline(0.5);
+  }
+  tank(a: number, b: number, w: number, h: number, c: readonly number[]) {
+    const x = this.x;
+    const g = x.createLinearGradient(a, 0, a + w, 0);
+    g.addColorStop(0, css(sh(c, 0.62))); g.addColorStop(0.3, css(sh(c, 1.35))); g.addColorStop(0.7, css(c)); g.addColorStop(1, css(sh(c, 0.5)));
+    this.rr(a, b, w, h, w * 0.25); x.fillStyle = g; x.fill(); this.outline();
+    for (let k = 6; k < h - 3; k += 7) { x.fillStyle = 'rgba(0,0,0,0.25)'; x.fillRect(a + 0.5, b + k, w - 1, 0.7); }
+  }
+  legs(a: number, b: number, w: number, h: number) {
+    for (const lx of [a, a + w - 2]) { this.rr(lx, b, 2, h, 0.6); this.x.fillStyle = this.grad(lx, b, h, P.stD, 1.5, 0.8); this.x.fill(); this.outline(0.4); }
+    this.rr(a - 1, b + h - 1, 4, 1.2, 0.5); this.x.fillStyle = css(P.stD); this.x.fill();
+    this.rr(a + w - 3, b + h - 1, 4, 1.2, 0.5); this.x.fill();
+  }
+  logo(cx: number, cy: number) {
+    const x = this.x;
+    x.beginPath(); for (let i = 0; i < 6; i++) { const ang = i / 6 * Math.PI * 2 - Math.PI / 2; x.lineTo(cx + Math.cos(ang) * 3, cy + Math.sin(ang) * 3); } x.closePath();
+    x.fillStyle = css(P.or); x.fill(); this.outline(0.5);
+    x.fillStyle = css(P.ink); x.fillRect(cx - 1.2, cy - 1.2, 2.4, 0.6); x.fillRect(cx - 1.2, cy + 0.6, 2.4, 0.6); x.fillRect(cx - 0.3, cy - 1.2, 0.6, 2.4);
+  }
+}
+
 function canvas(w: number, h: number): [HTMLCanvasElement, Pen] {
   const c = document.createElement('canvas');
-  c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h));
-  const x = c.getContext('2d')!; x.imageSmoothingEnabled = false;
-  return [c, new Pen(x)];
+  c.width = Math.max(1, Math.ceil(w * SPRITE_K)); c.height = Math.max(1, Math.ceil(h * SPRITE_K));
+  const x = c.getContext('2d')!; x.imageSmoothingEnabled = true;
+  x.scale(SPRITE_K, SPRITE_K);
+  return [c, new VPen(x)];
 }
 
 /** Altura extra acima da pegada (antenas, chaminés, torres). */
@@ -142,25 +239,21 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
 
   if (k === 'comando') {
     // cápsula de pouso: casco laranja arredondado, janela, pernas, rampa e antena
+    const x = p.x, cx = W / 2, cy = top + 22;
     p.legs(4, bot - 10, W - 8, 10);
-    p.r(1, bot - 3, 10, 2, P.ink); p.r(W - 11, bot - 3, 10, 2, P.ink);
-    const cx = W / 2, cy = top + 22;
-    for (let j = -20; j <= 16; j++) {
-      const half = Math.round(Math.sqrt(Math.max(0, 1 - (j / 21) ** 2)) * 20);
-      p.r(cx - half - 1, cy + j, half * 2 + 2, 1, P.ink);
-      for (let i = -half; i < half; i++) {
-        const t = (i + half) / (half * 2 || 1);
-        const kk = 0.7 + Math.sin(t * Math.PI) * 0.45 - (j / 30);
-        p.px(cx + i, cy + j, sh(P.or, kk));
-      }
-    }
-    p.r(cx - 20, cy + 6, 40, 2, P.orDD); p.r(cx - 20, cy - 6, 40, 1, P.orL);
-    p.hazard(cx - 16, cy + 10, 32, 3);
+    p.pipe(cx - 0.8, top - 20, 1.6, 12, P.stL); p.light(cx - 1, top - 23, P.red);
+    x.beginPath(); x.ellipse(cx, cy, 20.5, 20.5, 0, Math.PI, 0); x.lineTo(cx + 20.5, cy + 12); x.quadraticCurveTo(cx, cy + 18, cx - 20.5, cy + 12); x.closePath();
+    const dg = x.createRadialGradient(cx - 7, cy - 12, 2, cx, cy, 26); dg.addColorStop(0, css(P.orL)); dg.addColorStop(0.55, css(P.or)); dg.addColorStop(1, css(P.orDD));
+    x.fillStyle = dg; x.fill(); x.strokeStyle = 'rgba(16,18,24,0.95)'; x.lineWidth = 0.8; x.stroke();
+    x.save(); x.clip();
+    x.fillStyle = 'rgba(0,0,0,0.25)'; x.fillRect(cx - 22, cy + 6, 44, 2);
+    p.hazard(cx - 18, cy + 9, 36, 3);
+    x.restore();
+    x.fillStyle = 'rgba(255,255,255,0.28)'; x.beginPath(); x.ellipse(cx - 9, cy - 11, 6, 3, -0.6, 0, 7); x.fill();
     p.window(cx - 6, cy - 9, 12, 9);
     p.logo(cx, cy + 2);
-    p.pipe(cx - 1, top - 20, 2, 12, P.stL); p.light(cx - 1, top - 23, P.red);
     p.panel(cx - 7, bot - 9, 14, 8, P.stD, { rivets: true });
-    p.r(cx - 4, bot - 7, 8, 5, [255, 190, 90]); p.r(cx - 4, bot - 7, 8, 1, [255, 240, 200]);   // porta acesa
+    x.beginPath(); x.roundRect(cx - 4, bot - 7, 8, 5, 1); const dgl = x.createLinearGradient(0, bot - 7, 0, bot - 2); dgl.addColorStop(0, '#fff2c8'); dgl.addColorStop(1, '#ffae48'); x.fillStyle = dgl; x.fill();
   } else if (k === 'terminal_orbital') {
     // torre de lançamento com foguete de carga
     p.panel(1, bot - 8, W - 2, 8, P.stD, { seams: 8, rivets: true });
@@ -330,85 +423,100 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
   return c;
 }
 
-/** Personagem de lado (olhando para a direita; o renderizador espelha). 16×22 px, contorno automático. */
+/** Personagem de lado (olhando para a direita; o renderizador espelha). 16×22 lógicos, vetorial. */
 export function drawPlayer(frame: number, suitTier: number, jet: boolean): HTMLCanvasElement {
-  const W = 16, H = 22;
-  const [c, p] = canvas(W, H);
+  const [c, p] = canvas(16, 22);
+  const x = p.x;
   const suit: C3 = suitTier >= 3 ? [226, 228, 236] : P.or;
-  const suitD = sh(suit, 0.68), suitL = sh(suit, 1.25), suitDD = sh(suit, 0.48);
   const walk = frame >= 1 && frame <= 4;
   const ph = (frame - 1) % 4;
-  const step = walk ? [1, 0, -1, 0][ph] : frame === 5 ? 1 : 0;
-  const bob = walk && (ph === 0 || ph === 2) ? 1 : 0;
-  const map: (C3 | null)[] = new Array(W * H).fill(null);
-  const set = (x: number, y: number, col: C3) => { if (x >= 0 && y >= 0 && x < W && y < H) map[y * W + x] = col; };
-  const rect = (x: number, y: number, w: number, h: number, col: C3) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) set(x + i, y + j, col); };
-  // jetpack
-  rect(1, 8 + bob, 4, 8, P.stD); rect(1, 8 + bob, 1, 8, P.st); set(2, 10 + bob, P.cyan); set(2, 12 + bob, P.cyan);
-  rect(2, 16 + bob, 2, 1, P.stDD);
-  // pernas (trás mais escura) e botas
-  const leg = (x: number, off: number, col: C3) => { rect(x + off, 15 + bob, 2, 5 - bob, col); rect(x + off - (off < 0 ? 0 : 0), 20, 3, 2, P.stD); set(x + off + 2, 21, P.stDD); };
-  leg(6, -step, suitDD); leg(9, step, suitD);
-  // tronco
-  rect(5, 8 + bob, 8, 8, suit); rect(5, 8 + bob, 8, 1, suitL); rect(5, 9 + bob, 1, 6, suitL); rect(12, 9 + bob, 1, 6, suitD);
-  rect(5, 13 + bob, 8, 1, P.stD); set(10, 13 + bob, P.yellow);
-  rect(8, 10 + bob, 3, 2, P.stD); set(8, 10 + bob, P.green); set(10, 11 + bob, P.red);
-  // capacete arredondado
-  const hy = bob;
-  rect(6, 0 + hy, 6, 1, suit); rect(5, 1 + hy, 8, 1, suit); rect(4, 2 + hy, 10, 5, suit); rect(5, 7 + hy, 8, 1, suit);
-  rect(6, 0 + hy, 4, 1, suitL); rect(5, 1 + hy, 3, 1, suitL); set(4, 3 + hy, suitL); set(4, 4 + hy, suitL);
-  rect(5, 7 + hy, 8, 1, suitD);
-  // visor
-  rect(9, 2 + hy, 5, 4, [24, 54, 86]); rect(9, 2 + hy, 4, 1, [44, 96, 140]); set(10, 3 + hy, [190, 236, 255]); set(11, 3 + hy, [140, 210, 250]); set(13, 5 + hy, [70, 140, 200]);
-  set(5, 0 + hy, [255, 236, 150]);   // lanterna
-  // pinta e contorno automático
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    if (map[y * W + x]) continue;
-    const n = (x > 0 && map[y * W + x - 1]) || (x < W - 1 && map[y * W + x + 1]) || (y > 0 && map[(y - 1) * W + x]) || (y < H - 1 && map[(y + 1) * W + x]);
-    if (n) p.px(x, y, P.ink);
+  const swing = walk ? [0.45, 0, -0.45, 0][ph] : frame === 5 ? 0.3 : 0;
+  const bob = walk && (ph === 1 || ph === 3) ? 0.6 : 0;
+  const ink = 'rgba(16,18,24,0.95)';
+  const grad = (y0: number, h: number, col: readonly number[], t = 1.3, b = 0.7) => { const g = x.createLinearGradient(0, y0, 0, y0 + h); g.addColorStop(0, css(sh(col, t))); g.addColorStop(1, css(sh(col, b))); return g; };
+  const shape = (f: () => void, fill: string | CanvasGradient, lw = 0.6) => { x.beginPath(); f(); x.fillStyle = fill; x.fill(); x.strokeStyle = ink; x.lineWidth = lw; x.stroke(); };
+  // chama do jetpack
+  if (jet) {
+    const g = x.createLinearGradient(0, 15, 0, 22);
+    g.addColorStop(0, 'rgba(255,250,200,1)'); g.addColorStop(0.4, 'rgba(255,170,60,0.95)'); g.addColorStop(1, 'rgba(255,80,20,0)');
+    x.fillStyle = g; x.beginPath(); x.moveTo(1.6, 15.5); x.quadraticCurveTo(3, 23, 4.4, 15.5); x.closePath(); x.fill();
   }
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const col = map[y * W + x]; if (col) p.px(x, y, col); }
-  if (jet) { p.r(2, 17 + bob, 2, 2, [255, 230, 140]); p.r(1, 19 + bob, 4, 1, [255, 150, 50]); p.px(2, 20 + bob, [255, 90, 30]); }
+  // mochila / jetpack
+  shape(() => x.roundRect(0.8, 7.5 + bob, 4.4, 8.5, 1.4), grad(7.5, 8.5, P.st));
+  x.fillStyle = css(P.cyan); x.beginPath(); x.arc(3, 10 + bob, 0.55, 0, 7); x.arc(3, 12.2 + bob, 0.55, 0, 7); x.fill();
+  // pernas (pivô no quadril)
+  const leg = (hx: number, ang: number, col: readonly number[]) => {
+    x.save(); x.translate(hx, 14.6 + bob); x.rotate(ang);
+    shape(() => x.roundRect(-1.2, 0, 2.6, 5.4, 1), grad(0, 5.4, col));
+    shape(() => x.roundRect(-1.4, 4.6, 3.6, 1.8, 0.8), css(P.stD), 0.5);
+    x.restore();
+  };
+  leg(7, -swing, sh(suit, 0.62)); leg(9.4, swing, sh(suit, 0.85));
+  // tronco
+  shape(() => x.roundRect(4.4, 7.6 + bob, 8.4, 8, 2.2), grad(7.6, 8, suit));
+  x.fillStyle = css(P.stD); x.fillRect(4.8, 12.4 + bob, 7.6, 1.1);
+  x.fillStyle = css(P.yellow); x.fillRect(9.8, 12.5 + bob, 1.2, 0.9);
+  shape(() => x.roundRect(7.4, 9.2 + bob, 3, 2.2, 0.6), css(P.stD), 0.4);
+  x.fillStyle = css(P.green); x.beginPath(); x.arc(8.3, 10.3 + bob, 0.45, 0, 7); x.fill();
+  x.fillStyle = css(P.red); x.beginPath(); x.arc(9.5, 10.3 + bob, 0.45, 0, 7); x.fill();
+  // capacete
+  shape(() => x.arc(9, 4.6 + bob * 0.5, 4.5, 0, 7), (() => { const g = x.createRadialGradient(7.4, 2.6, 0.5, 9, 4.6, 5.2); g.addColorStop(0, css(sh(suit, 1.45))); g.addColorStop(0.6, css(suit)); g.addColorStop(1, css(sh(suit, 0.65))); return g; })());
+  // visor espelhado
+  x.beginPath(); x.roundRect(9.2, 2.4 + bob * 0.5, 5, 3.8, 1.8);
+  const vg = x.createLinearGradient(9, 2.4, 14, 6.2); vg.addColorStop(0, '#5fb4ef'); vg.addColorStop(0.5, '#1d4a78'); vg.addColorStop(1, '#0c2440');
+  x.fillStyle = vg; x.fill(); x.strokeStyle = ink; x.lineWidth = 0.5; x.stroke();
+  x.fillStyle = 'rgba(255,255,255,0.75)'; x.beginPath(); x.ellipse(10.8, 3.3 + bob * 0.5, 1.1, 0.45, -0.3, 0, 7); x.fill();
+  // lanterna
+  x.fillStyle = 'rgba(255,240,170,1)'; x.beginPath(); x.arc(6.2, 1.2 + bob * 0.5, 0.7, 0, 7); x.fill();
   return c;
 }
 
 /** Braço com a ferramenta (cano do perfurador + bocal do aspirador). Origem no ombro, apontando para +x. */
 export function drawArm(level: number): HTMLCanvasElement {
   const [c, p] = canvas(14, 6);
+  const x = p.x;
   const BEAM: C3[] = [[255, 170, 60], [255, 220, 70], [80, 220, 255], [90, 255, 160], [200, 110, 255], [255, 250, 210]];
   const col = BEAM[Math.min(5, level)];
-  p.r(0, 1, 5, 3, P.ink); p.r(1, 2, 3, 1, P.orD);                 // braço
-  p.r(4, 0, 9, 5, P.ink); p.r(5, 1, 7, 3, P.stL); p.r(5, 1, 7, 1, P.stLL); p.r(5, 3, 7, 1, P.stD);
-  p.r(12, 1, 2, 3, P.ink); p.px(12, 2, col);                       // bocal
-  p.px(7, 2, col);
+  x.beginPath(); x.roundRect(0, 1.6, 5.4, 2.6, 1.2); x.fillStyle = css(P.orD); x.fill(); x.strokeStyle = 'rgba(16,18,24,0.95)'; x.lineWidth = 0.5; x.stroke();
+  const g = x.createLinearGradient(0, 0.6, 0, 5.2); g.addColorStop(0, css(P.stLL)); g.addColorStop(0.5, css(P.stL)); g.addColorStop(1, css(P.stD));
+  x.beginPath(); x.roundRect(4.2, 0.6, 8.2, 4.6, 1.4); x.fillStyle = g; x.fill(); x.stroke();
+  x.beginPath(); x.roundRect(11.6, 1.4, 2.2, 3, 0.8); x.fillStyle = css(P.stD); x.fill(); x.stroke();
+  x.fillStyle = css(col); x.beginPath(); x.arc(12.9, 2.9, 0.8, 0, 7); x.fill();
+  x.fillStyle = css(col, 0.9); x.fillRect(6, 2.4, 4, 0.9);
   return c;
 }
 
-/** Drone voador (4 hélices borradas). */
+/** Drone voador (4 hélices em movimento). */
 export function drawDrone(kind: RobotKind, frame: number): HTMLCanvasElement {
   const col = ROBOT[kind].color as C3;
   const [c, p] = canvas(16, 12);
-  const blade = frame % 2 ? 5 : 3;
-  p.r(1, 2, 14, 1, P.ink); p.r(8 - blade - 4, 1, blade, 1, [200, 210, 220], 0.7); p.r(8 + 4, 1, blade, 1, [200, 210, 220], 0.7);
-  p.r(3, 2, 1, 2, P.st); p.r(12, 2, 1, 2, P.st);
-  p.r(3, 4, 10, 6, P.ink); p.r(4, 5, 8, 4, col); p.r(4, 5, 8, 1, sh(col, 1.35)); p.r(4, 8, 8, 1, sh(col, 0.6));
-  p.r(9, 6, 3, 2, P.ink); p.px(10, 6, P.glassL);
-  if (kind === 'miner') { p.r(12, 7, 3, 2, P.stL); p.px(15, 8, [255, 200, 120]); }
-  if (kind === 'carry') { p.r(5, 10, 6, 2, P.ink); p.r(6, 10, 4, 1, P.or); }
-  if (kind === 'repair') p.px(5, 6, P.cyan);
-  if (kind === 'scout' || kind === 'survey') { p.r(7, 0, 1, 2, P.stL); p.px(7, 0, P.red); }
+  const x = p.x;
+  const ink = 'rgba(16,18,24,0.95)';
+  x.fillStyle = 'rgba(210,220,230,0.55)';
+  for (const bx of [3, 13]) { x.beginPath(); x.ellipse(bx, 1.6, frame % 2 ? 3.2 : 2.2, 0.6, 0, 0, 7); x.fill(); }
+  x.strokeStyle = css(P.stL); x.lineWidth = 0.6; x.beginPath(); x.moveTo(3, 2); x.lineTo(3, 4.5); x.moveTo(13, 2); x.lineTo(13, 4.5); x.stroke();
+  const g = x.createLinearGradient(0, 4, 0, 10); g.addColorStop(0, css(sh(col, 1.35))); g.addColorStop(1, css(sh(col, 0.65)));
+  x.beginPath(); x.roundRect(2.5, 4, 11, 6, 2.4); x.fillStyle = g; x.fill(); x.strokeStyle = ink; x.lineWidth = 0.6; x.stroke();
+  x.beginPath(); x.roundRect(8.6, 5.4, 3.6, 2.6, 1.1); x.fillStyle = '#163452'; x.fill(); x.stroke();
+  x.fillStyle = 'rgba(160,230,255,0.9)'; x.beginPath(); x.arc(9.8, 6.3, 0.6, 0, 7); x.fill();
+  if (kind === 'miner') { x.fillStyle = css(P.stL); x.beginPath(); x.moveTo(13.5, 7); x.lineTo(16, 8); x.lineTo(13.5, 9); x.closePath(); x.fill(); }
+  if (kind === 'carry') { x.beginPath(); x.roundRect(5, 10, 6, 2, 0.6); x.fillStyle = css(P.or); x.fill(); x.stroke(); }
+  if (kind === 'scout' || kind === 'survey') { x.strokeStyle = css(P.stL); x.beginPath(); x.moveTo(7, 4); x.lineTo(7, 1); x.stroke(); x.fillStyle = css(P.red); x.beginPath(); x.arc(7, 0.8, 0.6, 0, 7); x.fill(); }
   return c;
 }
 
 /** Baú de Khelos: cápsula de pedra com runas acesas. */
 export function drawChest(): HTMLCanvasElement {
   const [c, p] = canvas(16, 14);
-  p.r(1, 12, 14, 2, [0, 0, 0], 0.45);
-  p.r(1, 4, 14, 9, P.ink);
-  p.r(2, 5, 12, 7, [62, 80, 88]); p.r(2, 5, 12, 1, [100, 128, 138]); p.r(2, 11, 12, 1, [36, 46, 52]);
-  p.r(2, 1, 12, 4, P.ink); p.r(3, 2, 10, 2, [80, 104, 112]); p.r(3, 2, 10, 1, [130, 160, 170]);
-  p.r(7, 4, 2, 5, [60, 230, 240]); p.px(7, 4, [210, 255, 255]);
-  p.px(4, 7, [60, 230, 240]); p.px(11, 7, [60, 230, 240]); p.px(4, 9, [40, 160, 170]); p.px(11, 9, [40, 160, 170]);
+  const x = p.x;
+  const ink = 'rgba(16,18,24,0.95)';
+  const g = x.createLinearGradient(0, 2, 0, 13); g.addColorStop(0, '#7f9aa4'); g.addColorStop(1, '#2c3c44');
+  x.beginPath(); x.roundRect(1.5, 4.5, 13, 8.5, 1.6); x.fillStyle = g; x.fill(); x.strokeStyle = ink; x.lineWidth = 0.6; x.stroke();
+  x.beginPath(); x.roundRect(1, 1.6, 14, 3.6, 1.6); x.fillStyle = '#93b0ba'; x.fill(); x.stroke();
+  const rg = x.createRadialGradient(8, 7.5, 0, 8, 7.5, 4); rg.addColorStop(0, 'rgba(120,255,255,0.95)'); rg.addColorStop(1, 'rgba(60,220,230,0)');
+  x.fillStyle = rg; x.fillRect(4, 3.5, 8, 8);
+  x.fillStyle = '#a0ffff'; x.fillRect(7.4, 4, 1.2, 5);
+  x.fillStyle = 'rgba(60,230,240,0.85)'; x.fillRect(3.4, 7, 1, 1); x.fillRect(11.6, 7, 1, 1);
   void hash2;
   return c;
 }

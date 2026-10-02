@@ -24,6 +24,7 @@ import { Lore, type Artifact } from './systems/Lore';
 import { Chests, type Chest } from './systems/Chests';
 import { Events, type Anomaly } from './systems/Events';
 import { Scanner } from './systems/Scanner';
+import { Blueprint } from './systems/Blueprint';
 import { Mining } from './systems/Mining';
 import { Hazards } from './systems/Hazards';
 import { Stats } from './systems/Stats';
@@ -67,6 +68,7 @@ export class Game {
   chests: Chests;
   events: Events;
   scanner: Scanner;
+  blueprint!: Blueprint;
   mining: Mining;
   hazards: Hazards;
   stats = new Stats();
@@ -109,6 +111,7 @@ export class Game {
     this.chests = new Chests(this);
     this.events = new Events(this);
     this.scanner = new Scanner(this);
+    this.blueprint = new Blueprint(this);
     this.mining = new Mining(this);
     this.hazards = new Hazards(this);
     for (const k of opts.keepResearch ?? []) this.research.grant(k);
@@ -124,6 +127,7 @@ export class Game {
     this.machines.place('comando', tx - 1, gy - 3, 0);
     this.machines.place('terminal_orbital', tx - 7, gy - 3, 0);
     this.placeAnalyzer();
+    this.blueprint.layout();
     this.player.x = (tx + 4.5) * TILE; this.player.y = gy * TILE;
     this.camera.x = this.player.x; this.camera.y = this.player.y;
     this.world.reveal(this.player.x, this.player.y, 22);
@@ -279,7 +283,7 @@ export class Game {
         if (inp.mouseMoved && (!line || !b.anchor || b.dragging)) { b.tx = Math.floor(inp.worldX / TILE); b.ty = Math.floor(inp.worldY / TILE); }
       }
     }
-    if (inp.wheel && !inp.uiCapture && !inp.down('Control')) { cam.targetZoom = Math.max(1, Math.min(4, cam.targetZoom - inp.wheel * 0.25)); this.flags.userZoom = true; }
+    if (inp.wheel && !inp.uiCapture && !inp.down('Control')) { cam.targetZoom = Math.max(dpr, Math.min(4 * dpr, cam.targetZoom - inp.wheel * 0.25 * dpr)); this.flags.userZoom = true; }
 
     if (!this.flags.intro && !this.flags.ending) this.controls(dt);
 
@@ -482,7 +486,16 @@ export class Game {
     if (placed || turned) this.exitBuild(); else this.build.anchor = null;
   }
 
-  confirmBuild() { if (this.build.active && !this.build.deconstruct && !this.ui.modalOpen()) this.buildAction(); }
+  confirmBuild() {
+    if (!this.build.active || this.build.deconstruct || this.ui.modalOpen()) return;
+    // projeto guiado: não deixa confirmar girado errado
+    const bp = this.ui.tutorial.currentBp();
+    const def = this.build.key ? MACHINE[this.build.key] : null;
+    if (bp && def && bp.key === def.key && def.rotatable && def.behavior !== 'belt' && this.build.dir !== bp.dir) {
+      this.toast(`Gire primeiro: a seta tem que apontar para ${['a DIREITA', 'BAIXO', 'a ESQUERDA', 'CIMA'][bp.dir]} (botão GIRAR)`, '#ffd04a'); this.audio.error(); return;
+    }
+    this.buildAction();
+  }
 
   private buildAction() {
     const inp = this.input;
@@ -732,6 +745,7 @@ export class Game {
     // camada nova (acabou de descer): monta a cápsula no poço central
     if (!this.machines.list.some(m => m.def.behavior === 'command')) this.setupBase();
     else this.placeAnalyzer();
+    this.blueprint.layout();
     this.camera.x = this.player.x; this.camera.y = this.player.y;
   }
 

@@ -1,11 +1,13 @@
 import { TILE, CELL } from '../core/constants';
 import { IS_SOLID } from '../data/materials';
 import type { Game } from '../Game';
+import { MACHINE } from '../data/machines';
 
 type Target = string | (() => [number, number] | null) | null;
 interface Step {
   title: string;
-  text: (touch: boolean) => string;
+  text: (touch: boolean, g: Game) => string;
+  bp?: string;               // peça do projeto guiado (posição e rotação travadas)
   target: (g: Game, touch: boolean) => Target;
   done: (g: Game) => boolean;
   manual?: boolean;          // avança tocando no cartão de META
@@ -55,7 +57,21 @@ function storagePos(g: Game): [number, number] | null {
   return m ? [(m.tx + m.def.w / 2) * TILE, m.ty * TILE - 6] : null;
 }
 
-// CAVAR → PROCESSAR À MÃO → VER O QUE EXISTE DENTRO → MOVER MATERIAL (soprar, perfurar, esteira) → AUTOMATIZAR
+const DIRN = ['a DIREITA', 'BAIXO', 'a ESQUERDA', 'CIMA'];
+/** passo de construção guiada: o anel vai em GIRAR enquanto a rotação estiver errada, depois em CONFIRMAR */
+function bpTarget(g: Game, cat: string, id: string): Target {
+  const it = g.blueprint.item(id);
+  if (g.build.active && it && g.build.key === it.key && it.key !== 'esteira' && g.build.dir !== it.dir) return '[data-build-action="rotate"]';
+  return buildFlow(g, cat, it?.key ?? id);
+}
+function rotHint(g: Game, id: string): string {
+  const it = g.blueprint.item(id);
+  if (!g.build.active || !it || g.build.key !== it.key) return '';
+  return g.build.dir === it.dir ? ' <b style="color:#7aff8a">✔ Girada certo — CONFIRMAR.</b>' : ` <b style="color:#ffd04a">↻ Toque GIRAR até a seta apontar para ${DIRN[it.dir]} (agora: ${DIRN[g.build.dir]}).</b>`;
+}
+const lineOk = (g: Game) => g.blueprint.checkLine().ok;
+
+// CAVAR → PROCESSAR À MÃO → VER O QUE EXISTE → MONTAR A PRIMEIRA INDÚSTRIA PEÇA POR PEÇA (projeto guiado)
 const STEPS: Step[] = [
   { title: 'Andar e voar', text: t => t ? '<b>Joystick esquerdo</b>: andar. Empurre para <b>cima</b> para voar com o jetpack.' : '<b>A / D</b> anda. <b>W</b> ou <b>Espaço</b> liga o jetpack.',
     target: (_g, t) => t ? '#mobile .stick.left .base' : null, done: g => !!g.flags.tutMoved },
@@ -63,23 +79,25 @@ const STEPS: Step[] = [
     target: g => () => nearestWall(g), done: g => g.stats.manualKg >= 40 || analyzed(g) },
   { title: 'Processar à mão', text: t => `Vá ao <b>Analisador de Matriz</b> (seta) e ${t ? 'toque em <b>E</b>' : 'aperte <b>E</b>'}. Escolha o Solo K-37, <b>INICIAR</b> e dê o <b>PULSO</b> na faixa verde.`,
     target: (g, t) => t && (g.hover?.ref as any)?.key === 'analisador' ? '#mobile [data-b="interact"]' : g.ui.mini.isOpen() ? null : () => machinePos(g, 'analisador'), done: analyzed },
-  { title: 'O que existe dentro', text: () => 'Viu? <b>~80% é resíduo</b>. Os minerais (Ferronox, Lumenita) foram para o <b>estoque</b>: é com eles que você constrói. <b>Toque aqui</b> para continuar.',
+  { title: 'O que existe dentro', text: () => 'Viu? <b>~80% é resíduo</b>. Os minerais (Ferronox, Lumenita) foram para o <b>estoque</b>: é com eles que você constrói. Agora vamos montar a <b>primeira indústria</b>, peça por peça, no lugar marcado no chão. <b>Toque aqui.</b>',
     target: () => '.hcard.meta', done: () => false, manual: true },
-  { title: 'Armazém', text: () => '<b>MENU → CONSTRUIR → Logística → Armazém</b>, perto da cápsula. O <b>funil</b> em cima engole tudo o que cair nele e manda para o estoque.',
-    target: g => buildFlow(g, 'logistica', 'armazem'), done: g => g.machines.countBehavior('storage') > 0 },
-  { title: 'Soprar', text: t => (t ? 'Toque em <b>SOPRAR</b> e use o <b>joystick direito</b>' : '<b>Segure o botão direito</b> do mouse') + ' mirando o <b>funil do Armazém</b> (seta): a arma joga o material da mochila em arco. Jogue <b>20 kg</b>.',
+  { title: 'Projeto 1/5 · Armazém', bp: 'armazem', text: (_t, g) => '<b>CONSTRUIR → Logística → Armazém</b>. Ele vai no <b>quadrado verde</b> do chão, perto da base. O <b>funil</b> em cima engole tudo o que cair dentro e manda para o estoque.' + rotHint(g, 'armazem'),
+    target: g => bpTarget(g, 'logistica', 'armazem'), done: g => g.blueprint.placed('armazem') || g.machines.countBehavior('storage') > 0 },
+  { title: 'Soprar no funil', text: t => (t ? 'Toque em <b>SOPRAR</b> e use o <b>joystick direito</b>' : '<b>Segure o botão direito</b> do mouse') + ' mirando o <b>funil do Armazém</b> (seta): o material da mochila voa em arco e cai dentro. Jogue <b>20 kg</b>.',
     target: (g, t) => t && !g.flags.blowMode ? '#mobile [data-b="blow"]' : () => storagePos(g), done: g => fed(g) >= 20 },
-  { title: 'Perfuradora', text: () => `<b>CONSTRUIR → Extração → Perfuradora</b>. No chão, com a seta <b>para baixo</b> (GIRAR). Ela cava sozinha e cospe os grãos pela <b>calha</b> da lateral.`,
-    target: g => buildFlow(g, 'extracao', 'perfuradora'), done: g => g.machines.countBehavior('drill') > 0 },
-  { title: 'Esteira', text: t => `<b>Logística → Esteira</b>. ${t ? 'Toque' : 'Clique'} no chão logo <b>embaixo da calha</b> da perfuradora e <b>arraste até encostar no Armazém</b>. Os grãos caem na esteira, andam e entram nele.`,
-    target: g => buildFlow(g, 'logistica', 'esteira'), done: g => g.machines.countBehavior('belt') >= 3 },
-  { title: 'Processador', text: () => '<b>Processamento → Processador de Solo</b>, perto da base. Ele puxa o Solo K-37 do estoque (ou do funil) e separa sozinho: minerais de um lado, resíduo do outro.',
-    target: g => buildFlow(g, 'processamento', 'processador_solo'), done: g => g.machines.count('processador_solo') > 0 },
-  { title: 'Compactador', text: () => '<b>Processamento → Compactador Planetário</b>, perto da base. O resíduo vira <b>blocos</b> e o Terminal Orbital exporta. Sem isso o pátio enche e <b>tudo para</b>.',
-    target: g => buildFlow(g, 'processamento', 'compactador'), done: g => g.machines.count('compactador') > 0 },
+  { title: 'Projeto 2/5 · Perfuradora', bp: 'perfuradora', text: (_t, g) => '<b>CONSTRUIR → Extração → Perfuradora</b>, no quadrado marcado. A <b>seta</b> diz para onde ela cava: tem que ser para <b>BAIXO</b>, na terra. O material sai pela <b>calha da esquerda</b>.' + rotHint(g, 'perfuradora'),
+    target: g => bpTarget(g, 'extracao', 'perfuradora'), done: g => g.blueprint.placed('perfuradora') || g.machines.list.some(m => m.def.behavior === 'drill' && m.dir === 1) },
+  { title: 'Projeto 3/5 · Esteira', bp: 'esteira', text: t => `<b>Logística → Esteira</b>. A esteira <b>anda no sentido em que você arrasta</b>: ${t ? 'toque' : 'clique'} embaixo da calha da perfuradora e arraste <b>até encostar no armazém</b> (a linha marcada já mostra o caminho). Depois <b>CONFIRMAR</b>.`,
+    target: g => buildFlow(g, 'logistica', 'esteira'), done: g => g.blueprint.placed('esteira') || lineOk(g) },
+  { title: 'Veja funcionando', text: (_t, g) => { const r = g.blueprint.checkLine(); return r.ok ? '✔ <b>' + r.msg + '</b> Olhe os grãos: a perfuradora cava, a terra cai na esteira, anda e entra no funil do armazém. Espere chegar material.' : '✖ <b>' + r.msg + '</b> Toque na peça para girar ou desmonte e refaça.'; },
+    target: g => () => { const it = g.blueprint.item('esteira'); return it ? [((it.tx + it.tx2!) / 2 + 0.5) * TILE, it.ty * TILE] : null; }, done: g => lineOk(g) && (g.sectors.rt[g.planet.layer]?.linkedTotal ?? 0) > 6 },
+  { title: 'Projeto 4/5 · Processador', bp: 'processador_solo', text: (_t, g) => '<b>Processamento → Processador de Solo</b>, no quadrado ao lado da base. Na base, ele <b>puxa o Solo do estoque sozinho</b> e devolve minerais e resíduo no estoque — sem esteira.' + rotHint(g, 'processador_solo'),
+    target: g => bpTarget(g, 'processamento', 'processador_solo'), done: g => g.machines.count('processador_solo') > 0 },
+  { title: 'Projeto 5/5 · Compactador', bp: 'compactador', text: (_t, g) => '<b>Processamento → Compactador Planetário</b>, no quadrado marcado. Ele transforma o resíduo em <b>blocos</b> que o Terminal Orbital exporta. Sem ele o pátio enche e <b>tudo para</b>.' + rotHint(g, 'compactador'),
+    target: g => bpTarget(g, 'processamento', 'compactador'), done: g => g.machines.count('compactador') > 0 },
   { title: 'Scanner', text: t => `${t ? 'Toque em <b>SCANNER</b>' : 'Aperte <b>F</b>'}: ele mostra o <b>teor</b> da região. Perfuradoras em teor ALTO rendem muito mais minerais.`,
     target: (_g, t) => t ? '#mobile [data-b="scan"]' : null, done: g => (g.sectors.s[g.planet.layer]?.counters.scans ?? 0) > 0 },
-  { title: 'Sua meta', text: () => 'A barra da <b>CAMADA</b> só sobe com massa <b>REMOVIDA</b>: minerais separados + resíduo exportado em blocos. Buraco fundo? Use o <b>Elevador de Grãos</b> ou o <b>Lançador</b>. <b>Toque aqui</b> para terminar.',
+  { title: 'Sua indústria', text: () => 'Pronto: <b>cavar → esteira → armazém → processar → compactar → exportar</b>. Agora repita em escala: mais perfuradoras em teor alto, esteiras até o armazém. Buraco fundo? <b>Elevador de Grãos</b> ou <b>Lançador</b>. A barra da <b>CAMADA</b> sobe com massa removida. <b>Toque aqui</b> para terminar.',
     target: () => '.hcard.layer', done: () => false, manual: true },
 ];
 
@@ -96,6 +114,21 @@ export class Tutorial {
   }
 
   get active() { return !this.g.flags.tutDone && !this.g.flags.intro && !this.g.flags.ending && !!this.g.flags.briefed; }
+  /** peça do projeto guiado do passo atual (ou null) */
+  currentBp() {
+    if (!this.active) return null;
+    const st = STEPS[this.index()];
+    return st?.bp ? this.g.blueprint.item(st.bp) ?? null : null;
+  }
+  /** trava a prévia de construção no lugar do projeto */
+  private lockBuild() {
+    const g = this.g, it = this.currentBp(), b = g.build;
+    if (!it || !b.active || b.key !== it.key) return;
+    if (it.key === 'esteira') { b.anchor = [it.tx, it.ty]; b.tx = it.tx2!; b.ty = it.ty; return; }
+    const d = MACHINE[it.key];
+    b.tx = it.tx + Math.floor((d.w - 1) / 2); b.ty = it.ty + Math.floor((d.h - 1) / 2);
+  }
+
   restart() { this.g.flags.tutDone = false; this.g.flags.tutStep = 0; this.last = -1; }
   skip() { this.g.flags.tutDone = true; }
 
@@ -113,7 +146,7 @@ export class Tutorial {
     if (!this.active) return null;
     const i = this.index();
     const st = STEPS[i]; if (!st) return null;
-    return { n: i + 1, total: STEPS.length, title: st.title.toUpperCase(), text: st.text(this.g.input.touch) + ' <u class="tutskip">pular tutorial</u>', manual: !!st.manual };
+    return { n: i + 1, total: STEPS.length, title: st.title.toUpperCase(), text: st.text(this.g.input.touch, this.g) + ' <u class="tutskip">pular tutorial</u>', manual: !!st.manual };
   }
   /** Toque no cartão de META durante o tutorial: avança passos manuais. Retorna true se consumiu o toque. */
   tap(target: HTMLElement): boolean {
@@ -131,6 +164,7 @@ export class Tutorial {
     if (!this.active) return;
     const i = this.index();
     const st = STEPS[i]; if (!st) return;
+    this.lockBuild();
     if (i !== this.last) { this.last = i; this.sx = g.player.x; this.sy = g.player.y; }
     if (i === 0 && Math.hypot(g.player.x - this.sx, g.player.y - this.sy) > 40) g.flags.tutMoved = true;
     const tg = st.target(g, touch);

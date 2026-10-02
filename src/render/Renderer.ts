@@ -6,6 +6,7 @@ import { SECTORS } from '../data/sectors';
 import { ITEM } from '../data/items';
 import { MACHINE, type MachineDef } from '../data/machines';
 import { ioSpec } from '../data/howto';
+import { SPRITE_K } from './SideSprites';
 import type { Game } from '../Game';
 import { BASE_RADIUS, type Machine } from '../systems/Machines';
 
@@ -28,13 +29,13 @@ export class Renderer {
   }
 
   resize() {
-    const dpr = 1; // pixel art: resolução nativa CSS, ampliada com image-rendering: pixelated
+    const dpr = Math.min(2, window.devicePixelRatio || 1); // HD: resolução real da tela
     const w = window.innerWidth, h = window.innerHeight;
     this.canvas.width = Math.floor(w * dpr); this.canvas.height = Math.floor(h * dpr);
     this.canvas.style.width = w + 'px'; this.canvas.style.height = h + 'px';
     this.g.camera.w = this.canvas.width; this.g.camera.h = this.canvas.height;
     this.g.lighting.resize(this.canvas.width, this.canvas.height);
-    const z = Math.max(1.8, Math.min(3, h / 200));   // vista lateral: perto o bastante para ver os grãos
+    const z = Math.max(1.8, Math.min(3, h / 200)) * dpr;   // vista lateral: perto o bastante para ver os grãos
     if (!this.g.flags.userZoom) { this.g.camera.targetZoom = z; this.g.camera.zoom = z; }
   }
 
@@ -48,7 +49,7 @@ export class Renderer {
     const R = L + W / z, B = T + H / z;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.drawSky(L, T, z, W, H);
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = true;
     ctx.setTransform(z, 0, 0, z, -L * z, -T * z);
 
     this.pt = performance.now();
@@ -112,7 +113,7 @@ export class Renderer {
     for (const m of g.machines.list) if (m.def.behavior === 'platform') {
       const x = m.tx * TILE, y = m.ty * TILE;
       if (x > R || x + TILE < L || y > B || y + TILE < T) continue;
-      const pi = g.sprites.machine(m.def, 0).img; ctx.drawImage(pi, x, y - 2, pi.width / 2, pi.height / 2);
+      const pi = g.sprites.machine(m.def, 0).img; ctx.drawImage(pi, x, y - 2, pi.width / SPRITE_K, pi.height / SPRITE_K);
     }
 
     this.mark('belts');
@@ -130,7 +131,7 @@ export class Renderer {
     for (const r of g.robots.list) {
       if (r.x < L - 20 || r.x > R + 20 || r.y < T - 20 || r.y > B + 20) continue;
       objs.push({ y: r.y, draw: () => {
-        const ri = g.sprites.robot(r.kind, Math.floor(this.time * 20) % 2); ctx.drawImage(ri, Math.round(r.x - 8), Math.round(r.y - 12 + Math.sin(this.time * 3 + r.id) * 1.5), ri.width / 2, ri.height / 2);
+        const ri = g.sprites.robot(r.kind, Math.floor(this.time * 20) % 2); ctx.drawImage(ri, Math.round(r.x - 8), Math.round(r.y - 12 + Math.sin(this.time * 3 + r.id) * 1.5), ri.width / SPRITE_K, ri.height / SPRITE_K);
         if (r.stuck || r.broken || r.energy <= 0) this.alert(r.x, r.y - 14, r.stuck ? '#ffd27a' : '#ff5a3a');
         g.lighting.add(r.x, r.y - 4, 26, [255, 210, 150], 0.5);
         if (r.name === 'KILO') { ctx.fillStyle = '#ffd27a'; ctx.font = `${7}px monospace`; }
@@ -148,7 +149,7 @@ export class Renderer {
       if (c.x < L - 20 || c.x > R + 20 || c.y < T - 20 || c.y > B + 20 || !g.chests.visible(c)) continue;
       objs.push({ y: c.y + 4, draw: () => {
         const bob = Math.sin(this.time * 2.5 + c.id) * 0.8;
-        const ci = g.sprites.chest(); ctx.drawImage(ci, Math.round(c.x - 8), Math.round(c.y - 12 + bob), ci.width / 2, ci.height / 2);
+        const ci = g.sprites.chest(); ctx.drawImage(ci, Math.round(c.x - 8), Math.round(c.y - 12 + bob), ci.width / SPRITE_K, ci.height / SPRITE_K);
         g.lighting.add(c.x, c.y - 6, 46, [255, 210, 110], 0.8 + 0.15 * Math.sin(this.time * 3 + c.id));
         if (Math.random() < 0.04) g.fx.ember(c.x + (Math.random() - 0.5) * 10, c.y - 8, [255, 220, 120]);
       } });
@@ -195,7 +196,7 @@ export class Renderer {
       ctx.translate(bx, by);
       if (left) ctx.scale(-1, 1);
       ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(body, -8, 0, body.width / 2, body.height / 2);
+      ctx.drawImage(body, -8, 0, body.width / SPRITE_K, body.height / SPRITE_K);
       ctx.restore();
       // braço com o perfurador apontando para a mira (ou para a frente)
       const sx = p.x + (left ? -1 : 1), sy = p.y - 12;
@@ -205,15 +206,16 @@ export class Renderer {
       ctx.save(); ctx.translate(Math.round(sx), Math.round(sy)); ctx.rotate(ang);
       if (Math.abs(ang) > Math.PI / 2) ctx.scale(1, -1);
       const armImg = g.sprites.arm(p.drillLevel);
-      ctx.drawImage(armImg, 0, -3, armImg.width / 2, armImg.height / 2);
+      ctx.drawImage(armImg, 0, -3, armImg.width / SPRITE_K, armImg.height / SPRITE_K);
       ctx.restore();
-      ctx.imageSmoothingEnabled = false;
+      ctx.imageSmoothingEnabled = true;
       if (p.jet > 0) { g.fx.ember(p.x + (p.facing === 2 ? 3 : -3), p.y - 4, [255, 170, 60]); g.lighting.add(p.x, p.y - 2, 26, [255, 160, 60], 0.7); }
     } });
     objs.sort((a, b) => a.y - b.y);
     for (const o of objs) o.draw();
 
     this.drawRockets();
+    this.drawBlueprint();
     this.drawIO(L, T, R, B);
     this.mark('objects');
     // ---- feixe de mineração ----
@@ -282,7 +284,7 @@ export class Renderer {
     this.mark('light');
     // ---- névoa de guerra ----
     this.post(W, H, (g.world.gen.landing.y * CELL - T) * z, g.planet.layer);
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = true;
 
     // ---- textos em espaço de tela ----
     this.drawOverlayTexts(L, T, z);
@@ -395,7 +397,7 @@ export class Renderer {
       }
       ctx.globalAlpha = 1;
     }
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = true;
     void WORLD_PX_W;
   }
 
@@ -464,8 +466,8 @@ export class Renderer {
     cs.addColorStop(0, 'rgba(0,0,0,0.45)'); cs.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = cs; ctx.fillRect(m.tx * TILE - bw * 0.2, by0 - 4, bw * 1.4, 7);
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(img, x, y, img.width / 2, img.height / 2);
-    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, x, y, img.width / SPRITE_K, img.height / SPRITE_K);
+    ctx.imageSmoothingEnabled = true;
     this.animate(m, x, y + oy);
     if (m.working && m.def.behavior === 'compactor' && Math.random() < 0.08) g.fx.dust(x + m.def.w * 8, m.ty * TILE + 8, 2);
     const [cx, cy] = g.machines.centerPx(m);
@@ -618,7 +620,7 @@ export class Renderer {
     const afford = g.stock.has(def.cost, g.pack.items);
     const { img, oy: ex } = g.sprites.machine(def, b.dir);
     ctx.globalAlpha = 0.6;
-    ctx.drawImage(img, ox * TILE, oy * TILE - ex, img.width / 2, img.height / 2);
+    ctx.drawImage(img, ox * TILE, oy * TILE - ex, img.width / SPRITE_K, img.height / SPRITE_K);
     ctx.globalAlpha = 1;
     ctx.fillStyle = err || tooFar ? 'rgba(255,60,40,0.28)' : afford ? 'rgba(80,255,120,0.22)' : 'rgba(255,200,40,0.25)';
     ctx.fillRect(ox * TILE, oy * TILE, def.w * TILE, def.h * TILE);
@@ -680,6 +682,56 @@ export class Renderer {
       g.lighting.add(lx, ly, 10, st === '#3aff6a' ? [60, 255, 100] : st === '#ff4a3a' ? [255, 60, 40] : [255, 200, 60], 0.5);
       if (io.base && g.machines.atBase(m)) { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x0 + 1, y0 - ex - 1, 15, 6); ctx.fillStyle = '#9ad8ff'; ctx.font = '5px monospace'; ctx.fillText('BASE', x0 + 2, y0 - ex + 4); }
     }
+  }
+
+  /** projeto guiado: onde construir a próxima peça (tracejado verde, nome, direção) */
+  private drawBlueprint() {
+    const g = this.g, ctx = this.ctx;
+    const it = g.ui.tutorial.currentBp();
+    if (!it || g.blueprint.placed(it.id)) return;
+    const d = MACHINE[it.key];
+    const pulse = 0.5 + 0.5 * Math.sin(this.time * 4);
+    ctx.save();
+    ctx.setLineDash([3, 2]); ctx.lineWidth = 1.2; ctx.strokeStyle = `rgba(120,255,150,${0.6 + pulse * 0.4})`;
+    if (it.key === 'esteira') {
+      const x0 = Math.min(it.tx, it.tx2!) * TILE, x1 = (Math.max(it.tx, it.tx2!) + 1) * TILE, y = it.ty * TILE;
+      ctx.fillStyle = `rgba(120,255,150,${0.12 + pulse * 0.1})`; ctx.fillRect(x0, y, x1 - x0, TILE);
+      ctx.strokeRect(x0, y, x1 - x0, TILE);
+      ctx.setLineDash([]);
+      // setas de fluxo andando para o armazém + marcadores de início e fim
+      const dir = it.dir === 2 ? -1 : 1;
+      for (let k = 0; k < (x1 - x0) / 10; k++) {
+        const ax = (dir < 0 ? x1 : x0) + dir * (((this.time * 18) % 10) + k * 10);
+        if (ax < x0 || ax > x1) continue;
+        ctx.fillStyle = 'rgba(160,255,180,0.9)'; ctx.beginPath(); ctx.moveTo(ax + dir * 4, y + 8); ctx.lineTo(ax, y + 5); ctx.lineTo(ax, y + 11); ctx.closePath(); ctx.fill();
+      }
+      for (const [tx, n] of [[it.tx, '1'], [it.tx2!, '2']] as [number, string][]) {
+        const cx = (tx + 0.5) * TILE, cy = y - 7;
+        ctx.fillStyle = '#1a3a22'; ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, 7); ctx.fill();
+        ctx.strokeStyle = '#7aff8a'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = '#d8ffe0'; ctx.font = 'bold 6px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(n, cx, cy + 2.2);
+      }
+      ctx.textAlign = 'left';
+    } else {
+      const x = it.tx * TILE, y = it.ty * TILE, W = d.w * TILE, H = d.h * TILE;
+      ctx.fillStyle = `rgba(120,255,150,${0.12 + pulse * 0.12})`; ctx.fillRect(x, y, W, H);
+      ctx.strokeRect(x + 0.5, y + 0.5, W - 1, H - 1);
+      ctx.setLineDash([]);
+      if (d.rotatable) {
+        const [dx, dy] = DIRS[it.dir];
+        const cx = x + W / 2, cy = y + H / 2;
+        ctx.strokeStyle = '#7aff8a'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(cx - dx * 6, cy - dy * 6); ctx.lineTo(cx + dx * 8, cy + dy * 8); ctx.stroke();
+        ctx.fillStyle = '#7aff8a'; ctx.beginPath(); ctx.moveTo(cx + dx * 13, cy + dy * 13); ctx.lineTo(cx + dx * 7 - dy * 5, cy + dy * 7 + dx * 5); ctx.lineTo(cx + dx * 7 + dy * 5, cy + dy * 7 - dx * 5); ctx.closePath(); ctx.fill();
+      }
+    }
+    // etiqueta
+    const lx = (it.key === 'esteira' ? (it.tx + it.tx2!) / 2 + 0.5 : it.tx + d.w / 2) * TILE, ly = it.ty * TILE - (it.key === 'esteira' ? 16 : 10);
+    ctx.font = 'bold 6px sans-serif'; ctx.textAlign = 'center';
+    const tw = ctx.measureText('CONSTRUA AQUI: ' + it.label).width + 8;
+    ctx.fillStyle = 'rgba(10,30,16,0.88)'; ctx.fillRect(lx - tw / 2, ly - 7, tw, 9);
+    ctx.fillStyle = '#9cffb0'; ctx.fillText('CONSTRUA AQUI: ' + it.label, lx, ly);
+    ctx.restore();
   }
 
   /** etiqueta com ícones de itens e uma seta (direção do fluxo) */

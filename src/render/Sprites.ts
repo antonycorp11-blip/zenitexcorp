@@ -26,38 +26,6 @@ export const PAL = {
   blue: [80, 180, 255] as C3,
 };
 
-/**
- * Versão 2x com acabamento "real": luz de cima, sombra embaixo, desgaste e sujeira só dentro do contorno.
- * Os sprites 2x são desenhados com metade do tamanho (mais detalhe por pixel de tela) e com suavização.
- */
-function realize(src: HTMLCanvasElement, seed: number, grime = 1): HTMLCanvasElement {
-  const S = 2, W = src.width * S, H = src.height * S;
-  const [c, x] = cv(W, H);
-  x.imageSmoothingEnabled = false;
-  x.drawImage(src, 0, 0, W, H);
-  x.globalCompositeOperation = 'source-atop';
-  const v = x.createLinearGradient(0, 0, 0, H);
-  v.addColorStop(0, 'rgba(255,246,226,0.22)'); v.addColorStop(0.35, 'rgba(255,255,255,0.03)'); v.addColorStop(1, 'rgba(0,0,0,0.32)');
-  x.fillStyle = v; x.fillRect(0, 0, W, H);
-  const hz = x.createLinearGradient(0, 0, W, 0);
-  hz.addColorStop(0, 'rgba(255,255,255,0.08)'); hz.addColorStop(0.5, 'rgba(0,0,0,0)'); hz.addColorStop(1, 'rgba(0,0,0,0.16)');
-  x.fillStyle = hz; x.fillRect(0, 0, W, H);
-  // desgaste: pontos, arranhões e escorridos de ferrugem
-  for (let i = 0; i < W * H * 0.012 * grime; i++) {
-    const px = hash2(i, seed, 31) * W, py = hash2(i, seed, 37) * H;
-    x.fillStyle = hash2(i, seed, 41) > 0.7 ? 'rgba(255,255,255,0.10)' : 'rgba(20,14,8,0.22)';
-    x.fillRect(px | 0, py | 0, 1, 1);
-  }
-  for (let i = 0; i < W * 0.06 * grime; i++) {
-    const px = hash2(i, seed, 51) * W, py = hash2(i, seed, 53) * H * 0.7, len = 3 + hash2(i, seed, 57) * H * 0.25;
-    const gr = x.createLinearGradient(0, py, 0, py + len);
-    gr.addColorStop(0, 'rgba(120,64,24,0.28)'); gr.addColorStop(1, 'rgba(120,64,24,0)');
-    x.fillStyle = gr; x.fillRect(px | 0, py | 0, 1, len);
-  }
-  x.globalCompositeOperation = 'source-over';
-  return c;
-}
-
 /** Fábrica e cache de todos os sprites procedurais. */
 export class Sprites {
   private cache = new Map<string, HTMLCanvasElement>();
@@ -151,20 +119,20 @@ export class Sprites {
   /** Sprite de máquina (inclui altura extra acima da pegada para o volume 3/4). */
   machine(def: MachineDef, dir: number, level = 0): { img: HTMLCanvasElement; oy: number } {
     const key = `m_${def.key}_${def.rotatable ? dir : 0}_${level}`;
-    const img = this.memo(key, () => realize(drawSideMachine(def, def.rotatable ? dir : 0, level), def.key.length));
+    const img = this.memo(key, () => drawSideMachine(def, def.rotatable ? dir : 0, level));
     return { img, oy: sideExtra(def) };
   }
 
   // ---------------- PERSONAGEM ----------------
   /** personagem de lado (olhando à direita); frame 0 parado, 1–4 andando, 5 no ar */
   player(_facing: number, frame: number, suitTier = 0, jet = false): HTMLCanvasElement {
-    return this.memo(`pl${frame}_${suitTier}_${jet ? 1 : 0}`, () => realize(drawPlayer(frame, suitTier, jet), 7, 0.6));
+    return this.memo(`pl${frame}_${suitTier}_${jet ? 1 : 0}`, () => drawPlayer(frame, suitTier, jet));
   }
-  arm(level: number): HTMLCanvasElement { return this.memo(`arm${level}`, () => realize(drawArm(level), 3, 0.5)); }
+  arm(level: number): HTMLCanvasElement { return this.memo(`arm${level}`, () => drawArm(level)); }
 
-  robot(kind: RobotKind, frame: number): HTMLCanvasElement { return this.memo(`rb${kind}_${frame}`, () => realize(drawDrone(kind, frame), 5, 0.6)); }
+  robot(kind: RobotKind, frame: number): HTMLCanvasElement { return this.memo(`rb${kind}_${frame}`, () => drawDrone(kind, frame)); }
 
-  chest(): HTMLCanvasElement { return this.memo('chest', () => realize(drawChest(), 9, 0.8)); }
+  chest(): HTMLCanvasElement { return this.memo('chest', () => drawChest()); }
 
   artifact(kind: number): HTMLCanvasElement {
     return this.memo(`art${kind}`, () => {
@@ -198,8 +166,9 @@ export class Sprites {
     let u = this.iconUrls.get(k);
     if (!u) {
       const { img } = this.machine(def, 0);
-      const s = 40;
+      const s = 80;
       const [c, x] = cv(s, s);
+      x.imageSmoothingEnabled = true;
       const k2 = Math.min(s / img.width, s / img.height);
       x.drawImage(img, (s - img.width * k2) / 2, (s - img.height * k2) / 2, img.width * k2, img.height * k2);
       u = c.toDataURL(); this.iconUrls.set(k, u);
