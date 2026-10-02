@@ -9,7 +9,7 @@ export interface ContractTemplate {
 }
 
 export const CONTRACT_TEMPLATES: ContractTemplate[] = [
-  { kind: 'ship', title: 'Suprimento de {item}', baseReward: 1.6, minutes: 25, flavor: ['"Nossas análises indicam que você é bom em cavar buracos. Continue assim, é para isso que pagamos."', '"A demanda orbital está alta. A sua motivação deveria acompanhar."'] },
+  { kind: 'ship', title: 'Entrega de {item}', baseReward: 1.6, minutes: 25, flavor: ['"Nossas análises indicam que você é bom em cavar buracos. Continue assim, é para isso que pagamos."', '"A demanda orbital está alta. A sua motivação deveria acompanhar."'] },
   { kind: 'ship', title: 'Demanda de {item}', baseReward: 1.5, minutes: 35, flavor: ['"Um cliente muito importante precisa disso. Todos os clientes são muito importantes. Alguns mais."'] },
   { kind: 'mine', title: 'Amostras de {item}', baseReward: 1.3, minutes: 30, flavor: ['"Extraia com suas próprias mãos. O cliente pediu autenticidade artesanal."'] },
   { kind: 'craft', title: 'Encomenda: {item}', baseReward: 1.8, minutes: 30, flavor: ['"Fabricação local reduz custos de frete. E aumenta os seus."'] },

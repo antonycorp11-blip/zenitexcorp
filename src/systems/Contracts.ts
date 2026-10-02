@@ -2,6 +2,8 @@ import { CONTRACT_TEMPLATES, type ContractKind } from '../data/contracts';
 import { ITEM, itemName } from '../data/items';
 import { RNG } from '../core/rng';
 import type { Game } from '../Game';
+import { matById } from '../data/materials';
+import { REFINE_MAP } from '../data/recipes';
 
 export interface Contract {
   id: number;
@@ -19,7 +21,7 @@ export interface Contract {
 }
 
 const RARES = ['lumenita_pura', 'lumenita_instavel', 'pyroxis_volatil', 'verdanio_vivo', 'nexolita_condensada', 'ferronox_denso'];
-const CRAFTABLE = ['componente', 'pecas', 'motor', 'bateria', 'broca', 'sensor', 'filtro', 'circuito', 'explosivo', 'kit_reparo'];
+const CRAFTABLE = ['explosivo', 'kit_reparo', 'sinalizador', 'medkit', 'pecas'];
 
 export class Contracts {
   available: Contract[] = [];
@@ -31,23 +33,25 @@ export class Contracts {
 
   constructor(private g: Game) {}
 
-  private scale() { return Math.pow(2.1, this.g.sectors.certifiedCount()) * (1 + this.g.planet.fraction() * 40); }
+  private scale() { return Math.pow(2.1, this.g.planet.layer - 1); }
 
   generate(): Contract | null {
     const g = this.g;
-    const known = Object.keys(g.stock.items).filter(k => ITEM[k] && (ITEM[k].cat === 'minerio' || ITEM[k].cat === 'refinado' || ITEM[k].cat === 'liga'));
+    // itens da camada atual: os 2 minérios principais e suas barras
+    const known: string[] = [];
+    for (const o of g.planet.def.ores) { const d = matById(o.mat); if (d.rare || !d.item) continue; known.push(d.item); if (REFINE_MAP[d.item]) known.push(REFINE_MAP[d.item]); }
     if (!known.length) known.push('lumenita', 'ferronox');
     for (let tries = 0; tries < 10; tries++) {
       const t = this.rng.pick(CONTRACT_TEMPLATES);
       const sc = this.scale();
       let item: string | undefined, target = 0;
       switch (t.kind) {
-        case 'ship': item = this.rng.pick(known); target = Math.round((ITEM[item].cat === 'minerio' ? 300 : 40) * sc / Math.max(1, ITEM[item].value / 3)); break;
+        case 'ship': item = this.rng.pick(known); target = Math.round((ITEM[item].cat === 'minerio' ? 400 : 60) * Math.pow(2, g.planet.layer - 1)); break;
         case 'mine': item = this.rng.pick(known.filter(k => ITEM[k].cat === 'minerio' && !ITEM[k].contain)); if (!item) continue; target = Math.round(60 * Math.sqrt(sc)); break;
         case 'craft': { const opts = CRAFTABLE.filter(k => g.crafting.recipes().some(r => r.out[k])); if (!opts.length) continue; item = this.rng.pick(opts); target = Math.max(2, Math.round(3 * Math.sqrt(sc))); break; }
         case 'rare': { const opts = RARES.filter(k => (g.stats.mined[k] ?? 0) > 0 || g.stats.rares > 0); if (!opts.length) continue; item = this.rng.pick(opts); target = Math.round(10 + 5 * Math.sqrt(sc)); break; }
         case 'ruin': if (g.lore.unlocked.size < 1) continue; target = 1 + Math.floor(this.rng.next() * 2); break;
-        case 'rate': if (!g.sectors.certifiedCount()) continue; target = Math.round(Math.max(500, g.planet.rate() * 1.4) / 100) * 100; break;
+        case 'rate': continue;
         case 'explore': target = 3; break;
       }
       const reward = Math.round(t.baseReward * 180 * sc / 10) * 10;

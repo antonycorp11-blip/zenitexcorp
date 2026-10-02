@@ -60,7 +60,7 @@ it({ key: 'cristal_memoria', name: 'Cristal de Memória', cat: 'refinado', color
 
 // --- Ligas / combinações (Fundidor Alienígena) ---
 it({ key: 'nucleo_sinaptico', name: 'Núcleo de Energia Sináptica', cat: 'liga', color: [130, 120, 255], color2: [60, 160, 255], icon: 'core', weight: 1, value: 90, desc: 'Lumenita + Nexolita. Energia que "pensa" para onde ir.' });
-it({ key: 'liga_termo', name: 'Liga Termorresistente', cat: 'liga', color: [200, 90, 70], color2: [90, 90, 110], icon: 'ingot', weight: 2, value: 70, desc: 'Pyroxis + Ferronox. Suporta magma.' });
+it({ key: 'liga_termo', name: 'Barra Densa', cat: 'refinado', color: [200, 90, 70], color2: [90, 90, 110], icon: 'ingot', weight: 2, value: 70, desc: 'Ferronox Denso refinado. Suporta magma e pressão.' });
 it({ key: 'refrigerante_bio', name: 'Refrigerante Biológico', cat: 'liga', color: [110, 240, 200], icon: 'canister', weight: 1, value: 80, desc: 'Crysalis + Verdânio. Resfria e se regenera.' });
 it({ key: 'celula_negra', name: 'Célula de Energia Negra', cat: 'liga', color: [60, 30, 90], color2: [90, 160, 255], icon: 'cell', weight: 2, value: 400, desc: 'Umbrium + Lumenita. Densidade energética proibida em 14 sistemas.' });
 it({ key: 'polimero_solvex', name: 'Polímero Solvex', cat: 'liga', color: [240, 200, 90], color2: [120, 120, 140], icon: 'plate', weight: 1, value: 85, desc: 'Solvex + Ferronox. Resistente à corrosão.' });

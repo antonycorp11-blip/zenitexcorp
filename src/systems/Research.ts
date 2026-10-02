@@ -1,5 +1,6 @@
 import { RESEARCH, RESEARCH_BY_KEY, type ResearchDef } from '../data/research';
 import type { Game } from '../Game';
+import { HIDDEN_RESEARCH } from '../data/economy';
 
 export class Research {
   done = new Set<string>();
@@ -8,7 +9,7 @@ export class Research {
 
   constructor(private g: Game) {
     // a rede de energia saiu do jogo: pesquisas de energia ficam concluídas para não travar a árvore
-    for (const r of RESEARCH) if (r.cat === 'energia') this.done.add(r.key);
+    for (const r of RESEARCH) if (r.cat === 'energia' || HIDDEN_RESEARCH.has(r.key)) this.done.add(r.key);
   }
 
   has(k: string) { return !k || this.done.has(k); }
@@ -72,5 +73,5 @@ export class Research {
   grant(key: string) { this.done.add(key); this.effCache = null; }
   list() { return RESEARCH; }
   serialize() { return { done: [...this.done], active: this.active }; }
-  load(s: any) { this.done = new Set([...s.done, ...RESEARCH.filter(r => r.cat === 'energia').map(r => r.key)]); this.active = s.active; this.effCache = null; }
+  load(s: any) { this.done = new Set([...s.done, ...RESEARCH.filter(r => r.cat === 'energia' || HIDDEN_RESEARCH.has(r.key)).map(r => r.key)]); this.active = s.active; this.effCache = null; }
 }

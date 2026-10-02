@@ -202,6 +202,7 @@ export class Machines {
           g.stock.add(k, n);
           // a Zenitex paga pelo minério que chega à base
           g.stock.credits += n * (ITEM[k]?.value ?? 1) * DELIVERY_PAY;
+          g.contracts.onShip(k, n);
           moved += n;
         }
       }
@@ -224,7 +225,6 @@ export class Machines {
     bagAdd(this.shipped, k, n);
     this.g.stock.credits += (ITEM[k]?.value ?? 1) * n;
     this.g.stats.shipped += n;
-    this.g.contracts.onShip(k, n);
     this.g.sectors.onShip(k, n);
   }
 

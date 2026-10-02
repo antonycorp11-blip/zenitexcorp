@@ -1,3 +1,4 @@
+import './data/economy';
 import { CELL, TILE, SIM_DT, WORLD_TILES } from './core/constants';
 import { bus, EventBus } from './core/events';
 import { World } from './world/World';
@@ -552,6 +553,7 @@ export class Game {
       const q = this.pack.take(k, this.pack.count(k));
       this.stock.add(k, q); n += q;
       pay += q * (ITEM[k]?.value ?? 1) * DELIVERY_PAY;
+      this.contracts.onShip(k, q);
     }
     if (n > 0) {
       this.stock.credits += pay;

@@ -15,8 +15,10 @@ const r = (x: Recipe) => R.push(x);
 export const REFINE_MAP: Record<string, string> = {
   lumenita: 'celula_lumenita', ferronox: 'placa_ferronox', pyroxis: 'pyroxis_estabilizado', verdanio: 'fibra_verdanio',
   nexolita: 'chip_nexolita', crysalis: 'gel_crysalis', solvex: 'solvex_refinado', umbrium: 'matriz_umbrium',
+  ferronox_denso: 'liga_termo', necrocristal: 'cristal_memoria',
 };
 for (const [ore, out] of Object.entries(REFINE_MAP)) {
+  if (ore === 'verdanio') continue;
   r({ key: `ref_${ore}`, in: { [ore]: 2 }, out: { [out]: 1 }, time: 1, station: 'refinaria' });
   r({ key: `refb_${ore}`, in: { ['britado_' + ore]: 1 }, out: { [out]: 1 }, time: 1, station: 'refinaria' });
   // Refino manual na Oficina: pior proporção, mais lento — o incentivo para automatizar.
@@ -46,7 +48,7 @@ const comp = (key: string, inp: Record<string, number>, out: Record<string, numb
   r({ key: `sy_${key}`, in: inp, out, time, station: 'sintetizador', research });
 };
 comp('componente', { placa_ferronox: 2 }, { componente: 1 }, 3);
-comp('pecas', { placa_ferronox: 1, ferronox: 4 }, { pecas: 2 }, 3);
+r({ key: 'of_pecas', in: { placa_ferronox: 1, ferronox: 4 }, out: { pecas: 2 }, time: 3, station: 'oficina', group: 'consumiveis' });
 comp('motor', { placa_ferronox: 2, celula_lumenita: 1 }, { motor: 1 }, 5);
 comp('bateria', { celula_lumenita: 3 }, { bateria: 1 }, 4);
 comp('broca', { placa_ferronox: 2, pyroxis_estabilizado: 1 }, { broca: 1 }, 5);

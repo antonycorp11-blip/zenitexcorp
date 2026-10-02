@@ -16,6 +16,7 @@ import type { UI } from './UI';
 import { costStr, hazIcon, hexRgb } from './UI';
 import { renderPlanet } from './Orbital';
 import { esc } from './dom';
+import { HIDDEN_RESEARCH } from '../data/economy';
 
 export type PanelId = 'inventory' | 'build' | 'upgrades' | 'research' | 'sectors' | 'robots' | 'contracts' | 'archive' | 'map' | 'help' | 'menu' | 'machine' | 'ops' | 'lifts' | 'settings' | 'missions';
 
@@ -116,6 +117,7 @@ export class Panels {
     descend: () => { this.close(); this.ui.descendPrompt(); },
     tab: (a) => { const [k, v] = a.split(':'); this.st[k] = v; this.render(); },
     sel: (a) => { const [k, v] = a.split(':'); this.st[k] = v; this.render(); },
+    craftN: (a) => { const [k, n] = a.split(':'); const err = this.g.crafting.enqueue(k, Number(n)); if (err) this.g.toast(err, '#ff8a3a'); else this.g.audio.click(); this.render(); },
     craft: (a) => { const err = this.g.crafting.enqueue(a, Number(this.st.craftN ?? 1)); if (err) this.g.toast(err, '#ff8a3a'); else this.g.audio.click(); this.render(); },
     build: (a) => { if (!this.g.canBuildKey(a)) return; this.g.startBuild(a); this.close(); },
     pin: (a) => { this.g.hotbar[this.g.selected] = { type: 'build', key: a }; this.g.toast(`Fixado no slot ${(this.g.selected + 1) % 10}`, '#9cff8a'); },
@@ -195,40 +197,37 @@ export class Panels {
   // =============== INVENTÁRIO / FABRICAÇÃO ===============
   r_inventory() {
     const g = this.g, P = g.pack;
-    const tab = this.st.invTab;
-    const catNames: Record<string, string> = { todos: 'Estoque Central', fab: 'Receitas de Fabricação', mochila: 'Mochila' };
-    let h = this.tabs('invTab', Object.entries(catNames).map(([key, name]) => ({ key, name })));
-    if (tab === 'mochila' || tab === 'todos') {
+    const tab = this.st.invTab === 'fab' ? 'fab' : 'todos';
+    let h = this.tabs('invTab', [{ key: 'todos', name: '▣ Estoque e mochila' }, { key: 'fab', name: '⚒ Refinar e fabricar' }]);
+    if (tab === 'todos') {
       const w = P.weight(), mw = P.maxWeight();
-      h += `<div class="cols"><div class="col"><h3>MOCHILA — ${esc(P.def.name)}</h3>
-        <div class="kv"><span>Peso</span><b>${fmtInt(w)} / ${fmtInt(mw)} kg</b></div>${this.bar(w, mw, w > mw * 0.9 ? '#ff6a3a' : '#e8962a')}
-        <div class="slots">${(['contencao', 'frio', 'magnetico'] as const).map(k => `<div class="slt"><span>${k === 'contencao' ? '⬡ Contenção' : k === 'frio' ? '❄ Refrigerado' : '🧲 Magnético'}</span><b>${fmtInt(P.specialUsed(k))}/${fmtInt(P.specialCap(k))} kg</b></div>`).join('')}</div>
-        <div class="grid scroll">${Object.keys(P.items).sort().map(k => `<div class="cell" title="${esc(ITEM[k]?.desc ?? '')}">${this.icon(k, 30)}<span>${esc(itemName(k))}</span><b>${fmtShort(P.items[k])}</b>${ITEM[k]?.cat === 'consumivel' ? `<button class="mini" data-act="pinItem" data-arg="${k}">📌</button>` : ''}</div>`).join('') || '<p class="muted">Vazia. Mineradores vazios são mineradores ociosos.</p>'}</div>
-        <p class="muted">Deposite no Estoque Central interagindo [E] com o Centro de Comando, armazéns ou elevadores.</p></div>`;
-      const cats: [ItemCat, string][] = [['minerio', 'Minérios'], ['britado', 'Britados'], ['refinado', 'Refinados'], ['liga', 'Ligas'], ['componente', 'Componentes'], ['consumivel', 'Consumíveis'], ['especial', 'Especiais']];
-      h += `<div class="col wide"><h3>ESTOQUE CENTRAL <small>créditos: ${fmtInt(g.stock.credits)}</small></h3><div class="scroll tall">${cats.map(([c, n]) => {
-        const ks = ITEMS.filter(i => i.cat === c && g.stock.count(i.key) >= 0.5);
-        if (!ks.length) return '';
-        return `<h4>${n}</h4><div class="grid">${ks.map(i => `<div class="cell" title="${esc(i.desc)}">${this.icon(i.key, 30)}<span>${esc(i.name)}</span><b>${fmtShort(g.stock.count(i.key))}</b>${g.stock.rate(i.key) > 1 ? `<em>+${fmtShort(g.stock.rate(i.key))}/min</em>` : ''}</div>`).join('')}</div>`;
-      }).join('') || '<p class="muted">Estoque vazio.</p>'}</div></div></div>`;
+      const cell = (k: string, n: number, pin = false) => `<div class="cell" title="${esc(ITEM[k]?.desc ?? '')}">${this.icon(k, 30)}<span>${esc(itemName(k))}</span><b>${fmtShort(n)}</b>${pin ? `<button class="mini" data-act="pinItem" data-arg="${k}">📌</button>` : ''}</div>`;
+      const groups: [string, (k: string) => boolean][] = [
+        ['Minérios', k => ITEM[k]?.cat === 'minerio' && !ITEM[k].contain && !['lumenita_pura', 'lumenita_instavel', 'pyroxis_volatil', 'nexolita_condensada', 'verdanio_vivo', 'fragmento_nucleo'].includes(k)],
+        ['Raros (valem muitos créditos)', k => ['lumenita_pura', 'lumenita_instavel', 'pyroxis_volatil', 'nexolita_condensada', 'verdanio_vivo', 'fragmento_nucleo', 'umbrium', 'crysalis'].includes(k)],
+        ['Barras refinadas', k => ITEM[k]?.cat === 'refinado'],
+        ['Consumíveis', k => ITEM[k]?.cat === 'consumivel' || k === 'pecas'],
+        ['Outros', k => ['especial', 'liga', 'componente', 'britado'].includes(ITEM[k]?.cat ?? '') && k !== 'pecas'],
+      ];
+      const stockKeys = Object.keys(g.stock.items).filter(k => g.stock.count(k) >= 0.5);
+      h += `<div class="cols"><div class="col"><h3>MOCHILA</h3>
+        <div class="kv"><span>${esc(P.def.name)}</span><b>${fmtInt(w)} / ${fmtInt(mw)} kg</b></div>${this.bar(w, mw, w > mw * 0.9 ? '#ff6a3a' : '#e8962a')}
+        <div class="grid">${Object.keys(P.items).sort().map(k => cell(k, P.items[k], ITEM[k]?.cat === 'consumivel')).join('') || '<p class="muted">Vazia.</p>'}</div>
+        <p class="muted">Entregue a mochila na cápsula laranja [E]: vira estoque e paga créditos (◆ ${fmtInt(g.stock.credits)}).</p></div>
+        <div class="col wide"><h3>ESTOQUE CENTRAL</h3>${groups.map(([name, f]) => { const ks = stockKeys.filter(f); return ks.length ? `<h4>${name}</h4><div class="grid">${ks.map(k => cell(k, g.stock.count(k))).join('')}</div>` : ''; }).join('') || '<p class="muted">Estoque vazio. Entregue minério na base.</p>'}</div></div>`;
       return h;
     }
-    // fabricação
-    const recs = g.crafting.recipes();
-    const groups: Record<string, string> = { todos: 'Todos', componentes: 'Componentes', consumiveis: 'Consumíveis', refino: 'Refino manual' };
-    const grp = this.st.craftGrp ?? 'todos';
-    const list = recs.filter(r => grp === 'todos' || r.group === grp);
-    const sel = RECIPE[this.st.craftSel] && list.includes(RECIPE[this.st.craftSel]) ? RECIPE[this.st.craftSel] : list[0];
-    const hasShop = g.machines.count('oficina') > 0;
-    h += `<div class="tabs sub">${Object.entries(groups).map(([k, n]) => `<button class="${grp === k ? 'on' : ''}" data-act="tab" data-arg="craftGrp:${k}">${n}</button>`).join('')}</div>`;
-    h += `<div class="cols"><div class="col list scroll tall">${list.map(r => { const out = Object.keys(r.out)[0]; return `<div class="li ${sel === r ? 'on' : ''}" data-act="sel" data-arg="craftSel:${r.key}">${this.icon(out, 26)}<span>${esc(itemName(out))}${r.out[out] > 1 ? ` ×${r.out[out]}` : ''}</span>${g.crafting.can(r) ? '<b class="dot ok"></b>' : ''}</div>`; }).join('')}</div>`;
+    // fabricação: só refino à mão e consumíveis
+    const recs = g.crafting.recipes().filter(r => r.group === 'refino' || r.group === 'consumiveis').filter(r => !Object.keys(r.in).includes('verdanio'));
+    const sel = RECIPE[this.st.craftSel] && recs.includes(RECIPE[this.st.craftSel]) ? RECIPE[this.st.craftSel] : recs[0];
+    h += `<p class="muted">Refinar à mão é lento (3 minérios = 1 barra). Uma <b>Refinaria</b> (Construir → Processamento) faz 2 → 1 sozinha, direto da esteira.</p>`;
+    h += `<div class="cols"><div class="col list scroll tall">${[['refino', 'Refinar à mão'], ['consumiveis', 'Consumíveis']].map(([grp, name]) => `<h4>${name}</h4>` + recs.filter(r => r.group === grp).map(r => { const out = Object.keys(r.out)[0]; return `<div class="li ${sel === r ? 'on' : ''}" data-act="sel" data-arg="craftSel:${r.key}">${this.icon(out, 26)}<span>${esc(itemName(out))}${r.out[out] > 1 ? ` ×${r.out[out]}` : ''}</span>${g.crafting.can(r) ? '<b class="dot ok"></b>' : ''}</div>`; }).join('')).join('')}</div>`;
     if (sel) {
       const out = Object.keys(sel.out)[0];
       h += `<div class="col wide"><div class="detail"><div class="dh">${this.icon(out, 56)}<div><h2>${esc(itemName(out).toUpperCase())}</h2><p>${esc(ITEM[out]?.desc ?? '')}</p></div></div>
         <h4>INGREDIENTES</h4><div class="recipe">${this.costCells(sel.in)}<span class="arrow">➜</span>${this.icon(out, 40)}<b>${sel.out[out]}×</b></div>
-        <div class="kv"><span>⏱ Tempo de fabricação</span><b>${sel.time}s</b></div>
-        <div class="row"><input type="number" min="1" max="50" value="${this.st.craftN ?? 1}" data-set="craftN" class="num"><button class="btn green" data-act="craft" data-arg="${sel.key}" ${!hasShop || !g.crafting.can(sel) ? 'disabled' : ''}>FABRICAR</button></div>
-        ${!hasShop ? '<p class="warn">Construa uma Oficina para fabricar.</p>' : ''}
+        <div class="kv"><span>⏱ Tempo</span><b>${sel.time}s cada</b></div>
+        <div class="row">${[1, 5, 20].map(n => `<button class="btn green" data-act="craftN" data-arg="${sel.key}:${n}" ${!g.crafting.can(sel) ? 'disabled' : ''}>FAZER ${n}×</button>`).join('')}</div>
         <h4>FILA (${g.crafting.queue.length})</h4><div class="queue">${g.crafting.queue.slice(0, 12).map((j, i) => { const r = RECIPE[j.key]; const o = Object.keys(r.out)[0]; return `<div class="q">${this.icon(o, 22)}${i === 0 ? this.bar(j.t, r.time, '#3aff8a') : ''}</div>`; }).join('')}</div></div></div>`;
     }
     return h + '</div>';
@@ -365,7 +364,7 @@ export class Panels {
   r_research() {
     const g = this.g, R = g.research;
     const cat = this.st.resCat as ResearchCat;
-    const nodes = RESEARCH.filter(r => r.cat === cat);
+    const nodes = RESEARCH.filter(r => r.cat === cat && !HIDDEN_RESEARCH.has(r.key));
     const sel = RESEARCH.find(r => r.key === this.st.resSel && r.cat === cat) ?? nodes.find(r => !R.done.has(r.key)) ?? nodes[0];
     let h = '';
     if (R.active) { const a = RESEARCH.find(r => r.key === R.active!.key)!; h += `<div class="active-res">⚗ Pesquisando <b>${esc(a.name)}</b> ${this.bar(R.active.t, a.time, '#3ab4ff')} <small>${fmtTime(a.time - R.active.t)}</small></div>`; }
@@ -430,12 +429,12 @@ export class Panels {
   r_contracts() {
     const g = this.g, C = g.contracts;
     const tab = this.st.conTab;
-    let h = this.tabs('conTab', [{ key: 'disp', name: `Contratos Disponíveis (${C.available.length})` }, { key: 'ativos', name: `Ativos (${C.active.length}/3)` }, { key: 'envio', name: 'Envio Orbital' }]);
+    let h = this.tabs('conTab', [{ key: 'disp', name: `Contratos Disponíveis (${C.available.length})` }, { key: 'ativos', name: `Ativos (${C.active.length}/3)` }, { key: 'envio', name: 'Vender excedente' }]);
     if (tab === 'envio') {
       const M = g.machines;
       const ships = Math.max(0, Math.ceil(M.shipFlow / 120));
       h += `<div class="cols"><div class="col"><div class="stats"><div><small>CARGUEIROS ATIVOS</small><b>${ships}</b></div><div><small>TAXA DE ENVIO</small><b>${fmtShort(M.shipFlow)} / ${fmtShort(M.shipCap)} kg/min</b>${this.bar(M.shipFlow, M.shipCap, '#3ab4ff')}</div><div><small>TOTAL ENVIADO</small><b>${fmtShort(g.stats.shipped)} kg</b></div><div><small>CRÉDITOS</small><b>${fmtInt(g.stock.credits)} ◆</b></div></div>
-        <p class="muted">O Terminal Orbital envia itens do Estoque Central na ordem de prioridade abaixo. Esteiras que terminam no terminal enviam direto. Quotas setoriais e contratos contam envios.</p>
+        <p class="muted">Opcional: o Terminal Orbital <b>vende</b> o excedente do Estoque Central pelo valor cheio, na ordem abaixo. Você já ganha créditos só de entregar minério na base.</p>
         <h4>FILA DE PRIORIDADE</h4><div class="shiplist">${M.shipList.map((k, i) => `<div class="sl">${this.icon(k, 22)}<span>${i + 1}. ${esc(itemName(k))}</span><small>${fmtShort(g.stock.count(k))} em estoque · ${ITEM[k]?.value ?? 1} ◆/kg</small><button class="mini" data-act="shipUp" data-arg="${k}">▲</button><button class="mini" data-act="ship" data-arg="${k}">✕</button></div>`).join('') || '<p class="muted">Nada sendo enviado.</p>'}</div></div>
         <div class="col"><h4>ADICIONAR À FILA</h4><div class="grid scroll tall">${Object.keys(g.stock.items).filter(k => !M.shipList.includes(k) && g.stock.count(k) >= 1).map(k => `<div class="cell click" data-act="ship" data-arg="${k}">${this.icon(k, 26)}<span>${esc(itemName(k))}</span><b>${fmtShort(g.stock.count(k))}</b></div>`).join('')}</div></div></div>`;
       return h;
@@ -444,12 +443,12 @@ export class Panels {
     const sel = list.find(c => String(c.id) === this.st.conSel) ?? list[0];
     h += `<div class="cols"><div class="col list scroll tall">${list.map(c => `<div class="li ${sel === c ? 'on' : ''}" data-act="sel" data-arg="conSel:${c.id}">${c.item ? this.icon(c.item, 28) : '<span class="ci">◈</span>'}<div><b>${esc(c.title)}</b><small>Prazo: ${fmtTime(c.left)}</small>${c.accepted ? this.bar(c.progress, c.target, '#3ab4ff') : ''}</div><em>◆ ${fmtShort(c.reward)}</em></div>`).join('') || '<p class="muted">Nenhum contrato aqui. Novos chegam periodicamente.</p>'}</div>`;
     if (sel) {
-      const what = sel.kind === 'ship' ? `Enviar ${fmtShort(sel.target)} kg de ${itemName(sel.item!)}` : sel.kind === 'mine' || sel.kind === 'rare' ? `Extrair manualmente ${fmtShort(sel.target)} kg de ${itemName(sel.item!)}` : sel.kind === 'craft' ? `Fabricar ${sel.target}× ${itemName(sel.item!)}` : sel.kind === 'ruin' ? `Catalogar ${sel.target} registro(s) de Khelos` : sel.kind === 'rate' ? `Atingir ${fmtShort(sel.target)} t/min de extração` : `Explorar mais ${sel.target}% do setor atual`;
+      const what = sel.kind === 'ship' ? `Entregar ${fmtShort(sel.target)} kg de ${itemName(sel.item!)} na base` : sel.kind === 'mine' || sel.kind === 'rare' ? `Extrair manualmente ${fmtShort(sel.target)} kg de ${itemName(sel.item!)}` : sel.kind === 'craft' ? `Fabricar ${sel.target}× ${itemName(sel.item!)}` : sel.kind === 'ruin' ? `Catalogar ${sel.target} registro(s) de Khelos` : sel.kind === 'rate' ? `Atingir ${fmtShort(sel.target)} t/min de extração` : `Explorar mais ${sel.target}% do setor atual`;
       h += `<div class="col wide"><div class="detail contract"><div class="dh"><img src="${g.sprites.portraitUrl('varren')}" class="portrait"><div><h2>${esc(sel.title.toUpperCase())}</h2><small>Corporação Zenitex</small><p class="flavor">${esc(sel.flavor)}</p></div></div>
         <h4>OBJETIVO</h4><div class="kv"><span>${sel.item ? this.icon(sel.item, 22) : ''} ${esc(what)}</span><b>${fmtShort(sel.progress)} / ${fmtShort(sel.target)}</b></div>${this.bar(sel.progress, sel.target, '#3ab4ff')}
         <div class="kv"><span>⏱ Prazo restante</span><b>${fmtTime(sel.left)}</b></div><div class="kv"><span>Recompensa</span><b class="gold">◆ ${fmtInt(sel.reward)} créditos</b></div>
         <div class="note">Observação da Corporação: "${esc(POOLS.ambient[sel.id % POOLS.ambient.length][1])}"</div>
-        ${sel.kind === 'ship' ? `<p class="muted">Envios saem pelo Terminal Orbital: adicione o item na aba "Envio Orbital".</p>` : ''}
+        ${sel.kind === 'ship' ? `<p class="muted">Conta tudo que chega ao Estoque Central: mochila entregue na cápsula ou minério dos armazéns. Barras: refine na Mochila ou na Refinaria.</p>` : ''}
         ${!sel.accepted ? `<button class="btn green" data-act="accept" data-arg="${sel.id}">ACEITAR CONTRATO</button>` : ''}</div></div>`;
     }
     return h + '</div>';
