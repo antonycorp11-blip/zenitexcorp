@@ -727,3 +727,45 @@ body.touch.tut-r .hud .hcard.meta.tut { left: auto !important; right: calc(max(6
 body.tut-r .hud .meta.tut { left: auto; right: 90px; }
 body.touch.tut-r .hud .toasts { right: auto !important; left: max(6px, env(safe-area-inset-left)) !important; }
 body.touch.tut-on:not(.tut-r) .hud .toasts { top: 46px !important; }
+
+/* =====================================================================
+   TEMA TECNOLÓGICO (sobrepõe tudo): vidro escuro, cantos chanfrados,
+   bordas com brilho ciano, títulos em Orbitron, botões com energia
+   ===================================================================== */
+:root { --tech-bg: linear-gradient(160deg, rgba(14, 26, 42, .94), rgba(5, 10, 18, .95)); --tech-line: rgba(90, 210, 255, .55); --tech-glow: 0 0 0 1px rgba(90,210,255,.18), 0 0 18px rgba(60,170,255,.22), inset 0 0 22px rgba(60,170,255,.06); --title: 'Orbitron', 'Rajdhani', sans-serif; }
+.hud .hcard, body.touch .hud .hcard, .hud .res > *, .pnl, .pnl.sheet, .dialog > *, .popup, .mg-layer .mg, .build-hint {
+  background: var(--tech-bg), repeating-linear-gradient(0deg, rgba(120,200,255,.035) 0 1px, transparent 1px 3px) !important;
+  border: 1px solid var(--tech-line) !important; box-shadow: var(--tech-glow) !important;
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); border-radius: 0 !important;
+}
+.hud .hcard::after, .pnl::after { content: ''; position: absolute; left: 0; top: 0; width: 26px; height: 2px; background: #6ae0ff; box-shadow: 0 0 8px #6ae0ff; pointer-events: none; }
+body.touch .hud .hcard.meta.tut { border-color: rgba(255,184,74,.8) !important; box-shadow: 0 0 0 1px rgba(255,184,74,.25), 0 0 20px rgba(255,150,40,.25), inset 0 0 22px rgba(255,150,40,.06) !important; }
+body.touch .hud .hcard.meta.tut::after { background: #ffb84a; box-shadow: 0 0 8px #ffb84a; }
+.hud .meta .mt, body.touch .hud .hcard.meta .mt, .pnl h2, .pnl h3, .pnl h4, .mc-head b { font-family: var(--title) !important; letter-spacing: .06em; }
+.hud .meta .mt, body.touch .hud .hcard.meta .mt { font-size: 8.5px !important; }
+.hud .meta .mx b { color: #ffd27a; text-shadow: 0 0 6px rgba(255,180,60,.35); }
+/* barras com energia */
+.bar i, .pbar i, .hud .meta .mb i { background: linear-gradient(90deg, #1688ff, #5ae6ff) !important; box-shadow: 0 0 10px rgba(90,230,255,.7) !important; }
+.vb.hp .bar i { background: linear-gradient(90deg, #ff3a52, #ff8a6a) !important; box-shadow: 0 0 10px rgba(255,80,90,.6) !important; }
+/* botões: chanfrados, com brilho */
+.btn, .menu-btn, .build-controls button, .mc-btns .btn, .tabs button {
+  border-radius: 0 !important; clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+  background: linear-gradient(180deg, rgba(30,52,76,.95), rgba(10,20,32,.95)) !important; border: 1px solid rgba(90,210,255,.5) !important; color: #dff4ff !important;
+  box-shadow: inset 0 0 12px rgba(80,200,255,.12) !important; text-transform: uppercase; letter-spacing: .06em;
+}
+.btn.orange, .build-controls button.confirm, .tabs button.on, .menu-btn:active {
+  background: linear-gradient(180deg, #ffb24a, #e0701a) !important; border-color: #ffd28a !important; color: #1a0e02 !important; box-shadow: 0 0 14px rgba(255,150,40,.5), inset 0 1px 0 rgba(255,255,255,.4) !important; text-shadow: none !important;
+}
+.btn:disabled { filter: grayscale(.8) brightness(.6); }
+/* botões redondos do celular: anéis de energia */
+#mobile .mobile-actions button, #mobile [data-b] {
+  background: radial-gradient(circle at 50% 35%, rgba(40,70,100,.95), rgba(6,12,22,.95)) !important; border: 1.5px solid rgba(90,210,255,.65) !important;
+  box-shadow: 0 0 14px rgba(60,180,255,.35), inset 0 0 12px rgba(90,210,255,.18) !important; color: #dff6ff !important;
+}
+#mobile [data-b].on { background: radial-gradient(circle at 50% 35%, #ffc060, #d0600e) !important; border-color: #ffe0a0 !important; box-shadow: 0 0 22px rgba(255,160,50,.75) !important; color: #1a0e02 !important; }
+#mobile .stick .base { border: 1.5px solid rgba(90,210,255,.45) !important; box-shadow: 0 0 16px rgba(60,170,255,.25), inset 0 0 20px rgba(60,170,255,.12) !important; background: radial-gradient(circle, rgba(20,40,60,.25), rgba(6,12,22,.45)) !important; }
+#mobile .stick .knob { background: radial-gradient(circle at 40% 35%, #8ae8ff, #1a6ab0) !important; box-shadow: 0 0 14px rgba(90,220,255,.8) !important; border: 1px solid #c8f4ff !important; }
+/* cartões de construção */
+.bd-card { background: linear-gradient(170deg, rgba(20,38,58,.95), rgba(6,12,22,.95)) !important; border: 1px solid rgba(90,210,255,.35) !important; border-radius: 0 !important; clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
+.bd-card:hover, .bd-card.on { border-color: #ffb84a !important; box-shadow: 0 0 14px rgba(255,170,60,.35) !important; }
+.tut-ring { border-radius: 0 !important; border-color: #ffb84a !important; box-shadow: 0 0 0 2px rgba(0,0,0,.4), 0 0 18px #ffb84a !important; clip-path: none; }

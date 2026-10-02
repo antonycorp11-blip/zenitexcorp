@@ -1,3 +1,4 @@
+import { fabVal } from '../data/factory';
 import { CELL, CHUNK_PX, TILE, TILE_CELLS, WORLD_CW, WORLD_PX_W } from '../core/constants';
 import { hash2 } from '../core/rng';
 import { DIRS } from '../core/math';
@@ -6,7 +7,7 @@ import { SECTORS } from '../data/sectors';
 import { ITEM } from '../data/items';
 import { MACHINE, type MachineDef } from '../data/machines';
 import { ioSpec } from '../data/howto';
-import { SPRITE_K } from './SideSprites';
+import { SPRITE_K, paintPlayer } from './SideSprites';
 import type { Game } from '../Game';
 import { BASE_RADIUS, type Machine } from '../systems/Machines';
 
@@ -18,6 +19,7 @@ export class Renderer {
   private fog: HTMLCanvasElement; private fctx: CanvasRenderingContext2D;
   private fogImg: ImageData | null = null;
   private time = 0;
+  private dtR = 0.016; private walkPh = 0; private stride = 0; private lean = 0; private armA = 0;
   prof: Record<string, number> = {};
   private pt = 0;
   private mark(k: string) { const n = performance.now(); this.prof[k] = (this.prof[k] ?? 0) * 0.9 + (n - this.pt) * 0.1; this.pt = n; }
@@ -41,7 +43,7 @@ export class Renderer {
 
   draw(dt: number) {
     const g = this.g, ctx = this.ctx, cam = g.camera;
-    this.time += dt;
+    this.time += dt; this.dtR = Math.min(0.05, dt);
     g.terrain.frame++;
     const W = this.canvas.width, H = this.canvas.height;
     const z = cam.zoom;
@@ -109,6 +111,16 @@ export class Renderer {
       const x = m.tx * TILE, y = m.ty * TILE;
       if (x > R || x + TILE < L || y > B || y + TILE < T) continue;
       this.drawBelt(m, x, y);
+    }
+    // pisos orbitais: campo antigravidade embaixo (cone suave pulsando)
+    for (const m of g.machines.list) if (m.key === 'piso_orbital') {
+      const x = m.tx * TILE, y = m.ty * TILE;
+      if (x > R || x + TILE < L || y > B || y + TILE < T) continue;
+      const pulse = 0.55 + 0.25 * Math.sin(this.time * 3 + m.tx * 0.7);
+      const gr = ctx.createLinearGradient(0, y + 9, 0, y + 22);
+      gr.addColorStop(0, `rgba(120,220,255,${0.45 * pulse})`); gr.addColorStop(1, 'rgba(120,220,255,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(x + 6, y + 9); ctx.lineTo(x + 10, y + 9); ctx.lineTo(x + 13, y + 22); ctx.lineTo(x + 3, y + 22); ctx.closePath(); ctx.fill();
+      if ((m.tx & 1) === 0) g.lighting.add(x + 8, y + 10, 22, [110, 210, 255], 0.35 * pulse);
     }
     for (const m of g.machines.list) if (m.def.behavior === 'platform') {
       const x = m.tx * TILE, y = m.ty * TILE;
@@ -206,26 +218,41 @@ export class Renderer {
     objs.push({ y: p.y + 2, draw: () => {
       if (p.invuln > 0 && Math.floor(this.time * 10) % 2) return;
       const left = p.facing === 2;
-      const body = g.sprites.player(0, p.frame, p.suit.termico ?? 0, p.jet > 0);
-      const bx = Math.round(p.x), by = Math.round(p.y - 22);
+      // pose contínua: passo pela velocidade, inclinação no voo, braço que acompanha a mira
+      const spd = Math.abs(p.vx), flying = !p.grounded && (p.jet > 0 || g.input.jetHeld);
+      this.walkPh += (p.grounded ? spd * 0.11 : 0) * this.dtR;
+      this.stride += ((p.grounded && spd > 8 ? Math.min(1, spd / 70) : 0) - this.stride) * Math.min(1, this.dtR * 10);
+      const leanT = flying ? Math.max(-0.35, Math.min(0.35, p.vx / 420)) * (left ? -1 : 1) + 0.08 : 0;
+      this.lean += (leanT - this.lean) * Math.min(1, this.dtR * 8);
+      const bx = p.x, by = p.y - 22;
       ctx.save();
       ctx.translate(bx, by);
       if (left) ctx.scale(-1, 1);
+      ctx.translate(-8, 0);
       ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(body, -8, 0, body.width / SPRITE_K, body.height / SPRITE_K);
+      const bob = paintPlayer(ctx, { phase: this.walkPh, stride: this.stride, jet: p.jet > 0, flying, lean: this.lean, suitTier: p.suit.termico ?? 0, t: this.time });
       ctx.restore();
-      // braço com o perfurador apontando para a mira (ou para a frente)
-      const sx = p.x + (left ? -1 : 1), sy = p.y - 12;
-      let ang = left ? Math.PI : 0;
-      if (g.mining.hitting) ang = Math.atan2(g.mining.hitY - sy, g.mining.hitX - sx);
-      else if (g.mining.blowing) ang = Math.atan2(g.input.worldY - sy, g.input.worldX - sx);
-      ctx.save(); ctx.translate(Math.round(sx), Math.round(sy)); ctx.rotate(ang);
-      if (Math.abs(ang) > Math.PI / 2) ctx.scale(1, -1);
+      // braço: mira no alvo (laser / soprar / joystick direito); parado, fica abaixado e balança com o passo
+      const sx = p.x + (left ? -1.5 : 1.5), sy = p.y - 12.6 - bob;
+      const fwd = left ? Math.PI : 0;
+      let want: number;
+      if (g.mining.hitting) want = Math.atan2(g.mining.hitY - sy, g.mining.hitX - sx);
+      else if (g.mining.blowing || (g.input.touch ? g.input.aimActive : !g.build.active)) want = Math.atan2(g.input.worldY - sy, g.input.worldX - sx);
+      else want = fwd + (left ? -1 : 1) * (flying ? 0.55 : 1.05 + Math.sin(this.walkPh) * 0.35 * this.stride);
+      // ângulo suave (pelo caminho mais curto)
+      let dA = want - this.armA; while (dA > Math.PI) dA -= Math.PI * 2; while (dA < -Math.PI) dA += Math.PI * 2;
+      this.armA += dA * Math.min(1, this.dtR * 18);
+      ctx.save(); ctx.translate(sx, sy); ctx.rotate(this.armA);
+      if (Math.cos(this.armA) < 0) ctx.scale(1, -1);
       const armImg = g.sprites.arm(p.drillLevel);
-      ctx.drawImage(armImg, 0, -3, armImg.width / SPRITE_K, armImg.height / SPRITE_K);
+      ctx.drawImage(armImg, -1, -3.5, armImg.width / SPRITE_K, armImg.height / SPRITE_K);
       ctx.restore();
+      // ombreira por cima do braço
+      ctx.fillStyle = '#e4e9f1'; ctx.strokeStyle = 'rgba(10,12,18,0.95)'; ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.arc(sx, sy, 2.1, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ec9628'; ctx.beginPath(); ctx.arc(sx, sy, 0.8, 0, 7); ctx.fill();
       ctx.imageSmoothingEnabled = true;
-      if (p.jet > 0) { g.fx.ember(p.x + (p.facing === 2 ? 3 : -3), p.y - 4, [255, 170, 60]); g.lighting.add(p.x, p.y - 2, 26, [255, 160, 60], 0.7); }
+      if (p.jet > 0) { if (Math.random() < 0.5) g.fx.ember(p.x + (p.facing === 2 ? 5 : -5), p.y - 3, [130, 220, 255]); g.lighting.add(p.x, p.y - 2, 30, [120, 210, 255], 0.75); }
     } });
     objs.sort((a, b) => a.y - b.y);
     for (const o of objs) o.draw();
@@ -489,25 +516,32 @@ export class Renderer {
       ctx.fillStyle = col;
       if (dx) ctx.fillRect(dx > 0 ? cx : cx - h, cy - r, h, r * 2); else ctx.fillRect(cx - r, dy > 0 ? cy : cy - h, r * 2, h);
     };
-    for (const d of sides) seg(d, '#14161c', R + 0.8);
-    for (const d of sides) seg(d, '#7c8696', R);
-    for (const d of sides) seg(d, '#a8b2c0', R * 0.45);
-    ctx.fillStyle = '#7c8696'; ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
-    ctx.fillStyle = '#a8b2c0'; ctx.fillRect(cx - R * 0.45, cy - R * 0.45, R * 0.9, R * 0.9);
-    // flanges nas pontas
-    ctx.fillStyle = '#4a5260';
-    for (const d of sides) { const [dx, dy] = DIRS[d]; const fx = cx + dx * (TILE / 2 - 1), fy = cy + dy * (TILE / 2 - 1); ctx.fillRect(fx - (dx ? 1 : R + 1), fy - (dy ? 1 : R + 1), dx ? 2 : R * 2 + 2, dy ? 2 : R * 2 + 2); }
-    // pacotes correndo para a saída
-    const [ox, oy] = DIRS[m.dir], ph = (this.time * 6) % 1;
+    // tubo de vidro reforçado: carcaça grafite, canal de vidro com brilho ciano e anéis de contenção
+    for (const d of sides) seg(d, '#0a0d14', R + 0.9);
+    for (const d of sides) seg(d, '#2a3346', R);
+    for (const d of sides) seg(d, 'rgba(90,200,255,0.28)', R * 0.62);
+    ctx.fillStyle = '#2a3346'; ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+    ctx.fillStyle = 'rgba(90,200,255,0.28)'; ctx.fillRect(cx - R * 0.62, cy - R * 0.62, R * 1.24, R * 1.24);
+    // reflexo do vidro
+    ctx.fillStyle = 'rgba(220,245,255,0.35)';
+    for (const d of sides) { const [dx] = DIRS[d]; if (dx) ctx.fillRect(dx > 0 ? cx : cx - TILE / 2, cy - R * 0.5, TILE / 2, 0.6); else ctx.fillRect(cx - R * 0.5, DIRS[d][1] > 0 ? cy : cy - TILE / 2, 0.6, TILE / 2); }
+    // anéis de contenção nas juntas (luz azul)
+    for (const d of sides) { const [dx, dy] = DIRS[d]; const fx = cx + dx * (TILE / 2 - 1.2), fy = cy + dy * (TILE / 2 - 1.2);
+      ctx.fillStyle = '#4a5670'; ctx.fillRect(fx - (dx ? 1 : R + 0.8), fy - (dy ? 1 : R + 0.8), dx ? 2 : R * 2 + 1.6, dy ? 2 : R * 2 + 1.6);
+      ctx.fillStyle = 'rgba(120,230,255,0.9)'; ctx.fillRect(fx - (dx ? 0.25 : R * 0.5), fy - (dy ? 0.25 : R * 0.5), dx ? 0.5 : R, dy ? 0.5 : R); }
+    // pacotes correndo para a saída (brilham dentro do vidro)
+    const [ox, oy] = DIRS[m.dir], ph = (this.time * 10) % 1;
     if (m.q) m.q.forEach((p, i) => {
       const t = Math.min(0.95, (i / 4) + ph / 4);
       const c = MATERIALS[p.m]?.top ?? [200, 200, 200];
-      ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
-      ctx.fillRect(cx - TILE / 2 * ox + ox * TILE * t - 1.4, cy - TILE / 2 * oy + oy * TILE * t - 1.4, 2.8, 2.8);
+      const px = cx - TILE / 2 * ox + ox * TILE * t, py = cy - TILE / 2 * oy + oy * TILE * t;
+      ctx.fillStyle = 'rgba(140,230,255,0.35)'; ctx.fillRect(px - 2, py - 2, 4, 4);
+      ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.fillRect(px - 1.2, py - 1.2, 2.4, 2.4);
     });
-    // seta da direção
-    ctx.fillStyle = 'rgba(255,208,74,0.85)';
-    ctx.beginPath(); ctx.moveTo(cx + ox * 3, cy + oy * 3); ctx.lineTo(cx - ox * 1 + oy * 2, cy - oy * 1 + ox * 2); ctx.lineTo(cx - ox * 1 - oy * 2, cy - oy * 1 - ox * 2); ctx.closePath(); ctx.fill();
+    if (m.q?.length) g.lighting.add(cx, cy, 16, [110, 210, 255], 0.25);
+    // seta discreta (chevron) da direção
+    ctx.strokeStyle = 'rgba(255,208,74,0.75)'; ctx.lineWidth = 0.7;
+    ctx.beginPath(); ctx.moveTo(cx - ox * 1 + oy * 1.6, cy - oy * 1 + ox * 1.6); ctx.lineTo(cx + ox * 1.4, cy + oy * 1.4); ctx.lineTo(cx - ox * 1 - oy * 1.6, cy - oy * 1 - ox * 1.6); ctx.stroke();
     if (m.key === 'reforcador') {
       // colar de pressão laranja com manômetro
       ctx.fillStyle = '#14161c'; ctx.fillRect(cx - 6.5, cy - 6.5, 13, 13);
@@ -577,6 +611,26 @@ export class Renderer {
   private animate(m: Machine, x: number, y: number) {
     const ctx = this.ctx, g = this.g, d = m.def, t = this.time;
     const W = d.w * TILE, H = d.h * TILE;
+    if (d.behavior === 'blower') {
+      // núcleo de plasma: esfera pulsando com arcos girando; mais forte quando está aspirando
+      const cx = x + W / 2, cy = y + H / 2 - 0.5, on = m.fin > 1, pulse = 0.75 + 0.25 * Math.sin(t * (on ? 14 : 4) + m.id);
+      const rg = ctx.createRadialGradient(cx, cy, 0, cx, cy, 4.2);
+      rg.addColorStop(0, 'rgba(255,255,255,1)'); rg.addColorStop(0.35, `rgba(150,235,255,${0.95 * pulse})`); rg.addColorStop(0.75, `rgba(170,110,255,${0.75 * pulse})`); rg.addColorStop(1, 'rgba(120,60,255,0)');
+      ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(cx, cy, 4.2, 0, 7); ctx.fill();
+      ctx.strokeStyle = `rgba(200,245,255,${0.8 * pulse})`; ctx.lineWidth = 0.5;
+      for (let k = 0; k < 3; k++) { const a0 = t * (on ? 9 : 3) * (k % 2 ? -1 : 1) + k * 2.1; ctx.beginPath(); ctx.arc(cx, cy, 2.4 + k * 0.6, a0, a0 + 1.6); ctx.stroke(); }
+      g.lighting.add(cx, cy, on ? 46 : 26, [140, 200, 255], on ? 0.9 : 0.5);
+      if (on) {
+        // grãos sendo sugados em espiral para o anel
+        const R = fabVal(g.flags, 'alcance') * TILE * 0.5;
+        for (let i = 0; i < 9; i++) {
+          const k = (t * 1.6 + i / 9) % 1, a = i * 2.4 + t * 2, r = (1 - k) * R + 3;
+          const px = cx + Math.cos(a + k * 3) * r, py = cy + Math.abs(Math.sin(a + k * 3)) * r * 0.7;
+          ctx.fillStyle = `rgba(${i % 3 ? '170,140,110' : '120,220,255'},${0.35 + k * 0.6})`; ctx.fillRect(px - 0.6, py - 0.6, 1.2, 1.2);
+        }
+      }
+      return;
+    }
     if (d.behavior === 'separator' && m.working) {
       // grãos descendo pela peneira inclinada: minerais (azul) e resíduo (marrom)
       const wx = x + 4, wy = y + 7, ww = W - 8, wh = H - 16, right = m.dir !== 2;

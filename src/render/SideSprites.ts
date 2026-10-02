@@ -16,7 +16,8 @@ const sh = (c: readonly number[], k: number): C3 => [Math.max(0, Math.min(255, c
 export const P = {
   ink: [14, 15, 20] as C3,
   or: [236, 150, 40] as C3, orL: [255, 204, 102] as C3, orD: [170, 92, 22] as C3, orDD: [110, 56, 16] as C3,
-  st: [74, 80, 94] as C3, stL: [128, 136, 152] as C3, stLL: [178, 186, 200] as C3, stD: [44, 48, 58] as C3, stDD: [28, 30, 38] as C3,
+  st: [60, 68, 86] as C3, stL: [112, 126, 150] as C3, stLL: [176, 192, 214] as C3, stD: [34, 39, 52] as C3, stDD: [20, 23, 32] as C3,
+  plasma: [120, 230, 255] as C3, plasmaV: [190, 120, 255] as C3,
   glass: [40, 90, 130] as C3, glassL: [130, 210, 255] as C3,
   red: [230, 60, 50] as C3, green: [90, 230, 110] as C3, cyan: [70, 230, 240] as C3, yellow: [255, 214, 70] as C3,
   rust: [150, 84, 50] as C3, wood: [140, 96, 56] as C3, woodD: [92, 60, 34] as C3,
@@ -129,6 +130,12 @@ class VPen extends Pen {
     // brilho superior
     this.rr(a + 0.8, b + 0.6, w - 1.6, Math.min(2, h * 0.2), 1); x.fillStyle = 'rgba(255,255,255,0.22)'; x.fill();
     if (o.seams) for (let k = o.seams; k < w - 1; k += o.seams) { x.fillStyle = css(sh(c, 0.7), 0.7); x.fillRect(a + k, b + 1, 0.5, h - 2); x.fillStyle = 'rgba(255,255,255,0.15)'; x.fillRect(a + k + 0.5, b + 1, 0.4, h - 2); }
+    if (w > 9 && h > 7) {
+      // faixa de luz de serviço (emissiva) e linha de junta: visual de equipamento de alta tecnologia
+      x.fillStyle = 'rgba(10,14,22,0.55)'; x.fillRect(a + 2, b + h - 3.2, w - 4, 1.4);
+      x.fillStyle = 'rgba(110,230,255,0.85)'; x.fillRect(a + 2.6, b + h - 2.8, Math.max(2, (w - 5.2) * 0.42), 0.6);
+      x.fillStyle = 'rgba(110,230,255,0.35)'; x.fillRect(a + 2.6 + (w - 5.2) * 0.48, b + h - 2.8, (w - 5.2) * 0.12, 0.6);
+    }
     if (o.rivets && w > 6 && h > 6) for (const [rx, ry] of [[1.8, 1.8], [w - 1.8, 1.8], [1.8, h - 1.8], [w - 1.8, h - 1.8]]) {
       x.fillStyle = css(sh(c, 0.55)); x.beginPath(); x.arc(a + rx, b + ry + 0.15, 0.7, 0, 7); x.fill();
       x.fillStyle = css(sh(c, 1.5)); x.beginPath(); x.arc(a + rx - 0.1, b + ry - 0.1, 0.45, 0, 7); x.fill();
@@ -286,11 +293,14 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
     const big = def.w >= 3;
     if (big) { p.tank(3, top + 2, W - 6, H - 4, [196, 120, 44]); }
     else {
-      p.panel(1, top + 3, W - 2, H - 3, P.or, { seams: 5, rivets: true });
-      p.r(1, top + 3 + (H >> 1), W - 2, 2, P.orDD);
+      // coletor: cofre de grafite com faixas laranja e emblema iluminado
+      p.panel(1, top + 3, W - 2, H - 3, [46, 54, 72], { seams: 8, rivets: true });
+      p.r(1, top + 5, W - 2, 1.4, P.or); p.r(1, bot - 7, W - 2, 1.4, P.or);
     }
-    p.r(W / 2 - 4, top + 9, 8, 7, P.ink); p.r(W / 2 - 3, top + 10, 6, 1, P.orL); p.r(W / 2 - 3, top + 15, 6, 1, P.orL);
-    p.r(W / 2 - 1, top + 11, 2, 4, P.orL);   // "Z"
+    const ex2 = p.x, ec = W / 2, ey = top + 12.5;
+    ex2.fillStyle = 'rgba(8,12,20,0.95)'; ex2.beginPath(); for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3 + Math.PI / 6; const qx = ec + Math.cos(a) * 5.2, qy = ey + Math.sin(a) * 5.2; if (k) ex2.lineTo(qx, qy); else ex2.moveTo(qx, qy); } ex2.closePath(); ex2.fill();
+    ex2.strokeStyle = css(P.plasma); ex2.lineWidth = 0.7; ex2.stroke();
+    ex2.strokeStyle = css(P.orL); ex2.lineWidth = 1.1; ex2.beginPath(); ex2.moveTo(ec - 2.4, ey - 2.2); ex2.lineTo(ec + 2.4, ey - 2.2); ex2.lineTo(ec - 2.4, ey + 2.2); ex2.lineTo(ec + 2.4, ey + 2.2); ex2.stroke();   // "Z"
     p.hopper(3, top - 4, W - 6, 6, P.st);
     p.hazard(2, bot - 3, W - 4, 2);
   } else if (def.behavior === 'drill') {
@@ -378,17 +388,20 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
     x.fillStyle = css(P.yellow);
     const ax = right ? W - 3 : 3; x.beginPath(); x.moveTo(ax, top + H / 2); x.lineTo(W / 2, top + 4); x.lineTo(W / 2, top + H - 3); x.closePath(); x.globalAlpha = 0.85; x.fill(); x.globalAlpha = 1;
   } else if (def.key === 'piso_orbital') {
-    // piso de liga orbital: chapa grossa com borda de perigo, rebites e luz azul; treliça curta embaixo
+    // PISO ORBITAL: placa de compósito de grafeno com borda emissiva; embaixo, um emissor antigravidade (o brilho pulsa no Renderer)
     const x = p.x;
-    x.fillStyle = css(P.stD); x.fillRect(1.5, top + 6, 1.4, H - 6); x.fillRect(W - 2.9, top + 6, 1.4, H - 6);
-    x.strokeStyle = css(P.st); x.lineWidth = 0.9; x.beginPath(); x.moveTo(2.5, top + 6); x.lineTo(W - 2.5, bot - 1); x.moveTo(W - 2.5, top + 6); x.lineTo(2.5, bot - 1); x.stroke();
-    x.beginPath(); x.rect(0, top, W, 6);
-    const g = x.createLinearGradient(0, top, 0, top + 6); g.addColorStop(0, css(P.stLL)); g.addColorStop(0.5, css(P.stL)); g.addColorStop(1, css(P.stD));
-    x.fillStyle = g; x.fill(); x.strokeStyle = 'rgba(16,18,24,0.95)'; x.lineWidth = 0.5; x.stroke();
-    p.hazard(0, top + 4, W, 2);
-    x.fillStyle = 'rgba(255,255,255,0.35)'; x.fillRect(0, top + 0.4, W, 0.6);
-    for (const rx of [2.5, W - 2.5]) { x.fillStyle = css(P.stD); x.beginPath(); x.arc(rx, top + 2.2, 0.7, 0, 7); x.fill(); }
-    x.fillStyle = css([90, 200, 255]); x.fillRect(W / 2 - 1, top + 1.6, 2, 1.2);
+    x.beginPath(); x.moveTo(0, top); x.lineTo(W, top); x.lineTo(W, top + 5); x.lineTo(W - 2, top + 6.5); x.lineTo(2, top + 6.5); x.lineTo(0, top + 5); x.closePath();
+    const g = x.createLinearGradient(0, top, 0, top + 6.5); g.addColorStop(0, '#5a6680'); g.addColorStop(0.25, '#2c3344'); g.addColorStop(1, '#141822');
+    x.fillStyle = g; x.fill(); x.strokeStyle = 'rgba(8,10,16,0.95)'; x.lineWidth = 0.5; x.stroke();
+    x.fillStyle = 'rgba(255,255,255,0.35)'; x.fillRect(0, top + 0.3, W, 0.5);
+    // linha emissiva e marcas hexagonais
+    x.fillStyle = css(P.plasma); x.fillRect(0, top + 2.6, W, 0.55);
+    x.strokeStyle = 'rgba(130,200,255,0.25)'; x.lineWidth = 0.35;
+    for (const hx of [4, 12]) { x.beginPath(); for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; const px = hx + Math.cos(a) * 1.6, py = top + 4.5 + Math.sin(a) * 1.1; if (k) x.lineTo(px, py); else x.moveTo(px, py); } x.closePath(); x.stroke(); }
+    x.fillStyle = css(P.or); x.fillRect(W / 2 - 0.6, top + 4, 1.2, 1.2);
+    // emissor antigravidade
+    x.fillStyle = css(P.stDD); x.beginPath(); x.moveTo(W / 2 - 3.5, top + 6.5); x.lineTo(W / 2 + 3.5, top + 6.5); x.lineTo(W / 2 + 2, top + 9); x.lineTo(W / 2 - 2, top + 9); x.closePath(); x.fill();
+    x.fillStyle = css(P.plasma, 0.9); x.beginPath(); x.ellipse(W / 2, top + 9.1, 2, 0.7, 0, 0, 7); x.fill();
   } else if (def.behavior === 'scaffold') {
     const x = p.x;
     x.beginPath(); x.roundRect(0.3, top + 0.3, W - 0.6, 4, 0.8);
@@ -464,22 +477,27 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
     for (let k = 0; k < 9; k++) { p.r(bx + d * k - 1, by - k - 1, 3, 3, k > 6 ? P.orL : P.or); }
     p.r(bx - 3, top + 2, 6, 5, P.stL); p.r(bx - 3, top + 2, 6, 1, P.stLL);
   } else if (def.behavior === 'blower') {
-    // soprador portátil: carcaça amarela com ventoinha (boca de aspiração), alça de carregar e bocal na seta
-    const x = p.x, cx = W / 2, cy = top + H / 2 + 1;
-    p.panel(1, top + 3, W - 2, H - 4, [214, 164, 40], { rivets: true });
-    p.hazard(1, bot - 3, W - 2, 2);
-    x.fillStyle = css(P.ink); x.beginPath(); x.arc(cx, cy, 4.6, 0, 7); x.fill();
-    x.fillStyle = css(P.stD); x.beginPath(); x.arc(cx, cy, 4, 0, 7); x.fill();
-    x.strokeStyle = css(P.stLL); x.lineWidth = 0.7;
-    for (let i = 0; i < 5; i++) { const a = i * 1.2566; x.beginPath(); x.moveTo(cx, cy); x.quadraticCurveTo(cx + Math.cos(a + 0.6) * 3, cy + Math.sin(a + 0.6) * 3, cx + Math.cos(a) * 3.8, cy + Math.sin(a) * 3.8); x.stroke(); }
-    x.fillStyle = css(P.stLL); x.beginPath(); x.arc(cx, cy, 1, 0, 7); x.fill();
-    // alça
-    x.strokeStyle = css(P.ink); x.lineWidth = 1.6; x.beginPath(); x.moveTo(4, top + 3); x.quadraticCurveTo(cx, top - 4, W - 4, top + 3); x.stroke();
-    x.strokeStyle = css(P.stL); x.lineWidth = 0.8; x.stroke();
-    // bocal
-    const nx = right ? W - 1 : -3;
-    p.panel(nx, cy - 2.5, 4, 5, P.stL);
-    p.light(right ? 2 : W - 4, top + 4, glow);
+    // EXTRATOR DE PLASMA portátil: carcaça grafite, anel de contenção com núcleo de plasma (o núcleo brilha no Renderer),
+    // bocal de sucção embaixo e canhão de saída do lado da seta
+    const x = p.x, cx = W / 2, cy = top + H / 2 - 0.5;
+    // base com pés magnéticos
+    x.fillStyle = css(P.stDD); x.beginPath(); x.roundRect(1.5, bot - 3, W - 3, 2.6, 1); x.fill();
+    x.fillStyle = 'rgba(120,230,255,0.9)'; x.fillRect(3, bot - 1.2, 2, 0.6); x.fillRect(W - 5, bot - 1.2, 2, 0.6);
+    // carcaça hexagonal
+    x.beginPath(); x.moveTo(cx - 5.5, top + 1.5); x.lineTo(cx + 5.5, top + 1.5); x.lineTo(cx + 7.4, cy); x.lineTo(cx + 5.5, bot - 3); x.lineTo(cx - 5.5, bot - 3); x.lineTo(cx - 7.4, cy); x.closePath();
+    const hg = x.createLinearGradient(0, top, 0, bot); hg.addColorStop(0, css(P.stL)); hg.addColorStop(0.5, css(P.st)); hg.addColorStop(1, css(P.stDD));
+    x.fillStyle = hg; x.fill(); x.strokeStyle = 'rgba(10,12,18,0.95)'; x.lineWidth = 0.6; x.stroke();
+    // anel de contenção
+    x.fillStyle = css(P.stDD); x.beginPath(); x.arc(cx, cy, 4.6, 0, 7); x.fill();
+    x.strokeStyle = css(P.stLL); x.lineWidth = 0.7; x.beginPath(); x.arc(cx, cy, 4.3, 0, 7); x.stroke();
+    for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; x.fillStyle = css(P.or); x.fillRect(cx + Math.cos(a) * 4.3 - 0.5, cy + Math.sin(a) * 4.3 - 0.5, 1, 1); }
+    // bocal de saída (canhão) do lado da seta
+    const d = right ? 1 : -1, nx = cx + d * 7.2;
+    x.fillStyle = css(P.stD); x.beginPath(); x.roundRect(right ? nx - 1 : nx - 3.2, cy - 2, 4.2, 4, 1); x.fill(); x.strokeStyle = 'rgba(10,12,18,0.95)'; x.lineWidth = 0.5; x.stroke();
+    x.fillStyle = css(P.plasma); x.fillRect(right ? nx + 2.4 : nx - 3, cy - 1.2, 0.8, 2.4);
+    // listras laranja da Zenitex e alça
+    x.fillStyle = css(P.or); x.fillRect(cx - 5, top + 2.2, 10, 1);
+    x.strokeStyle = css(P.stLL); x.lineWidth = 1; x.beginPath(); x.moveTo(cx - 3.5, top + 1.5); x.lineTo(cx - 3.5, top - 1.5); x.lineTo(cx + 3.5, top - 1.5); x.lineTo(cx + 3.5, top + 1.5); x.stroke();
   } else if (def.behavior === 'tube') {
     // desenhado no Renderer (liga nos vizinhos)
   } else if (def.behavior === 'link') {
@@ -577,18 +595,78 @@ export function drawPlayer(frame: number, suitTier: number, jet: boolean): HTMLC
   return c;
 }
 
+export interface PlayerPose { phase: number; stride: number; jet: boolean; flying: boolean; lean: number; suitTier: number; t: number; }
+/**
+ * Personagem desenhado a cada quadro (sem quadros fixos): traje de compósito branco/grafite com detalhes laranja,
+ * capacete com visor emissivo, jetpack de plasma. Coordenadas lógicas: caixa 16×22 com os pés em (8,22). Olhando para +x.
+ */
+export function paintPlayer(x: CanvasRenderingContext2D, o: PlayerPose) {
+  const ink = 'rgba(10,12,18,0.95)';
+  const white: C3 = o.suitTier >= 3 ? [236, 240, 248] : [222, 228, 238], dark: C3 = [44, 50, 66], acc = P.or;
+  const sw = Math.sin(o.phase) * 0.62 * o.stride, bob = o.flying ? Math.sin(o.t * 3) * 0.4 : Math.abs(Math.sin(o.phase)) * 0.7 * o.stride + Math.sin(o.t * 2) * 0.15 * (1 - o.stride);
+  const fill = (f: () => void, c: string | CanvasGradient, lw = 0.55) => { x.beginPath(); f(); x.fillStyle = c; x.fill(); x.strokeStyle = ink; x.lineWidth = lw; x.stroke(); };
+  const vg = (y0: number, h: number, c: readonly number[]) => { const g = x.createLinearGradient(0, y0, 0, y0 + h); g.addColorStop(0, css(sh(c, 1.15))); g.addColorStop(1, css(sh(c, 0.72))); return g; };
+  x.save();
+  x.translate(8, 22); x.rotate(o.lean); x.translate(-8, -22 - bob);
+  // chamas de plasma do jetpack (duas tubeiras)
+  if (o.jet) for (const tx of [1.6, 3.8]) {
+    const len = 5 + Math.random() * 3;
+    const g = x.createLinearGradient(0, 15.5, 0, 15.5 + len);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.3, 'rgba(140,230,255,0.95)'); g.addColorStop(1, 'rgba(120,90,255,0)');
+    x.fillStyle = g; x.beginPath(); x.moveTo(tx - 1, 15.5); x.quadraticCurveTo(tx, 15.5 + len * 1.3, tx + 1, 15.5); x.closePath(); x.fill();
+  }
+  // jetpack: casco grafite com tubeiras e luz
+  fill(() => x.roundRect(0.4, 7.2, 5, 8.6, 1.6), vg(7.2, 8.6, dark));
+  fill(() => { x.roundRect(0.9, 14.6, 1.6, 1.4, 0.4); x.roundRect(3.1, 14.6, 1.6, 1.4, 0.4); }, css(P.stD), 0.4);
+  x.fillStyle = css(P.plasma); x.fillRect(1.2, 8.6, 0.6, 4.6);
+  x.fillStyle = css(acc); x.fillRect(2.5, 8.2, 2.2, 0.8);
+  // pernas: coxa + canela com joelho (dobra conforme o passo)
+  const leg = (hx: number, a: number, far: boolean) => {
+    const c = far ? sh(white, 0.72) : white;
+    const knee = Math.max(0, -a) * 0.9 + (o.flying ? 0.5 : 0.08);
+    x.save(); x.translate(hx, 14.4); x.rotate(a);
+    fill(() => x.roundRect(-1.35, 0, 2.7, 3.6, 1.1), vg(0, 3.6, c));
+    x.translate(0, 3.2); x.rotate(knee);
+    fill(() => x.roundRect(-1.2, 0, 2.4, 3.4, 1), vg(0, 3.4, c));
+    fill(() => x.roundRect(-1.4, 2.8, 3.8, 1.6, 0.7), css(far ? sh(dark, 0.8) : dark), 0.45);
+    x.fillStyle = css(acc); x.fillRect(-1.2, 0.4, 2.4, 0.5);
+    x.restore();
+  };
+  const fl = o.flying ? 0.35 : 0;
+  leg(7.4, -sw - fl * 0.6, true); leg(9.2, sw - fl, false);
+  // tronco: placa peitoral com núcleo emissivo
+  fill(() => x.roundRect(4.2, 7.4, 8.6, 7.8, 2.4), vg(7.4, 7.8, white));
+  fill(() => x.roundRect(4.6, 12.6, 7.8, 1.6, 0.6), css(dark), 0.4);
+  x.fillStyle = css(acc); x.fillRect(5, 9, 1.2, 3.2);
+  x.fillStyle = css(P.plasma); x.beginPath(); x.arc(10.2, 10.4, 0.9, 0, 7); x.fill();
+  x.fillStyle = 'rgba(255,255,255,0.9)'; x.beginPath(); x.arc(10, 10.2, 0.35, 0, 7); x.fill();
+  // capacete com visor emissivo de faixa
+  fill(() => x.arc(9, 4.4, 4.5, 0, 7), (() => { const g = x.createRadialGradient(7.2, 2.4, 0.5, 9, 4.4, 5.2); g.addColorStop(0, '#ffffff'); g.addColorStop(0.55, css(white)); g.addColorStop(1, css(sh(white, 0.62))); return g; })());
+  fill(() => x.roundRect(8.6, 2.4, 5.6, 3.6, 1.8), (() => { const g = x.createLinearGradient(8.6, 2.4, 14, 6); g.addColorStop(0, '#0c1a2c'); g.addColorStop(1, '#05080f'); return g; })(), 0.5);
+  x.fillStyle = css(P.plasma); x.beginPath(); x.roundRect(9.6, 3.6, 4, 0.9, 0.45); x.fill();
+  x.fillStyle = 'rgba(160,240,255,0.35)'; x.beginPath(); x.roundRect(9.2, 3.1, 4.8, 1.9, 0.9); x.fill();
+  x.fillStyle = css(acc); x.fillRect(5.2, 2, 0.9, 3.2);
+  x.fillStyle = css(P.stLL); x.fillRect(6, -0.6, 0.5, 1.6); x.fillStyle = css(P.red); x.fillRect(5.9, -0.9, 0.7, 0.5);
+  x.restore();
+  return bob;
+}
+
 /** Braço com a ferramenta (cano do perfurador + bocal do aspirador). Origem no ombro, apontando para +x. */
 export function drawArm(level: number): HTMLCanvasElement {
-  const [c, p] = canvas(14, 6);
-  const x = p.x;
+  const [c, p] = canvas(15, 7);
+  const x = p.x, ink = 'rgba(10,12,18,0.95)';
   const BEAM: C3[] = [[255, 170, 60], [255, 220, 70], [80, 220, 255], [90, 255, 160], [200, 110, 255], [255, 250, 210]];
   const col = BEAM[Math.min(5, level)];
-  x.beginPath(); x.roundRect(0, 1.6, 5.4, 2.6, 1.2); x.fillStyle = css(P.orD); x.fill(); x.strokeStyle = 'rgba(16,18,24,0.95)'; x.lineWidth = 0.5; x.stroke();
-  const g = x.createLinearGradient(0, 0.6, 0, 5.2); g.addColorStop(0, css(P.stLL)); g.addColorStop(0.5, css(P.stL)); g.addColorStop(1, css(P.stD));
-  x.beginPath(); x.roundRect(4.2, 0.6, 8.2, 4.6, 1.4); x.fillStyle = g; x.fill(); x.stroke();
-  x.beginPath(); x.roundRect(11.6, 1.4, 2.2, 3, 0.8); x.fillStyle = css(P.stD); x.fill(); x.stroke();
-  x.fillStyle = css(col); x.beginPath(); x.arc(12.9, 2.9, 0.8, 0, 7); x.fill();
-  x.fillStyle = css(col, 0.9); x.fillRect(6, 2.4, 4, 0.9);
+  // antebraço (traje branco) e luva
+  x.beginPath(); x.roundRect(0, 2, 5.6, 2.8, 1.3); x.fillStyle = '#d8dee8'; x.fill(); x.strokeStyle = ink; x.lineWidth = 0.5; x.stroke();
+  x.fillStyle = css(P.or); x.fillRect(3, 2.3, 0.8, 2.2);
+  // canhão: corpo grafite com bobinas emissivas
+  const g = x.createLinearGradient(0, 0.8, 0, 6); g.addColorStop(0, '#6a7690'); g.addColorStop(0.5, '#323a4e'); g.addColorStop(1, '#161a24');
+  x.beginPath(); x.moveTo(4.4, 1.2); x.lineTo(11.4, 1.6); x.lineTo(12.6, 2.6); x.lineTo(12.6, 4.4); x.lineTo(11.4, 5.4); x.lineTo(4.4, 5.8); x.closePath(); x.fillStyle = g; x.fill(); x.stroke();
+  for (let k = 0; k < 3; k++) { x.fillStyle = css(col, 0.95); x.fillRect(6 + k * 1.6, 1.7, 0.6, 3.6); }
+  x.beginPath(); x.roundRect(12.2, 2.2, 2.4, 2.6, 0.8); x.fillStyle = '#20263a'; x.fill(); x.stroke();
+  x.fillStyle = css(col); x.beginPath(); x.arc(13.8, 3.5, 0.75, 0, 7); x.fill();
+  x.fillStyle = 'rgba(255,255,255,0.8)'; x.beginPath(); x.arc(13.7, 3.3, 0.3, 0, 7); x.fill();
   return c;
 }
 
