@@ -35,6 +35,8 @@ import { ITEM } from './data/items';
 import { RAW_BY_LAYER, separate, KG_PER_UNIT } from './data/composition';
 import type { UI } from './ui/UI';
 import { SILO_KEYS } from './data/factory';
+import { siloPlan, type SiloPlan } from './systems/SiloHelp';
+import { METAS } from './data/metas';
 import type { LoreDef } from './data/lore';
 
 export type HotSlot = { type: 'tool' | 'item' | 'build'; key: string } | null;
@@ -244,7 +246,7 @@ export class Game {
   setupNew() {
     this.setupLanding();
     this.markLayerStart();
-    this.stock.add('ferronox', 200, false); this.stock.add('lumenita', 90, false);   // kit inicial: a primeira fábrica vertical inteira, com folga
+    this.stock.add('ferronox', 270, false); this.stock.add('lumenita', 120, false);   // kit inicial: a primeira fábrica vertical inteira, com folga
     this.pack.add('kit_soprador', 2);   // dois sopradores na mão
     this.stock.credits = 300;
     this.pack.add('sinalizador', 3); this.pack.add('kit_reparo', 1);
@@ -328,6 +330,7 @@ export class Game {
     }
     if (this.build.active && !this.build.deconstruct) {
       const b = this.build, line = this.isLineBuild();
+      this.lockGuide();
       if (inp.touch && inp.placeDirty) {
         const tx = Math.floor((cam.left() + inp.placeX * dpr / cam.zoom) / TILE);
         const ty = Math.floor((cam.top() + inp.placeY * dpr / cam.zoom) / TILE);
@@ -335,6 +338,7 @@ export class Game {
         if (line && inp.placeStart) b.anchor = [tx, ty];
         b.tx = tx; b.ty = ty;
         if (!line) this.snapBuild();
+        this.lockGuide();
         inp.placeDirty = false; inp.placeStart = false;
       } else if (!inp.touch && !inp.uiCapture) {
         if (line && inp.clickPrimary()) { b.anchor = [Math.floor(inp.worldX / TILE), Math.floor(inp.worldY / TILE)]; b.dragging = true; }
@@ -490,12 +494,29 @@ export class Game {
   }
 
   /** prévia de construção: se o tile apontado não serve (no ar ou dentro do chão), encaixa no chão mais próximo logo acima/abaixo */
+  /** construindo a peça que o guia pede: a prévia fica travada no quadrado verde */
+  private lockGuide() {
+    const it = this.guide()?.item, b = this.build;
+    if (!it || !b.active || b.key !== it.key || this.ui.tutorial.currentBp()) return;
+    const d = MACHINE[it.key];
+    b.tx = it.tx + Math.floor((d.w - 1) / 2); b.ty = it.ty + Math.floor((d.h - 1) / 2);
+  }
   private snapBuild() {
     const b = this.build, def = b.key ? MACHINE[b.key] : null;
     if (!def || this.ui.tutorial.currentBp()) return;
     const ox = b.tx - Math.floor((def.w - 1) / 2), oy = b.ty - Math.floor((def.h - 1) / 2);
     if (!this.machines.canPlace(def, ox, oy)) return;
     for (const dy of [1, -1, 2, -2, 3, 4]) if (!this.machines.canPlace(def, ox, oy + dy)) { b.ty += dy; return; }
+  }
+
+  /** guia de montagem fora do tutorial (metas de silo): peça marcada no mapa e peça a desmontar */
+  private guideT = -1; private guideV: SiloPlan | null = null;
+  guide(): SiloPlan | null {
+    if (this.time - this.guideT < 0.3 && this.guideT >= 0) return this.guideV;
+    this.guideT = this.time;
+    const L = this.planet.layer, md = METAS[L]?.[this.sectors.s[L]?.phase ?? 0];
+    this.guideV = !this.ui.tutorial.active && md?.kind === 'silo' && this.machines.siloCount(md.key) < md.kg ? siloPlan(this, md.key) : null;
+    return this.guideV;
   }
 
   canBuildKey(k: string) { const d = MACHINE[k]; return !!d && (!d.research || this.research.has(d.research)) && d.behavior !== 'command'; }
@@ -593,7 +614,7 @@ export class Game {
   confirmBuild() {
     if (!this.build.active || this.build.deconstruct || this.ui.modalOpen()) return;
     // projeto guiado: não deixa confirmar girado errado
-    const bp = this.ui.tutorial.currentBp();
+    const bp = this.ui.tutorial.currentBp() ?? this.guide()?.item ?? null;
     const def = this.build.key ? MACHINE[this.build.key] : null;
     if (bp && def && bp.key === def.key && def.rotatable && def.behavior !== 'belt' && def.behavior !== 'tube' && this.build.dir !== bp.dir) {
       this.toast(`Gire primeiro: a seta tem que apontar para ${['a DIREITA', 'BAIXO', 'a ESQUERDA', 'CIMA'][bp.dir]} (botão GIRAR)`, '#ffd04a'); this.audio.error(); return;

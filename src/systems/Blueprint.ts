@@ -18,22 +18,26 @@ export class Blueprint {
     // tudo é medido a partir do ponto de pouso (o centro do platô), exista a cápsula ou não
     const L = this.g.world.gen.landing;
     const tx0 = Math.floor((L.x * CELL) / TILE), gy = Math.floor((SURFACE_Y * CELL) / TILE);   // gy = primeira fileira de chão
-    // TORRE DE SEPARAÇÃO, à direita da cápsula (tudo cai por gravidade), alimentada por um SOPRADOR numa frente de escavação:
-    //            ◀════════ tubo ═══╗
-    //   [PENEIRA ◀]                ║
-    //   [ÍMÃ ▶]                    ║
-    // [PRENSA][COLETOR][SILO ◀]    ╚[SOPRADOR ◀]  ← cave aqui perto
+    // TORRE DE SEPARAÇÃO COMPLETA, à direita da cápsula (tudo cai por gravidade), alimentada por um SOPRADOR:
+    //                 ◀══════════ tubo ══╗
+    //     [PRENSA]  [PENEIRA ◀]          ║     resíduo ◀ entra direto na Prensa (em cima de um piso orbital)
+    //     [piso]    [ÍMÃ ▶]  ↘           ║     Ferronox ▶ cai no Silo da direita
+    //            ↙  [RESSONADOR ◀]       ║     Lumenita ◀ cai no Silo da esquerda
+    //   [SILO Lu]   [COLETOR] [SILO Fe]  ╚[SOPRADOR ◀]   o resto cai no Coletor (estoque)
     const x = tx0 + 4;
     this.items = [
       // PLATAFORMA ORBITAL: piso de 8 peças onde a cápsula pousa (tx0-6 … tx0+1)
       { id: 'piso', key: 'piso_orbital', tx: tx0 - 6, tx2: tx0 + 1, ty: gy - 1, dir: 0, label: 'PLATAFORMA ORBITAL' },
       { id: 'armazem', key: 'armazem', tx: x, ty: gy - 2, dir: 0, label: 'COLETOR' },
-      { id: 'ima', key: 'ima', tx: x, ty: gy - 3, dir: 0, label: 'ÍMÃ ▶' },
-      { id: 'peneira', key: 'peneira', tx: x, ty: gy - 4, dir: 2, label: 'PENEIRA ◀' },
-      { id: 'compactador', key: 'compactador', tx: x - 1, ty: gy - 2, dir: 0, label: 'PRENSA' },
-      { id: 'silo', key: 'silo', tx: x + 2, ty: gy - 2, dir: 2, label: 'SILO ◀' },
+      { id: 'ressonador', key: 'ressonador', tx: x, ty: gy - 3, dir: 2, label: '◀ RESSONADOR' },
+      { id: 'ima', key: 'ima', tx: x, ty: gy - 4, dir: 0, label: 'ÍMÃ ▶' },
+      { id: 'peneira', key: 'peneira', tx: x, ty: gy - 5, dir: 2, label: 'PENEIRA ◀' },
+      { id: 'piso2', key: 'piso_orbital', tx: x - 1, ty: gy - 4, dir: 0, label: 'PISO' },
+      { id: 'compactador', key: 'compactador', tx: x - 1, ty: gy - 6, dir: 0, label: 'PRENSA' },
+      { id: 'siloFe', key: 'silo', tx: x + 2, ty: gy - 2, dir: 2, label: 'SILO FERRONOX' },
+      { id: 'siloLu', key: 'silo', tx: x - 2, ty: gy - 2, dir: 0, label: 'SILO LUMENITA' },
       { id: 'soprador', key: 'soprador', tx: x + 9, ty: gy - 1, dir: 2, label: 'SOPRADOR ◀' },
-      { id: 'tubo', key: 'tubo', tx: x + 8, ty: gy - 1, tx2: x + 2, ty2: gy - 5, dir: 3, label: 'TUBO' },
+      { id: 'tubo', key: 'tubo', tx: x + 8, ty: gy - 1, tx2: x + 2, ty2: gy - 6, dir: 3, label: 'TUBO' },
     ];
   }
 
@@ -102,14 +106,17 @@ export class Blueprint {
   checkLine(): { ok: boolean; msg: string; stage: number } {
     const order: [string, string][] = [
       ['armazem', 'Falta o Coletor no quadrado marcado.'],
-      ['ima', 'O Ímã vai EM CIMA do Coletor, com a seta ▶ (os metálicos são puxados para a direita, para o Silo).'],
-      ['peneira', 'A Peneira vai EM CIMA do Ímã, com a seta ◀ (resíduo para a esquerda).'],
-      ['compactador', 'A Prensa vai do lado esquerdo, embaixo da borda por onde o resíduo escorrega.'],
-      ['silo', 'O Silo vai à direita do Coletor, com a seta ◀ (transborda para dentro do Coletor).'],
+      ['ressonador', 'O Ressonador vai EM CIMA do Coletor, seta ◀ (a Lumenita sai para a esquerda).'],
+      ['ima', 'O Ímã vai EM CIMA do Ressonador, seta ▶ (o Ferronox sai para a direita).'],
+      ['peneira', 'A Peneira vai EM CIMA do Ímã, seta ◀ (resíduo para a esquerda, na Prensa).'],
+      ['piso2', 'Falta o piso orbital à esquerda do Ímã (a Prensa fica em cima dele).'],
+      ['compactador', 'A Prensa vai em cima do piso, ao lado da Peneira.'],
+      ['siloFe', 'O Silo do Ferronox vai no chão, à direita do Coletor.'],
+      ['siloLu', 'O Silo da Lumenita vai no chão, à esquerda do Coletor.'],
       ['soprador', 'O Soprador vai no quadrado marcado, com o bocal ◀ virado para a fábrica.'],
       ['tubo', 'O tubo sai do bocal do soprador, SOBE e vai até em cima da Peneira (arraste do 1 até o 2).'],
     ];
     for (let i = 0; i < order.length; i++) if (!this.placed(order[i][0])) return { ok: false, msg: order[i][1], stage: i };
-    return { ok: true, msg: 'Fábrica montada: soprador → tubo → peneira → ímã → Ferronox no silo, o resto no coletor, resíduo na prensa.', stage: order.length };
+    return { ok: true, msg: 'Fábrica montada: soprador → tubo → peneira (resíduo na Prensa) → Ímã (Ferronox no silo) → Ressonador (Lumenita no silo) → Coletor.', stage: order.length };
   }
 }

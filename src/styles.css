@@ -776,3 +776,37 @@ body.touch .hud .hcard.meta.tut::after { background: #ffb84a; box-shadow: 0 0 8p
 .hud .meta .mhelp { margin-top: 4px; padding: 3px 0 1px 7px; border-left: 2px solid #4ac8ff; font-size: .9em; line-height: 1.3; color: #cfe8f6; }
 .hud .meta .mhelp b { color: #8ae4ff !important; }
 body.touch .hud .hcard.meta .mx { max-height: 92px !important; }
+/* ===== aula animada da torre de separação ===== */
+.lesson { position: fixed; inset: 0; z-index: 60; background: rgba(2,6,12,.72); display: flex; align-items: center; justify-content: center; pointer-events: auto; }
+.lesson .lcard { width: min(640px, 94vw); max-height: 94vh; overflow: auto; padding: 10px 14px 12px; background: linear-gradient(160deg, rgba(14,26,42,.98), rgba(5,10,18,.98)); border: 1px solid rgba(90,210,255,.6); box-shadow: 0 0 30px rgba(60,170,255,.3); clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px); color: #dbeaf4; }
+.lesson .lt { font-family: 'Orbitron', sans-serif; font-size: 12px; letter-spacing: .12em; color: #ffb84a; margin-bottom: 6px; }
+.lesson .lbody { display: flex; gap: 12px; align-items: flex-start; }
+.lesson .ldia { position: relative; flex: none; width: 216px; height: 190px; background: linear-gradient(#0a1624, #101c14 80%, #2a1e14 80%); border: 1px solid #23435a; overflow: hidden; }
+.lesson .lb { position: absolute; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 8px; font-weight: 700; letter-spacing: .04em; color: #e8f4ff; border: 1px solid rgba(10,14,20,.9); line-height: 1.05; }
+.lesson .ltube { left: 120px; top: 8px; width: 96px; height: 7px; background: linear-gradient(#3a4a64, #1c2434); box-shadow: inset 0 0 0 1px rgba(110,220,255,.5); }
+.lesson .ltube.v { left: 200px; top: 8px; width: 7px; height: 150px; }
+.lesson .lpen { left: 66px; top: 26px; width: 74px; height: 22px; background: linear-gradient(#3a6a88, #1e3a50); }
+.lesson .lima { left: 66px; top: 50px; width: 74px; height: 22px; background: linear-gradient(#5a5f70, #2a2e3a); box-shadow: inset -12px 0 0 rgba(220,50,40,.55); }
+.lesson .lres { left: 66px; top: 74px; width: 74px; height: 22px; background: linear-gradient(#2c5578, #16304a); box-shadow: inset 12px 0 0 rgba(110,220,255,.45); }
+.lesson .lcol { left: 66px; top: 128px; width: 74px; height: 34px; background: linear-gradient(#3a4458, #222838); box-shadow: inset 0 3px 0 #ec9628; }
+.lesson .lprensa { left: 30px; top: 14px; width: 34px; height: 34px; background: linear-gradient(#6a4a2a, #3a2814); }
+.lesson .lpiso { left: 30px; top: 50px; width: 34px; height: 5px; background: #2c3446; box-shadow: 0 2px 6px rgba(110,220,255,.7); }
+.lesson .lsfe { left: 144px; top: 128px; width: 40px; height: 34px; background: linear-gradient(90deg, #4a5468, #9aa6bc, #4a5468); color: #10141c; }
+.lesson .lslu { left: 22px; top: 128px; width: 40px; height: 34px; background: linear-gradient(90deg, #4a5468, #9aa6bc, #4a5468); color: #10141c; }
+.lesson .ld { position: absolute; width: 6px; height: 6px; border-radius: 50%; left: 0; top: 0; opacity: 0; animation: 3.6s linear infinite; }
+.lesson .d-res { background: #8a7462; } .lesson .d-fe { background: #e6ecf8; box-shadow: 0 0 6px #fff; } .lesson .d-lu { background: #3a9cff; box-shadow: 0 0 6px #5ab8ff; } .lesson .d-rest { background: #c08cff; box-shadow: 0 0 5px #c08cff; }
+.lesson .ld.d-res { animation-name: lres; } .lesson .ld.d-fe { animation-name: lfe; } .lesson .ld.d-lu { animation-name: llu; } .lesson .ld.d-rest { animation-name: lrest; }
+@keyframes lres { 0% { left: 200px; top: 150px; opacity: 1 } 25% { left: 200px; top: 9px } 40% { left: 104px; top: 9px } 50% { left: 104px; top: 30px } 65% { left: 44px; top: 30px } 75%,100% { left: 44px; top: 30px; opacity: 0 } }
+@keyframes lfe { 0% { left: 200px; top: 150px; opacity: 1 } 25% { left: 200px; top: 9px } 40% { left: 104px; top: 9px } 55% { left: 104px; top: 56px } 68% { left: 156px; top: 56px } 82% { left: 160px; top: 136px; opacity: 1 } 88%,100% { left: 160px; top: 140px; opacity: 0 } }
+@keyframes llu { 0% { left: 200px; top: 150px; opacity: 1 } 25% { left: 200px; top: 9px } 40% { left: 104px; top: 9px } 55% { left: 104px; top: 80px } 68% { left: 44px; top: 80px } 82% { left: 40px; top: 136px; opacity: 1 } 88%,100% { left: 40px; top: 140px; opacity: 0 } }
+@keyframes lrest { 0% { left: 200px; top: 150px; opacity: 1 } 25% { left: 200px; top: 9px } 40% { left: 104px; top: 9px } 75% { left: 104px; top: 136px; opacity: 1 } 82%,100% { left: 104px; top: 140px; opacity: 0 } }
+.lesson .lsteps { margin: 0; padding-left: 0; list-style: none; font-size: 12px; line-height: 1.35; }
+.lesson .lsteps li { margin: 0 0 6px; display: block; position: relative; padding-left: 15px; } .lesson .lsteps .k { position: absolute; left: 0; top: 4px; width: 9px; height: 9px; border-radius: 50%; }
+.lesson .lsteps b, .lesson .lnote b { color: #ffd27a; }
+.lesson .lnote { margin: 6px 0 8px; font-size: 11.5px; color: #a8c8dc; }
+.lesson .ok { display: block; margin-left: auto; padding: 7px 22px; font-family: 'Orbitron', sans-serif; font-size: 11px; letter-spacing: .1em; background: linear-gradient(#ffb24a, #e0701a); color: #1a0e02; border: 1px solid #ffd28a; clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px); }
+/* objetivo sempre na lateral (nunca no centro da tela) e sem barras de vida/energia */
+body.touch .hud .hcard.meta { left: max(6px, env(safe-area-inset-left)) !important; top: 44px !important; transform: none !important; width: 250px !important; padding: 6px 9px 7px !important; }
+body.touch.tut-r .hud .hcard.meta { left: auto !important; right: calc(max(6px, env(safe-area-inset-right)) + 66px) !important; }
+.hud .meta { left: 14px; top: 90px; transform: none; width: 330px; }
+.hud .hcard.vitals, body.touch .hud .hcard.vitals { display: none !important; }

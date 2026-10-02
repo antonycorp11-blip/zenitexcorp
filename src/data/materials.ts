@@ -87,7 +87,7 @@ const GRAIN_DEFS: [string, string, [number, number, number], number?][] = [
   ['solo_k37', 'Solo K-37', [150, 100, 64]], ['rocha_bruta', 'Rocha Bruta', [128, 128, 132]], ['basalto_bruto', 'Basalto Bruto', [110, 52, 46]],
   ['matriz_cristalina', 'Matriz Cristalina', [130, 168, 214]], ['rocha_manto', 'Rocha de Manto', [112, 92, 140]], ['matriz_profunda', 'Matriz Profunda', [74, 124, 128]],
   ['materia_nucleo', 'Matéria de Núcleo', [196, 100, 44]], ['fragmentado', 'Material Fragmentado', [154, 146, 134]], ['residuo', 'Resíduo Planetário', [98, 88, 80]],
-  ['ferronox', 'Ferronox', [170, 172, 196]], ['lumenita', 'Lumenita', [70, 150, 255]], ['nexolita', 'Nexolita', [176, 90, 255]],
+  ['ferronox', 'Ferronox', [226, 234, 252]], ['lumenita', 'Lumenita', [70, 150, 255]], ['nexolita', 'Nexolita', [176, 90, 255]],
   ['pyroxis', 'Pyroxis', [255, 84, 44]], ['ferronox_denso', 'Ferronox Denso', [104, 106, 128]], ['crysalis', 'Crysalis', [160, 236, 255]],
   ['umbrium', 'Umbrium', [96, 60, 140]], ['necrocristal', 'Necrocristal', [212, 236, 214]], ['solvex', 'Solvex', [255, 214, 70]],
   ['lumenita_pura', 'Lumenita Pura', [200, 230, 255]], ['nexolita_condensada', 'Nexolita Condensada', [238, 140, 255]], ['pyroxis_volatil', 'Pyroxis Volátil', [255, 170, 50]],
@@ -96,7 +96,7 @@ const GRAIN_DEFS: [string, string, [number, number, number], number?][] = [
 export const GRAIN: Record<string, number> = {};
 export const GRAIN_ITEM: string[] = [];
 for (const [k, n, c] of GRAIN_DEFS) {
-  const glow = ['lumenita', 'lumenita_pura', 'nexolita_condensada', 'pyroxis_volatil', 'lumenita_instavel', 'fragmento_nucleo', 'pyroxis'].includes(k) ? c : undefined;
+  const glow = ['ferronox', 'lumenita', 'lumenita_pura', 'nexolita_condensada', 'pyroxis_volatil', 'lumenita_instavel', 'fragmento_nucleo', 'pyroxis'].includes(k) ? c : undefined;
   const id = def({ key: 'g_' + k, name: n, kind: 'grain', tier: 0, hardness: 0, massT: 0, top: c, face: c, pattern: 'cobble', sound: 'rock', item: k, yieldKg: GRAIN_KG, glow });
   GRAIN[k] = id; GRAIN_ITEM[id] = k;
 }

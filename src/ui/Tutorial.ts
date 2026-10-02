@@ -87,35 +87,43 @@ const STEPS: Step[] = [
     target: (g, t) => t && (g.hover?.ref as any)?.key === 'analisador' ? '#mobile .stick.right .base' : g.ui.mini.isOpen() ? null : () => machinePos(g, 'analisador'), done: analyzed },
   { title: 'O que existe dentro', text: () => '<b>80% é resíduo</b>, o resto é mineral.<br>Agora a fábrica: você cava, um <b>Soprador</b> aspira as pilhas e manda por <b>tubo</b>.<br><b>Toque aqui</b> para começar.',
     target: () => '.hcard.meta', done: () => false, manual: true },
-  { title: 'Fábrica 1/7 · Coletor', bp: 'armazem', text: (_t, g) => '<b>Construir → Logística → Coletor</b> no quadrado verde.<br>O que cai nele vai para o <b>estoque</b>.' + rotHint(g, 'armazem'),
+  { title: 'Fábrica 1/10 · Coletor', bp: 'armazem', text: (_t, g) => '<b>Construir → Logística → Coletor</b> no quadrado verde.<br>O que cai nele vai para o <b>estoque</b> (é com ele que você constrói).' + rotHint(g, 'armazem'),
     target: g => bpTarget(g, 'logistica', 'armazem'), done: g => g.blueprint.placed('armazem') },
   { title: 'Soprar no funil', text: t => (t ? 'Toque <b>SOPRAR</b> e arraste o <b>lado direito</b>' : '<b>Segure o botão direito</b>') + ' mirando o <b>funil do Coletor</b>.<br>Jogue <b>20 kg</b>.',
     target: (g, t) => t && !g.flags.blowMode ? '#mobile [data-b="blow"]' : () => storagePos(g), done: g => fed(g) >= 20 },
-  { title: 'Fábrica 2/7 · Ímã', bp: 'ima', text: (_t, g) => '<b>Processamento → Separador Magnético</b>, em cima do Coletor.<br>Puxa o <b>Ferronox</b> para a seta <b>▶</b>.' + rotHint(g, 'ima'),
+  { title: 'Como a torre separa', text: () => 'A terra tem <b>resíduo</b>, <b>Ferronox</b> (metal prateado) e <b>Lumenita</b> (cristal azul).<br>A torre separa cada um por gravidade. <b>Veja a animação.</b>',
+    target: () => '.lesson .ok', done: g => !!g.flags.lessonSep },
+  { title: 'Fábrica 2/10 · Ressonador', bp: 'ressonador', text: (_t, g) => '<b>Processamento → Ressonador de Cristais</b>, em cima do Coletor.<br>Ele faz a <b>Lumenita</b> saltar para a seta <b>◀</b>; o resto cai no Coletor.' + rotHint(g, 'ressonador'),
+    target: g => bpTarget(g, 'processamento', 'ressonador'), done: g => g.blueprint.placed('ressonador') },
+  { title: 'Fábrica 3/10 · Ímã', bp: 'ima', text: (_t, g) => '<b>Processamento → Separador Magnético</b>, em cima do Ressonador.<br>O ímã puxa o <b>Ferronox</b> para a seta <b>▶</b>; o resto cai no Ressonador.' + rotHint(g, 'ima'),
     target: g => bpTarget(g, 'processamento', 'ima'), done: g => g.blueprint.placed('ima') },
-  { title: 'Fábrica 3/7 · Peneira', bp: 'peneira', text: (_t, g) => '<b>Processamento → Peneira</b>, em cima do Ímã.<br>Minerais caem pela grade; <b>resíduo</b> sai pela seta <b>◀</b>.' + rotHint(g, 'peneira'),
+  { title: 'Fábrica 4/10 · Peneira', bp: 'peneira', text: (_t, g) => '<b>Processamento → Peneira</b>, no topo.<br>Os <b>minerais</b> passam pela grade e caem no Ímã; o <b>resíduo</b> sai pela seta <b>◀</b>.' + rotHint(g, 'peneira'),
     target: g => bpTarget(g, 'processamento', 'peneira'), done: g => g.blueprint.placed('peneira') },
-  { title: 'Fábrica 4/7 · Prensa', bp: 'compactador', text: () => '<b>Processamento → Prensa</b>, embaixo da saída do resíduo.<br>Vira <b>bloco</b>, que o Terminal exporta.',
+  { title: 'Fábrica 5/10 · Piso', bp: 'piso2', text: () => '<b>Base → Plataforma Orbital</b>: 1 peça no quadrado verde, à esquerda do Ímã.<br>Ela flutua sozinha e vai segurar a Prensa.',
+    target: g => buildFlow(g, 'base', 'piso_orbital'), done: g => g.blueprint.placed('piso2') },
+  { title: 'Fábrica 6/10 · Prensa', bp: 'compactador', text: () => '<b>Processamento → Prensa</b>, em cima do piso, colada na Peneira.<br>O <b>resíduo</b> entra nela e vira <b>bloco</b> para exportar.',
     target: g => bpTarget(g, 'processamento', 'compactador'), done: g => g.blueprint.placed('compactador') },
-  { title: 'Fábrica 5/7 · Silo', bp: 'silo', text: (_t, g) => '<b>Logística → Silo</b>, ao lado do Coletor.<br>Guarda o Ferronox: <b>melhorias são pagas com silos</b>.' + rotHint(g, 'silo'),
-    target: g => bpTarget(g, 'logistica', 'silo'), done: g => g.blueprint.placed('silo') },
-  { title: 'Fábrica 6/7 · Soprador', bp: 'soprador', text: (_t, g) => `<b>Extração → Soprador</b> no quadrado verde (${g.pack.count('kit_soprador')} na mão).<br>Bocal <b>◀</b> para a fábrica.` + rotHint(g, 'soprador'),
+  { title: 'Fábrica 7/10 · Silo do Ferronox', bp: 'siloFe', text: (_t, g) => '<b>Logística → Silo</b> à <b>direita</b> do Coletor: o Ferronox puxado pelo Ímã cai nele.<br><b>Melhorias são pagas com os silos.</b>' + rotHint(g, 'siloFe'),
+    target: g => bpTarget(g, 'logistica', 'siloFe'), done: g => g.blueprint.placed('siloFe') },
+  { title: 'Fábrica 8/10 · Silo da Lumenita', bp: 'siloLu', text: (_t, g) => '<b>Logística → Silo</b> à <b>esquerda</b> do Coletor: a Lumenita do Ressonador cai nele.' + rotHint(g, 'siloLu'),
+    target: g => bpTarget(g, 'logistica', 'siloLu'), done: g => g.blueprint.placed('siloLu') },
+  { title: 'Fábrica 9/10 · Soprador', bp: 'soprador', text: (_t, g) => `<b>Extração → Soprador</b> no quadrado verde (${g.pack.count('kit_soprador')} na mão).<br>Bocal <b>◀</b> para a fábrica.` + rotHint(g, 'soprador'),
     target: g => bpTarget(g, 'extracao', 'soprador'), done: g => g.blueprint.placed('soprador') },
-  { title: 'Fábrica 7/7 · Tubo', bp: 'tubo', text: () => '<b>Logística → Tubo</b>: o caminho já está marcado, do soprador até em cima da Peneira.<br><b>CONFIRMAR</b>.',
+  { title: 'Fábrica 10/10 · Tubo', bp: 'tubo', text: () => '<b>Logística → Tubo</b>: o caminho já está marcado, do soprador até o topo da Peneira.<br><b>CONFIRMAR</b>.',
     target: g => buildFlow(g, 'logistica', 'tubo'), done: g => g.blueprint.placed('tubo') },
   { title: 'Cave perto dele', text: (t, g) => { const r = g.blueprint.checkLine(); if (!r.ok) return '✖ <b>' + r.msg + '</b>'; return '<b>Cave ao lado do Soprador</b> (' + (t ? 'joystick direito' : 'clique') + ').<br>Ele aspira as pilhas e a torre separa. Separe <b>15 kg</b>.'; },
     target: g => () => { const m = g.machines.list.find(x => x.def.behavior === 'blower'); return m ? [(m.tx + 0.5) * TILE, (m.ty + 1.5) * TILE] : null; },
     done: g => g.blueprint.checkLine().ok && (g.sectors.s[g.planet.layer]?.counters.separated ?? 0) > 15 },
-  { title: 'Silo enchendo', text: (_t, g) => `Ferronox no Silo: <b>${Math.floor(g.machines.siloCount('ferronox'))}/20 kg</b>.<br>${siloHelp(g, 'ferronox')}`,
-    target: g => () => { const m = g.machines.list.find(x => x.def.behavior === 'silo'); return m ? [(m.tx + 1) * TILE, m.ty * TILE] : null; },
-    done: g => g.machines.siloCount('ferronox') >= 20 },
-  { title: 'Melhorias', text: () => '<b>MENU → MELHORIAS → Fábrica</b>: sopradores, tubos e silos.<br>Pagam com <b>Ferronox e Lumenita dos silos</b> (Lumenita: monte um <b>Ressonador</b> + Silo).<br><b>Toque aqui.</b>',
+  { title: 'Silos enchendo', text: (_t, g) => `Ferronox <b>${Math.floor(g.machines.siloCount('ferronox'))}/20 kg</b> · Lumenita <b>${Math.floor(g.machines.siloCount('lumenita'))}/10 kg</b>.<br>Continue cavando perto do Soprador e veja cada mineral indo para o seu silo.`,
+    target: g => () => { const m = g.machines.list.find(x => x.key === 'ima'); return m ? [(m.tx + 1) * TILE, m.ty * TILE] : null; },
+    done: g => g.machines.siloCount('ferronox') >= 20 && g.machines.siloCount('lumenita') >= 10 },
+  { title: 'Melhorias', text: () => '<b>MENU → MELHORIAS → Fábrica</b>: sopradores, tubos e silos.<br>Pagam com o <b>Ferronox e a Lumenita dos silos</b>.<br><b>Toque aqui.</b>',
     target: () => '.hcard.meta', done: () => false, manual: true },
   { title: 'Mais frentes', text: () => 'Pilha acabou? Toque no Soprador → <b>RECOLHER</b> e leve para outro ponto.<br>Tubo longo: <b>Reforçador</b> a cada 14 peças.<br><b>Toque aqui.</b>',
     target: () => '.hcard.meta', done: () => false, manual: true },
   { title: 'Scanner', text: t => `${t ? 'Toque <b>SCANNER</b>' : 'Aperte <b>F</b>'}: mostra o <b>teor</b> da região.<br>Cave onde o teor é ALTO.`,
     target: (_g, t) => t ? '#mobile [data-b="scan"]' : null, done: g => (g.sectors.s[g.planet.layer]?.counters.scans ?? 0) > 0 },
-  { title: 'Pronto', text: () => 'Você cava → soprador → tubo → torre → silo e estoque → terminal.<br>A barra da <b>CAMADA</b> sobe com a massa removida.<br><b>Toque aqui</b> para terminar.',
+  { title: 'Pronto', text: () => 'Você cava → soprador → tubo → peneira → ímã → ressonador → silos e coletor → terminal.<br>A barra da <b>CAMADA</b> sobe com a massa removida.<br><b>Toque aqui</b> para terminar.',
     target: () => '.hcard.layer', done: () => false, manual: true },
 ];
 
@@ -143,7 +151,8 @@ export class Tutorial {
     const g = this.g, it = this.currentBp(), b = g.build;
     if (!it || !b.active || b.key !== it.key) return;
     if (it.key === 'tubo') { b.anchor = [it.tx, it.ty]; b.tx = it.tx2!; b.ty = it.ty2!; return; }
-    if (it.key === 'esteira' || it.key === 'piso_orbital') { b.anchor = [it.tx, it.ty]; b.tx = it.tx2!; b.ty = it.ty; return; }
+    if (it.key === 'esteira' || (it.key === 'piso_orbital' && it.tx2 !== undefined)) { b.anchor = [it.tx, it.ty]; b.tx = it.tx2!; b.ty = it.ty; return; }
+    if (it.key === 'piso_orbital') { b.anchor = [it.tx, it.ty]; b.tx = it.tx; b.ty = it.ty; return; }
     if (it.ty2 !== undefined) { b.anchor = [it.tx, it.ty]; b.tx = it.tx; b.ty = it.ty2; return; }
     const d = MACHINE[it.key];
     b.tx = it.tx + Math.floor((d.w - 1) / 2); b.ty = it.ty + Math.floor((d.h - 1) / 2);
@@ -181,10 +190,19 @@ export class Tutorial {
     const g = this.g, touch = g.input.touch;
     this.ring.style.display = 'none'; this.arrow.style.display = 'none';
     document.body.classList.toggle('tut-on', this.active);
-    if (!this.active) { document.body.classList.remove('tut-r'); return; }
+    if (!this.active) {
+      // fora do tutorial o cartão de objetivo também foge da base e do que o guia marca
+      const cam = g.camera, dpr = cam.w / innerWidth, scrX = (wx: number) => (wx - cam.left()) * cam.zoom / dpr;
+      const gd = g.guide(), it = gd?.item, rm = gd?.remove;
+      const fx = it ? scrX((it.tx + MACHINE[it.key].w / 2) * TILE) : rm ? scrX((rm.tx + rm.def.w / 2) * TILE) : null;
+      const c = g.machines.list.find(m => m.def.behavior === 'command'), cx = c ? scrX((c.tx + 1.5) * TILE) : null;
+      document.body.classList.toggle('tut-r', ((fx !== null && fx < innerWidth * 0.42) || (cx !== null && cx > 0 && cx < innerWidth * 0.42)) && !(fx !== null && fx > innerWidth * 0.6));
+      return;
+    }
     const i = this.index();
     const st = STEPS[i]; if (!st) return;
     this.lockBuild();
+    if (st.title === 'Como a torre separa' && !g.flags.lessonSep && !g.ui.modalOpen()) g.ui.showLesson();
     if (i !== this.last) { this.last = i; this.sx = g.player.x; this.sy = g.player.y; }
     if (i === 0) { const dx = Math.abs(g.player.x - this.sx), dy = this.sy - g.player.y; if (dx > 40) g.flags.tutMoved0 = true; if (dx > 40 && (dy > 24 || !g.input.touch)) g.flags.tutMoved = true; }
     const tg = st.target(g, touch);

@@ -141,6 +141,7 @@ export class Panels {
     mdet: () => { this.st.mDetails = !this.st.mDetails; this.render(); },
     pickup: () => { const m = this.machine; if (!m) return; this.g.machines.remove(m); this.g.pack.add('kit_soprador', 1); this.close(); this.g.toast('Soprador na mão: coloque em outra frente de escavação (Construir → Extração)', '#9cff8a'); },
     siloDump: () => { const m = this.machine; if (!m) return; let n = 0; for (const k in m.inb) { this.g.stock.add(k, m.inb[k], false, m.g[k]); n += m.inb[k]; m.inb[k] = 0; } this.g.toast(`${Math.round(n)} kg do silo foram para o Estoque (para construir). Melhorias só com o que fica no silo.`, '#ffd04a'); this.render(); },
+    lesson: () => { this.close(); this.ui.showLesson(); },
     setFilter: (a) => { if (this.machine) this.machine.filter = a || undefined; this.render(); },
     pin: (a) => { this.g.hotbar[this.g.selected] = { type: 'build', key: a }; this.g.toast(`Fixado no slot ${(this.g.selected + 1) % 10}`, '#9cff8a'); },
     pinItem: (a) => { this.g.hotbar[this.g.selected] = { type: 'item', key: a }; this.g.toast(`Fixado no slot ${(this.g.selected + 1) % 10}`, '#9cff8a'); },
@@ -165,7 +166,7 @@ export class Panels {
     recipe: (a) => { if (this.machine) { this.machine.recipe = a || undefined; this.machine.inb = {}; } this.render(); },
     collect: () => { const m = this.machine; if (!m) return; for (const k of Object.keys(m.out)) { const got = this.g.pack.add(k, m.out[k], m.g[k]); m.out[k] -= got; if (m.out[k] <= 0.01) delete m.out[k]; } this.render(); },
     analyzer: () => { this.close(); this.ui.mini.analyzer(); },
-    dismantle: () => { const m = this.machine; if (!m || m.def.behavior === 'command' || m.def.behavior === 'analyzer') return; const full = this.ui.tutorial.active; for (const k in m.def.cost) this.g.stock.add(k, Math.floor(m.def.cost[k] * (full ? 1 : 0.75)), false); this.g.machines.remove(m); this.close(); this.g.toast(`${m.def.name} desmontada${full ? ' (100% devolvido no tutorial)' : ' (75% devolvido)'}`, '#9cff8a'); },
+    dismantle: () => { const m = this.machine; if (!m || m.def.behavior === 'command' || m.def.behavior === 'analyzer') return; const full = this.ui.tutorial.active || this.g.guide()?.remove === m; for (const k in m.def.cost) this.g.stock.add(k, Math.floor(m.def.cost[k] * (full ? 1 : 0.75)), false); this.g.machines.remove(m); this.close(); this.g.toast(`${m.def.name} desmontada${full ? ' (100% devolvido no tutorial)' : ' (75% devolvido)'}`, '#9cff8a'); },
     rotate: () => { const m = this.machine; if (m && m.def.rotatable) { m.dir = nextDir(m.def, m.dir); m.depth = 0; m.exhausted = false; } this.render(); },
     reset: () => { const m = this.machine; if (m) { m.depth = 0; m.exhausted = false; m.t = 0; } this.render(); },
     lift: (a) => { const m = this.g.machines.byId.get(Number(a)); if (m) { const [x, y] = this.g.machines.centerPx(m); this.g.player.x = x; this.g.player.y = y + m.def.h * 8 + 6; this.g.camera.x = x; this.g.camera.y = y; this.g.audio.success(); this.close(); } },
@@ -581,6 +582,7 @@ export class Panels {
       const L = g.planet.layer, opts = compOf(L).minerals.map(x => x.k).concat(compOf(L).rare.k).filter(k => SILO_KEYS.has(k));
       h += `<div class="mc-filter"><small>GUARDA:</small><button class="${!m.filter ? 'on' : ''}" data-act="setFilter" data-arg="">auto</button>${opts.map(k => `<button class="${m.filter === k ? 'on' : ''}" data-act="setFilter" data-arg="${k}" title="${esc(itemName(k))}">${this.icon(k, 18)}</button>`).join('')}</div>`;
     }
+    if (d.pick) h += `<button class="btn orange" data-act="lesson" style="width:100%;margin:4px 0">▶ VER COMO FUNCIONA (animação)</button>`;
     if (d.behavior === 'filter' && !d.pick) {
       const L = g.planet.layer, opts = [...compOf(L).minerals.map(x => x.k), 'residuo', RAW_BY_LAYER[L], 'fragmentado'];
       h += `<div class="mc-filter"><small>PASSA POR BAIXO:</small>${opts.map(k => `<button class="${m.filter === k ? 'on' : ''}" data-act="setFilter" data-arg="${k}" title="${esc(itemName(k))}">${this.icon(k, 18)}</button>`).join('')}</div>`;

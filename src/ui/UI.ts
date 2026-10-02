@@ -59,7 +59,7 @@ export class UI {
     this.root.addEventListener('mouseover', e => { g.input.uiCapture = (e.target as HTMLElement) !== this.root && !!(e.target as HTMLElement).closest('.ui-block'); });
     this.root.addEventListener('mouseout', () => { g.input.uiCapture = false; });
     this.minimap.addEventListener('click', () => this.open('map'));
-    this.el.meta.addEventListener('click', e => { if (!this.tutorial.tap(e.target as HTMLElement)) this.open('missions'); });
+    this.el.meta.addEventListener('click', e => { if (this.tutorial.tap(e.target as HTMLElement)) return; const L = this.g.planet.layer, md = METAS[L]?.[this.g.sectors.s[L].phase]; if (!this.tutorial.active && md?.kind === 'silo') { this.showLesson(); return; } this.open('missions'); });
     this.el.layerCard.addEventListener('click', e => { if (!(e.target as HTMLElement).closest('.descend')) this.open('missions'); });
     this.el.buildControls.querySelectorAll<HTMLButtonElement>('[data-build-action]').forEach(button => {
       button.addEventListener('click', () => {
@@ -152,6 +152,38 @@ export class UI {
   calibrate(m: Machine | null, mode: 'normal' | 'final', after?: (q: number) => void) { this.mini.calibration(m, mode, after); }
 
   // ---------------- feedback ----------------
+  /** Aula animada: como a torre separa resíduo, Ferronox e Lumenita (abre no tutorial, no cartão do Ímã/Ressonador e na meta de silo). */
+  showLesson() {
+    if (document.querySelector('.lesson')) return;
+    const dots = (cls: string, n: number) => Array.from({ length: n }, (_, i) => `<i class="ld ${cls}" style="animation-delay:${(i * 3.6 / n).toFixed(2)}s"></i>`).join('');
+    const el = document.createElement('div');
+    el.className = 'lesson';
+    el.innerHTML = `<div class="lcard">
+      <div class="lt">COMO A TORRE SEPARA</div>
+      <div class="lbody">
+        <div class="ldia">
+          <div class="lb ltube"></div><div class="lb ltube v"></div>
+          <div class="lb lprensa">PRENSA</div><div class="lb lpiso"></div>
+          <div class="lb lpen">PENEIRA ◀</div>
+          <div class="lb lima">ÍMÃ ▶</div>
+          <div class="lb lres">◀ RESSONADOR</div>
+          <div class="lb lcol">COLETOR</div>
+          <div class="lb lsfe">SILO<br>Fe</div><div class="lb lslu">SILO<br>Lu</div>
+          ${dots('d-res', 4)}${dots('d-fe', 3)}${dots('d-lu', 3)}${dots('d-rest', 2)}
+        </div>
+        <ol class="lsteps">
+          <li><i class="k d-res"></i>A <b>Peneira</b> joga o <b>resíduo</b> para a seta ◀, direto na <b>Prensa</b>. Os minerais caem pela grade.</li>
+          <li><i class="k d-fe"></i>O <b>Ímã</b> puxa o <b>Ferronox</b> (metal prateado) para a seta ▶. Ele cai no <b>Silo</b> da direita.</li>
+          <li><i class="k d-lu"></i>O <b>Ressonador</b> faz a <b>Lumenita</b> (cristal azul) saltar para a seta ◀, no <b>Silo</b> da esquerda.</li>
+          <li><i class="k d-rest"></i>O que sobra cai no <b>Coletor</b> e vai para o estoque.</li>
+        </ol>
+      </div>
+      <p class="lnote">A <b>seta</b> de cada separador diz para que lado ele joga. O <b>Silo</b> fica no chão, <b>embaixo desse lado</b>.</p>
+      <button class="ok">ENTENDI</button></div>`;
+    el.querySelector('.ok')!.addEventListener('click', () => { this.g.flags.lessonSep = true; el.remove(); });
+    document.body.appendChild(el);
+  }
+
   toast(text: string, color: string) {
     const t = h(`<div class="toast" style="border-color:${color}"><i style="background:${color}"></i>${esc(text)}</div>`);
     this.el.toasts.prepend(t);

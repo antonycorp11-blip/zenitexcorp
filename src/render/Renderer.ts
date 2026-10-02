@@ -631,6 +631,23 @@ export class Renderer {
       }
       return;
     }
+    if (d.behavior === 'filter' && d.pick) {
+      // Ímã: linhas de campo vermelhas/azuis saindo pelo lado da seta; Ressonador: ondas ciano. Grãos puxados quando separa.
+      const right = m.dir !== 2, sx = right ? x + W : x, cy = y + H / 2, ima = d.key === 'ima';
+      const busy = m.state.startsWith('Separando'), k = busy ? 1 : 0.45;
+      ctx.lineWidth = 0.6;
+      for (let i = 0; i < 3; i++) {
+        const ph = (t * (busy ? 1.6 : 0.6) + i / 3) % 1, r = 2 + ph * 7;
+        ctx.strokeStyle = ima ? `rgba(${i % 2 ? '255,90,70' : '120,170,255'},${(1 - ph) * 0.8 * k})` : `rgba(120,230,255,${(1 - ph) * 0.8 * k})`;
+        ctx.beginPath(); ctx.arc(sx, cy, r, right ? -Math.PI / 2 : Math.PI / 2, right ? Math.PI / 2 : Math.PI * 1.5); ctx.stroke();
+      }
+      if (busy) {
+        const col = ima ? '#e6ecf8' : '#4aa8ff';
+        for (let i = 0; i < 3; i++) { const ph = (t * 2.2 + i / 3) % 1; ctx.fillStyle = col; ctx.fillRect((right ? x + W / 2 + ph * W / 2 : x + W / 2 - ph * W / 2) - 0.8, cy - 0.8 + Math.sin(ph * 6) * 1.2, 1.6, 1.6); }
+        g.lighting.add(sx, cy, 18, ima ? [255, 120, 100] : [110, 210, 255], 0.5);
+      }
+      return;
+    }
     if (d.behavior === 'separator' && m.working) {
       // grãos descendo pela peneira inclinada: minerais (azul) e resíduo (marrom)
       const wx = x + 4, wy = y + 7, ww = W - 8, wh = H - 16, right = m.dir !== 2;
@@ -861,13 +878,22 @@ export class Renderer {
   /** projeto guiado: onde construir a próxima peça (tracejado verde, nome, direção) */
   private drawBlueprint() {
     const g = this.g, ctx = this.ctx;
-    const it = g.ui.tutorial.currentBp();
+    const gd = g.guide();
+    if (gd?.remove) {
+      // peça a desmontar (guia): caixa vermelha piscando
+      const m = gd.remove, x = m.tx * TILE, y = m.ty * TILE, W = m.def.w * TILE, H = m.def.h * TILE, a = 0.5 + 0.5 * Math.sin(this.time * 6);
+      ctx.save(); ctx.setLineDash([3, 2]); ctx.lineWidth = 1.4; ctx.strokeStyle = `rgba(255,80,60,${0.6 + a * 0.4})`; ctx.strokeRect(x + 0.5, y + 0.5, W - 1, H - 1);
+      ctx.fillStyle = `rgba(255,60,40,${0.12 + a * 0.12})`; ctx.fillRect(x, y, W, H); ctx.setLineDash([]);
+      ctx.font = 'bold 6px sans-serif'; ctx.textAlign = 'center'; const t = 'DESMONTE ESTA'; const tw = ctx.measureText(t).width + 8;
+      ctx.fillStyle = 'rgba(40,6,4,0.9)'; ctx.fillRect(x + W / 2 - tw / 2, y - 11, tw, 9); ctx.fillStyle = '#ffb0a0'; ctx.fillText(t, x + W / 2, y - 4.5); ctx.restore();
+    }
+    const it = g.ui.tutorial.currentBp() ?? gd?.item ?? null;
     if (!it || g.blueprint.placed(it.id)) return;
     const d = MACHINE[it.key];
     const pulse = 0.5 + 0.5 * Math.sin(this.time * 4);
     ctx.save();
     ctx.setLineDash([3, 2]); ctx.lineWidth = 1.2; ctx.strokeStyle = `rgba(120,255,150,${0.6 + pulse * 0.4})`;
-    if (it.key === 'esteira' || it.key === 'piso_orbital') {
+    if (it.key === 'esteira' || (it.key === 'piso_orbital' && it.tx2 !== undefined)) {
       const x0 = Math.min(it.tx, it.tx2!) * TILE, x1 = (Math.max(it.tx, it.tx2!) + 1) * TILE, y = it.ty * TILE;
       ctx.fillStyle = `rgba(120,255,150,${0.12 + pulse * 0.1})`; ctx.fillRect(x0, y, x1 - x0, TILE);
       ctx.strokeRect(x0, y, x1 - x0, TILE);
@@ -931,7 +957,7 @@ export class Renderer {
       }
     }
     // etiqueta
-    const lx = (it.key === 'tubo' || it.key === 'piso_orbital' ? (it.tx + it.tx2!) / 2 + 0.5 : it.key === 'esteira' ? (it.tx + it.tx2!) / 2 + 0.5 : it.tx + d.w / 2) * TILE, ly = it.key === 'tubo' ? it.ty2! * TILE - 6 : it.key === 'esteira' || it.key === 'piso_orbital' ? it.ty * TILE - 16 : it.ty2 !== undefined ? Math.min(it.ty, it.ty2) * TILE - 6 : (it.ty + d.h / 2) * TILE + 2;   // dentro do quadrado: não briga com o rótulo de toque
+    const lx = (it.key === 'tubo' || (it.key === 'piso_orbital' && it.tx2 !== undefined) ? (it.tx + it.tx2!) / 2 + 0.5 : it.key === 'esteira' ? (it.tx + it.tx2!) / 2 + 0.5 : it.tx + d.w / 2) * TILE, ly = it.key === 'tubo' ? it.ty2! * TILE - 6 : it.key === 'esteira' || (it.key === 'piso_orbital' && it.tx2 !== undefined) ? it.ty * TILE - 16 : it.ty2 !== undefined ? Math.min(it.ty, it.ty2) * TILE - 6 : (it.ty + d.h / 2) * TILE + 2;   // dentro do quadrado: não briga com o rótulo de toque
     ctx.font = 'bold 6px sans-serif'; ctx.textAlign = 'center';
     const tw = ctx.measureText(it.label).width + 8;
     ctx.fillStyle = 'rgba(10,30,16,0.88)'; ctx.fillRect(lx - tw / 2, ly - 7, tw, 9);
