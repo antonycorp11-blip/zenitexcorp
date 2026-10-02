@@ -1,5 +1,5 @@
 import { fabVal } from '../data/factory';
-import { CELL, TILE, WORLD_W, WORLD_TW } from '../core/constants';
+import { CELL, TILE, WORLD_W, WORLD_TW, WORLD_PX_W, wrapX, nearestX } from '../core/constants';
 import { hash2 } from '../core/rng';
 import { MAT, IS_SOLID, IS_LOOSE, GRAIN, GRAIN_ITEM, GRAIN_KG, matById } from '../data/materials';
 import { DRILLS } from '../data/equipment';
@@ -78,7 +78,7 @@ export class Mining {
       if (matById(m2).tier > dr.tier) continue;
       const fall = 1 - Math.sqrt(d2) / (R + 0.6);
       if (w.damage(x, y, power * fall)) this.removeCell(x, y, 'player', 1);
-      else this.cracks.set(y * WORLD_W + x, g.time);
+      else this.cracks.set(y * WORLD_W + wrapX(x, WORLD_W), g.time);
     }
     // efeitos
     const col = def.top;
@@ -141,7 +141,7 @@ export class Mining {
       if (!IS_LOOSE[m]) continue;
       const item = GRAIN_ITEM[m]; if (!item) continue;
       const q = item === 'bloco_massa' ? 1 : GRAIN_KG;
-      const got = g.pack.add(item, q, w.aux[y * WORLD_W + x] / 40);
+      const got = g.pack.add(item, q, w.aux[y * WORLD_W + wrapX(x, WORLD_W)] / 40);
       if (got < q - 1e-6) { if (got > 0) g.pack.take(item, got); if (this.hardWarnT <= 0) { g.toast('Aspirador cheio: SOPRE num funil (coletor, peneira, cápsula). O laser continua cortando.', '#ffd04a'); this.hardWarnT = 6; } budget = 0; break; }
       w.set(x, y, MAT.AIR);
       budget--;
@@ -161,7 +161,7 @@ export class Mining {
       for (let r = 0; r <= R && found < 0; r++) for (let j = -r; j <= r && found < 0; j++) for (let i = -r; i <= r; i++) {
         if (Math.max(Math.abs(i), Math.abs(j)) !== r) continue;
         const x = cx + i, y = cy + j + 2;
-        if (IS_LOOSE[w.get(x, y)]) { found = y * WORLD_W + x; break; }
+        if (IS_LOOSE[w.get(x, y)]) { found = y * WORLD_W + wrapX(x, WORLD_W); break; }
       }
       if (found < 0) break;
       const x = found % WORLD_W, y = (found / WORLD_W) | 0, m = w.mat[found], aux = w.aux[found];
@@ -197,6 +197,7 @@ export class Mining {
   /** Remove uma célula do terreno: material bruto da camada (com o teor da região), raros, regeneração. */
   removeCell(x: number, y: number, cause: 'player' | 'drill' | 'robot' | 'explosive' | 'event', mult: number, machine?: Machine): { item?: string; kg: number; grade?: number } {
     const g = this.g, w = g.world;
+    x = wrapX(x, WORLD_W);
     const mat = w.get(x, y);
     const def = matById(mat);
     if (!IS_SOLID[mat] || def.kind === 'edge') return { kg: 0 };
@@ -283,8 +284,8 @@ export class Mining {
   spawnDrop(px: number, py: number, k: string, q: number, grade?: number) {
     if (q <= 0.01) return;
     // agrupa com drop próximo do mesmo item
-    for (const d of this.drops) if (d.k === k && Math.abs(d.x - px) < 10 && Math.abs(d.y - py) < 10) { d.g = ((d.g ?? 1) * d.q + (grade ?? 1) * q) / (d.q + q); d.q += q; return; }
-    this.drops.push({ x: px, y: py, k, q, g: grade, vx: (Math.random() - 0.5) * 30, vy: (Math.random() - 0.5) * 30, t: 0 });
+    for (const d of this.drops) if (d.k === k && Math.abs(nearestX(d.x, px) - px) < 10 && Math.abs(d.y - py) < 10) { d.g = ((d.g ?? 1) * d.q + (grade ?? 1) * q) / (d.q + q); d.q += q; return; }
+    this.drops.push({ x: wrapX(px, WORLD_PX_W), y: py, k, q, g: grade, vx: (Math.random() - 0.5) * 30, vy: (Math.random() - 0.5) * 30, t: 0 });
   }
 
   throwExplosive(tx: number, ty: number) {
@@ -293,7 +294,7 @@ export class Mining {
     g.pack.take('explosivo', 1);
     const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy) || 1;
     const r = Math.min(d, 90);
-    this.explosives.push({ x: p.x + (dx / d) * r, y: p.y + (dy / d) * r, t: 2.2 });
+    this.explosives.push({ x: wrapX(p.x + (dx / d) * r, WORLD_PX_W), y: p.y + (dy / d) * r, t: 2.2 });
     g.audio.click();
   }
 
@@ -309,9 +310,9 @@ export class Mining {
     for (let i = this.drops.length - 1; i >= 0; i--) {
       const d = this.drops[i];
       d.t += dt;
-      d.x += d.vx * dt; d.y += d.vy * dt; d.vx *= 0.9; d.vy *= 0.9;
-      const dx = p.x - d.x, dy = p.y - d.y, dist = Math.hypot(dx, dy);
-      if (dist < 40 && d.t > 0.4 && g.pack.room(d.k) > 0.5) { d.vx += (dx / dist) * 300 * dt; d.vy += (dy / dist) * 300 * dt; }
+      d.x = wrapX(d.x + d.vx * dt, WORLD_PX_W); d.y += d.vy * dt; d.vx *= 0.9; d.vy *= 0.9;
+      const dx = nearestX(p.x, d.x) - d.x, dy = p.y - d.y, dist = Math.hypot(dx, dy);
+      if (dist > 0 && dist < 40 && d.t > 0.4 && g.pack.room(d.k) > 0.5) { d.vx += (dx / dist) * 300 * dt; d.vy += (dy / dist) * 300 * dt; }
       if (dist < 8) {
         const got = g.pack.add(d.k, d.q, d.g);
         if (got > 0) { g.fx.pickup(d.x, d.y, d.k, got); d.q -= got; }
@@ -329,7 +330,7 @@ export class Mining {
       const px = r.x * CELL, py = r.y * CELL;
       if (g.hazards.inhibited(px, py)) continue;
       if (Math.hypot(px - p.x, py - p.y) < 20) { r.t = g.time + 20; q.push(r); continue; }
-      if (w.get(r.x, r.y) === MAT.AIR && !w.occ[Math.floor(py / TILE) * WORLD_TW + Math.floor(px / TILE)]) {
+      if (w.get(r.x, r.y) === MAT.AIR && !w.occAtCell(r.x, r.y)) {
         w.set(r.x, r.y, r.m);
         g.stats.regrown++;
       }

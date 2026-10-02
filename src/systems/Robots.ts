@@ -1,4 +1,4 @@
-import { CELL, TILE, TILE_CELLS, WORLD_TW, WORLD_TH } from '../core/constants';
+import { CELL, TILE, TILE_CELLS, WORLD_TW, WORLD_TH, WORLD_PX_W, wrapX, nearestX } from '../core/constants';
 import { ROBOT, type RobotKind } from '../data/robots';
 import { IS_SOLID, IS_BLOCKING, IS_LIQUID, matById } from '../data/materials';
 import { type Bag, bagAdd, bagTotal } from './Inventory';
@@ -73,7 +73,7 @@ export class Robots {
   hazardField(px: number, py: number): number {
     let v = 0;
     for (const r of this.list) if (r.kind === 'hazard' && !r.broken && !r.stuck && r.energy > 0) {
-      const d = Math.hypot(r.x - px, r.y - py) / TILE;
+      const d = Math.hypot(nearestX(r.x, px) - px, r.y - py) / TILE;
       if (d < 8) v = Math.max(v, 35);
     }
     return v;
@@ -81,7 +81,8 @@ export class Robots {
 
   walkableTile(tx: number, ty: number): boolean {
     const w = this.g.world;
-    if (tx < 0 || ty < 0 || tx >= WORLD_TW || ty >= WORLD_TH) return false;
+    if (ty < 0 || ty >= WORLD_TH) return false;
+    tx = wrapX(tx, WORLD_TW);
     const i = ty * WORLD_TW + tx;
     const id = w.occ[i];
     if (id) { const m = this.g.machines.byId.get(id); if (m && !WALK_BLOCK.has(m.def.behavior)) return false; }
@@ -107,7 +108,7 @@ export class Robots {
     while (head < q.length && head < 6000) {
       const cur = q[head++];
       const cx = (cur % size) + ox, cy = Math.floor(cur / size) + oy;
-      if (goal(cx, cy)) {
+      if (goal(wrapX(cx, WORLD_TW), cy)) {
         const out: [number, number][] = [];
         let c = cur;
         while (c !== start) { out.push([(c % size) + ox, Math.floor(c / size) + oy]); c = prev[c]; }
@@ -120,7 +121,7 @@ export class Robots {
         const ni = ly * size + lx;
         if (prev[ni] >= 0) continue;
         prev[ni] = cur;
-        if (!goal(nx, ny) && !this.walkableTile(nx, ny)) continue;
+        if (!goal(wrapX(nx, WORLD_TW), ny) && !this.walkableTile(nx, ny)) continue;
         q.push(ni);
       }
     }
@@ -141,10 +142,10 @@ export class Robots {
     const def = ROBOT[r.kind];
     const [tx, ty] = r.path[0];
     const px = tx * TILE + TILE / 2, py = ty * TILE + TILE / 2;
-    const dx = px - r.x, dy = py - r.y, d = Math.hypot(dx, dy);
+    const dx = nearestX(px, r.x) - r.x, dy = py - r.y, d = Math.hypot(dx, dy);
     const sp = def.speed * dt * (1 + this.g.research.eff('robotSpeed'));
-    if (d <= sp) { r.x = px; r.y = py; r.path.shift(); }
-    else { r.x += (dx / d) * sp; r.y += (dy / d) * sp; }
+    if (d <= sp) { r.x = wrapX(px, WORLD_PX_W); r.y = py; r.path.shift(); }
+    else { r.x = wrapX(r.x + (dx / d) * sp, WORLD_PX_W); r.y += (dy / d) * sp; }
     r.frame += dt * 8;
   }
 
@@ -162,7 +163,7 @@ export class Robots {
     const rc = (r.padId ? this.g.machines.byId.get(r.padId) : undefined) ?? this.nearest(r, m => m.def.behavior === 'robotics' && !m.broken, 50);
     if (r.energy < 18 && rc) {
       const [mx, my] = g.machines.centerPx(rc);
-      if (Math.hypot(mx - r.x, my - r.y) < TILE * 3) { r.energy = Math.min(100, r.energy + 30 * dt); r.state = 'Recarregando'; r.path = []; return; }
+      if (Math.hypot(nearestX(mx, r.x) - r.x, my - r.y) < TILE * 3) { r.energy = Math.min(100, r.energy + 30 * dt); r.state = 'Recarregando'; r.path = []; return; }
       if (!r.path.length) this.goNear(r, rc);
       r.state = 'Indo recarregar';
       return;
@@ -178,30 +179,31 @@ export class Robots {
       case 'carry': return this.carry(r);
       case 'repair': return this.repairBot(r, dt);
       case 'survey': return this.survey(r, dt);
-      case 'hazard': if (!r.path.length && Math.hypot(r.x - r.zx, r.y - r.zy) > TILE * 2) this.goTo(r, r.zx, r.zy); r.state = 'Campo de mitigação ativo'; return;
+      case 'hazard': if (!r.path.length && Math.hypot(nearestX(r.x, r.zx) - r.zx, r.y - r.zy) > TILE * 2) this.goTo(r, r.zx, r.zy); r.state = 'Campo de mitigação ativo'; return;
       case 'loader': return this.loader(r);
     }
   }
 
-  private inZone(r: Robot, tx: number, ty: number) { return Math.hypot(tx * TILE - r.zx, ty * TILE - r.zy) / TILE <= r.zr; }
+  private inZone(r: Robot, tx: number, ty: number) { return Math.hypot(nearestX(tx * TILE, r.zx) - r.zx, ty * TILE - r.zy) / TILE <= r.zr; }
 
   private nearest(r: Robot, f: (m: Machine) => boolean, maxTiles = 999): Machine | undefined {
     let best: Machine | undefined, bd = 1e9;
     for (const m of this.g.machines.list) {
       if (!f(m)) continue;
       const [mx, my] = this.g.machines.centerPx(m);
-      const d = Math.hypot(mx - r.x, my - r.y);
+      const d = Math.hypot(nearestX(mx, r.x) - r.x, my - r.y);
       if (d < bd && d / TILE <= maxTiles) { bd = d; best = m; }
     }
     return best;
   }
 
   private adjacentTo(m: Machine, tx: number, ty: number) {
-    return tx >= m.tx - 1 && tx <= m.tx + m.def.w && ty >= m.ty - 1 && ty <= m.ty + m.def.h && !(tx >= m.tx && tx < m.tx + m.def.w && ty >= m.ty && ty < m.ty + m.def.h);
+    const mx = nearestX(m.tx, tx, WORLD_TW);
+    return tx >= mx - 1 && tx <= mx + m.def.w && ty >= m.ty - 1 && ty <= m.ty + m.def.h && !(tx >= mx && tx < mx + m.def.w && ty >= m.ty && ty < m.ty + m.def.h);
   }
   private goNear(r: Robot, m: Machine) { const p = this.path(r, (x, y) => this.adjacentTo(m, x, y)); if (p) r.path = p; else r.state = 'Sem rota'; return !!p; }
-  private goTo(r: Robot, px: number, py: number) { const gx = Math.floor(px / TILE), gy = Math.floor(py / TILE); const p = this.path(r, (x, y) => Math.abs(x - gx) <= 1 && Math.abs(y - gy) <= 1); if (p) r.path = p; return !!p; }
-  private near(r: Robot, m: Machine) { const tx = Math.floor(r.x / TILE), ty = Math.floor(r.y / TILE); return this.adjacentTo(m, tx, ty) || (tx >= m.tx && tx < m.tx + m.def.w && ty >= m.ty && ty < m.ty + m.def.h); }
+  private goTo(r: Robot, px: number, py: number) { const gx = Math.floor(px / TILE), gy = Math.floor(py / TILE); const p = this.path(r, (x, y) => Math.abs(nearestX(x, gx, WORLD_TW) - gx) <= 1 && Math.abs(y - gy) <= 1); if (p) r.path = p; return !!p; }
+  private near(r: Robot, m: Machine) { const tx = Math.floor(r.x / TILE), ty = Math.floor(r.y / TILE), mx = nearestX(m.tx, tx, WORLD_TW); return this.adjacentTo(m, tx, ty) || (tx >= mx && tx < mx + m.def.w && ty >= m.ty && ty < m.ty + m.def.h); }
 
   private deliver(r: Robot): boolean {
     const st = this.nearest(r, m => (m.def.behavior === 'storage' || m.def.behavior === 'link' || m.def.behavior === 'command') && m.sector === r.sector && !m.broken, 80);
@@ -226,7 +228,7 @@ export class Robots {
     if (r.path.length) { r.state = 'Explorando'; return; }
     const p = this.path(r, (x, y) => this.inZone(r, x, y) && !g.world.explored[y * WORLD_TW + x] && this.walkableTile(x, y), Math.min(46, r.zr + 6));
     if (p) { r.path = p; r.state = 'Explorando'; }
-    else { r.state = 'Zona explorada'; if (Math.hypot(r.x - r.zx, r.y - r.zy) > TILE * 3) this.goTo(r, r.zx, r.zy); }
+    else { r.state = 'Zona explorada'; if (Math.hypot(nearestX(r.x, r.zx) - r.zx, r.y - r.zy) > TILE * 3) this.goTo(r, r.zx, r.zy); }
   }
 
   private miner(r: Robot, dt: number) {
@@ -240,7 +242,7 @@ export class Robots {
       const m = w.get(cx, cy);
       const md = matById(m);
       if (!IS_SOLID[m] || !md.item) { r.target = undefined; return; }
-      if (Math.hypot(cx * CELL - r.x, cy * CELL - r.y) > TILE * 1.6) { r.target = undefined; return; }
+      if (Math.hypot(nearestX(cx * CELL, r.x) - r.x, cy * CELL - r.y) > TILE * 1.6) { r.target = undefined; return; }
       r.state = 'Extraindo ' + md.name;
       if (w.damage(cx, cy, 0.5 * dt)) {
         const res = g.mining.removeCell(cx, cy, 'robot', 1);
@@ -288,14 +290,14 @@ export class Robots {
     }
     // drops no chão
     for (const d of g.mining.drops) {
-      if (Math.hypot(d.x - r.x, d.y - r.y) < 10) { const n = Math.min(cap - bagTotal(r.cargo), d.q); bagAdd(r.cargo, d.k, n); d.q -= n; }
+      if (Math.hypot(nearestX(d.x, r.x) - r.x, d.y - r.y) < 10) { const n = Math.min(cap - bagTotal(r.cargo), d.q); bagAdd(r.cargo, d.k, n); d.q -= n; }
     }
     g.mining.drops = g.mining.drops.filter(d => d.q > 0.01);
     if (r.thinkT > 0) return;
     r.thinkT = 1.5;
     const src = this.nearest(r, m => m.sector === r.sector && bagTotal(m.out) >= 15 && m.def.behavior !== 'storage' && this.inZone(r, m.tx, m.ty), r.zr + 10);
     if (src && this.goNear(r, src)) { r.target = { x: 0, y: 0, m: src.id }; r.state = 'Coletando produção'; return; }
-    const drop = g.mining.drops.find(d => Math.hypot(d.x - r.zx, d.y - r.zy) / TILE < r.zr);
+    const drop = g.mining.drops.find(d => Math.hypot(nearestX(d.x, r.zx) - r.zx, d.y - r.zy) / TILE < r.zr);
     if (drop && this.goTo(r, drop.x, drop.y)) { r.state = 'Recolhendo fragmentos'; return; }
     if (bagTotal(r.cargo) > 0) { this.deliver(r); return; }
     r.state = 'Aguardando produção';

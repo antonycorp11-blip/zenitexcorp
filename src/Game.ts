@@ -1,5 +1,5 @@
 import './data/economy';
-import { CELL, TILE, SIM_DT, WORLD_TW, SURFACE_Y } from './core/constants';
+import { CELL, TILE, SIM_DT, WORLD_TW, WORLD_W, WORLD_H, LEGACY_WORLD_W, SURFACE_Y, wrapX, nearestX } from './core/constants';
 import { bus, EventBus } from './core/events';
 import { World } from './world/World';
 import { Sprites } from './render/Sprites';
@@ -82,11 +82,11 @@ export class Game {
   flags: Record<string, any> = { intro: true, tutorial: 0 };
   hover: Hover | null = null;
   hold: { t: number; dur: number; label: string; key: string; done: () => void } | null = null;
-  build = { active: false, key: null as string | null, dir: 0, deconstruct: false, tx: 0, ty: 0, anchor: null as [number, number] | null, dragging: false };
+  build = { active: false, key: null as string | null, dir: 0, reverse: false, deconstruct: false, tx: 0, ty: 0, anchor: null as [number, number] | null, dragging: false };
   hotbar: HotSlot[] = [
     { type: 'tool', key: 'drill' }, { type: 'tool', key: 'scanner' }, { type: 'item', key: 'explosivo' }, { type: 'item', key: 'sinalizador' },
-    { type: 'item', key: 'kit_reparo' }, { type: 'build', key: 'esteira' }, { type: 'build', key: 'perfuradora' }, { type: 'build', key: 'armazem' },
-    { type: 'build', key: 'holofote' }, { type: 'item', key: 'medkit' },
+    { type: 'item', key: 'kit_reparo' }, { type: 'build', key: 'esteira' }, { type: 'build', key: 'elevador_grao' }, { type: 'build', key: 'armazem' },
+    { type: 'build', key: 'tubo' }, { type: 'item', key: 'medkit' },
   ];
   selected = 0;
   flares: { x: number; y: number; t: number }[] = [];
@@ -265,7 +265,7 @@ export class Game {
       const b = m.def.behavior;
       if ((b === 'command' || b === 'generator' || (b === 'reactor' && m.working)) && !m.broken) {
         const [mx, my] = this.machines.centerPx(m);
-        if (Math.hypot(mx - x, my - y) < 48 + m.def.w * 8) return true;
+        if (Math.hypot(nearestX(mx, x) - x, my - y) < 48 + m.def.w * 8) return true;
       }
     }
     return false;
@@ -426,7 +426,7 @@ export class Game {
     if (inp.pressed('h') || inp.pressed('F1')) ui.open('help');
     if (inp.pressed('f')) this.scanner.pulse();
     if (inp.pressed('x')) { this.exitBuild(); this.build.active = true; this.build.deconstruct = true; }
-    if (inp.pressed('r')) this.build.dir = nextDir(MACHINE[this.build.key ?? ''], this.build.dir);
+    if (inp.pressed('r')) this.rotateBuild();
     if (inp.pressed('q') && this.build.active) this.exitBuild();
     if (inp.pressed(' ')) this.dialogue.skip();
 
@@ -522,7 +522,7 @@ export class Game {
   canBuildKey(k: string) { const d = MACHINE[k]; return !!d && (!d.research || this.research.has(d.research)) && d.behavior !== 'command'; }
   startBuild(k: string) {
     const [tx, ty] = this.freeSpotFor(k);
-    this.build = { active: true, key: k, dir: this.build.dir, deconstruct: false, tx, ty, anchor: null, dragging: false };
+    this.build = { active: true, key: k, dir: this.build.dir, reverse: false, deconstruct: false, tx, ty, anchor: null, dragging: false };
     this.input.placeMode = true;
     this.input.placeDirty = false;
     this.input.mouseMoved = false;
@@ -555,6 +555,11 @@ export class Game {
     // volta para o perfurador: senão o slot de construção continua ativo e nada minera
     if (this.hotbar[this.selected]?.type === 'build') this.selected = 0;
     this.build.active = false; this.build.deconstruct = false; this.build.key = null; this.build.anchor = null; this.build.dragging = false; this.input.placeMode = false; }
+  rotateBuild() {
+    const def = MACHINE[this.build.key ?? ''];
+    this.build.dir = nextDir(def, this.build.dir);
+    if (def?.behavior === 'belt' && this.build.anchor) this.build.reverse = !this.build.reverse;
+  }
   isLineBuild() { const d = this.build.key ? MACHINE[this.build.key] : null; return !!d && (d.behavior === 'belt' || d.behavior === 'riser' || d.behavior === 'scaffold' || d.behavior === 'tube'); }
 
   /**
@@ -564,7 +569,7 @@ export class Game {
   beltPath(): [number, number, number][] {
     const b = this.build;
     const def = b.key ? MACHINE[b.key] : null;
-    if (!b.anchor) return [[b.tx, b.ty, def?.behavior === 'tube' ? b.dir : b.dir === 2 ? 2 : 0]];
+    if (!b.anchor) return [[wrapX(b.tx, WORLD_TW), b.ty, def?.behavior === 'tube' ? b.dir : b.dir === 2 ? 2 : 0]];
     const [ax, ay] = b.anchor;
     const out: [number, number, number][] = [];
     if (def?.behavior === 'tube') {
@@ -572,8 +577,11 @@ export class Game {
       const pts: [number, number][] = [[ax, ay]];
       let x = ax, y = ay;
       while (y !== b.ty && pts.length < 120) { y += Math.sign(b.ty - y); pts.push([x, y]); }
-      while (x !== b.tx && pts.length < 120) { x += Math.sign(b.tx - x); pts.push([x, y]); }
-      const dirOf = (dx: number, dy: number) => (dx > 0 ? 0 : dy > 0 ? 1 : dx < 0 ? 2 : 3);
+      let dx = b.tx - x;
+      if (dx > WORLD_TW / 2) dx -= WORLD_TW;
+      if (dx < -WORLD_TW / 2) dx += WORLD_TW;
+      for (let n = 0; n < Math.abs(dx) && pts.length < 120; n++) { x += Math.sign(dx); pts.push([wrapX(x, WORLD_TW), y]); }
+      const dirOf = (dx: number, dy: number) => { if (dx > WORLD_TW / 2) dx -= WORLD_TW; if (dx < -WORLD_TW / 2) dx += WORLD_TW; return dx > 0 ? 0 : dy > 0 ? 1 : dx < 0 ? 2 : 3; };
       for (let i = 0; i < pts.length; i++) {
         const [px, py] = pts[i];
         const [nx, ny] = i < pts.length - 1 ? pts[i + 1] : pts.length > 1 ? [px * 2 - pts[i - 1][0], py * 2 - pts[i - 1][1]] : [px + (b.dir === 2 ? -1 : 1), py];
@@ -587,10 +595,13 @@ export class Game {
       for (let y = ay; ; y += step) { out.push([ax, y, b.dir === 2 ? 2 : 0]); if (y === b.ty || out.length >= 60) break; }
       return out;
     }
-    const ex = b.tx;
-    const dir = ex > ax ? 0 : ex < ax ? 2 : (b.dir === 2 ? 2 : 0);
-    const step = ex >= ax ? 1 : -1;
-    for (let x = ax; ; x += step) { out.push([x, ay, def?.behavior === 'belt' ? dir : (b.dir === 2 ? 2 : 0)]); if (x === ex || out.length >= 120) break; }
+    let delta = b.tx - ax;
+    if (delta > WORLD_TW / 2) delta -= WORLD_TW;
+    if (delta < -WORLD_TW / 2) delta += WORLD_TW;
+    const dir = delta > 0 ? 0 : delta < 0 ? 2 : (b.dir === 2 ? 2 : 0);
+    const beltDir = b.reverse && delta !== 0 ? (dir + 2) % 4 : dir;
+    const step = delta >= 0 ? 1 : -1;
+    for (let n = 0; n <= Math.abs(delta) && out.length < 120; n++) out.push([wrapX(ax + n * step, WORLD_TW), ay, def?.behavior === 'belt' ? beltDir : (b.dir === 2 ? 2 : 0)]);
     return out;
   }
 
@@ -643,7 +654,7 @@ export class Game {
     const ox = tx - Math.floor((def.w - 1) / 2), oy = ty - Math.floor((def.h - 1) / 2);
     const err = this.machines.canPlace(def, ox, oy);
     if (err) { this.toast(err, '#ff8a3a'); this.audio.error(); return; }
-    if (Math.hypot((ox + def.w / 2) * TILE - this.player.x, (oy + def.h / 2) * TILE - this.player.y) > 260) { this.toast('Muito longe para construir', '#ff8a3a'); this.audio.error(); return; }
+    if (Math.hypot(nearestX((ox + def.w / 2) * TILE, this.player.x) - this.player.x, (oy + def.h / 2) * TILE - this.player.y) > 260) { this.toast('Muito longe para construir', '#ff8a3a'); this.audio.error(); return; }
     const useKit = def.key === 'soprador' && this.pack.count('kit_soprador') >= 1;
     if (useKit) this.pack.take('kit_soprador', 1);
     else if (!this.stock.pay(def.cost, this.pack.items)) { this.toast('Recursos insuficientes (Estoque Central + aspirador)', '#ff8a3a'); this.audio.error(); return; }
@@ -690,15 +701,17 @@ export class Game {
     const p = this.player;
     let best: Hover | null = null, bd = 30;
     const consider = (x: number, y: number, h: Omit<Hover, 'x' | 'y'>, extra = 0) => {
-      const d = Math.min(Math.hypot(x - p.x, y - p.y), Math.hypot(x - this.input.worldX, y - this.input.worldY) + 10) - extra;
-      if (d < bd && Math.hypot(x - p.x, y - p.y) < 34 + extra) { bd = d; best = { x, y, ...h }; }
+      const screenX = nearestX(x, this.input.worldX);
+      const nearX = nearestX(x, p.x);
+      const d = Math.min(Math.hypot(nearX - p.x, y - p.y), Math.hypot(screenX - this.input.worldX, y - this.input.worldY) + 10) - extra;
+      if (d < bd && Math.hypot(nearX - p.x, y - p.y) < 34 + extra) { bd = d; best = { x: screenX, y, ...h }; }
     };
     for (const a of this.events.anomalies) consider(a.x, a.y, { label: '[E] Estabilizar anomalia (segure)', kind: 'anomaly', ref: a });
-    for (const a of this.lore.artifacts) if (this.lore.visible(a) && Math.abs(a.x - p.x) < 60 && Math.abs(a.y - p.y) < 60) consider(a.x, a.y, { label: '[E] Catalogar registro (segure)', kind: 'artifact', ref: a });
-    for (const c of this.chests.list) if (Math.abs(c.x - p.x) < 60 && Math.abs(c.y - p.y) < 60 && this.chests.visible(c)) consider(c.x, c.y, { label: '[E] Abrir baú de Khelos', kind: 'chest', ref: c });
+    for (const a of this.lore.artifacts) if (this.lore.visible(a) && Math.abs(nearestX(a.x, p.x) - p.x) < 60 && Math.abs(a.y - p.y) < 60) consider(a.x, a.y, { label: '[E] Catalogar registro (segure)', kind: 'artifact', ref: a });
+    for (const c of this.chests.list) if (Math.abs(nearestX(c.x, p.x) - p.x) < 60 && Math.abs(c.y - p.y) < 60 && this.chests.visible(c)) consider(c.x, c.y, { label: '[E] Abrir baú de Khelos', kind: 'chest', ref: c });
     if (p.cargo) consider(p.cargo.x, p.cargo.y, { label: '[E] Recuperar carga', kind: 'cargo', ref: p.cargo });
     for (const r of this.robots.list) {
-      if (Math.abs(r.x - p.x) > 50 || Math.abs(r.y - p.y) > 50) continue;
+      if (Math.abs(nearestX(r.x, p.x) - p.x) > 50 || Math.abs(r.y - p.y) > 50) continue;
       const lbl = r.stuck ? `[E] Resgatar ${r.name}` : r.broken ? `[E] Reparar ${r.name}` : r.energy < 99 ? `[E] Recarregar ${r.name}` : '';
       if (lbl) consider(r.x, r.y, { label: lbl, kind: 'robot', ref: r });
     }
@@ -832,11 +845,11 @@ export class Game {
     a.setDrilling(this.mining.hitting, 1);
     const p = this.player;
     let near = 0;
-    for (const m of this.machines.list) if (m.working && Math.abs(m.tx * TILE - p.x) < 300 && Math.abs(m.ty * TILE - p.y) < 300) near++;
+    for (const m of this.machines.list) if (m.working && Math.abs(nearestX(m.tx * TILE, p.x) - p.x) < 300 && Math.abs(m.ty * TILE - p.y) < 300) near++;
     a.machinesHum(near);
     const s = this.world.sectorAtPx(p.x, p.y) || this.lastSectorMusic;
     this.lastSectorMusic = s;
-    const nearBase = this.machines.list.some(m => m.def.behavior === 'command' && Math.hypot((m.tx + 1.5) * TILE - p.x, (m.ty + 1.5) * TILE - p.y) < 200);
+    const nearBase = this.machines.list.some(m => m.def.behavior === 'command' && Math.hypot(nearestX((m.tx + 1.5) * TILE, p.x) - p.x, (m.ty + 1.5) * TILE - p.y) < 200);
     const danger = Object.keys(this.hazards.excess).length > 0;
     const mood = this.flags.finalSeq ? 'nucleo' : danger ? 'tenso' : near > 8 || nearBase ? 'industrial' : SECTORS[s - 1].music;
     a.updateMusic(dt, mood, !!this.ui?.discoveryOpen());
@@ -845,7 +858,7 @@ export class Game {
   // ---------------- save ----------------
   serialize() {
     return {
-      v: 3, opts: this.opts, time: this.time, flags: this.flags, selected: this.selected, hotbar: this.hotbar,
+      v: 4, opts: this.opts, time: this.time, flags: this.flags, selected: this.selected, hotbar: this.hotbar,
       chunks: this.world.serializeChunks(), explored: packBytes(this.world.explored),
       regrow: this.world.regrowQueue,
       player: this.player.serialize(), pack: { items: this.pack.items, level: this.pack.level, g: this.pack.g },
@@ -858,12 +871,42 @@ export class Game {
   }
 
   load(s: any) {
+    const legacy = s.v === 3;
+    if (legacy) {
+      const cells = (WORLD_W - LEGACY_WORLD_W) / 2, px = cells * CELL, tiles = cells * CELL / TILE;
+      const shiftPx = (o: any) => { if (o && typeof o.x === 'number') o.x += px; };
+      shiftPx(s.player); shiftPx(s.player?.cargo);
+      for (const m of s.machines?.list ?? []) m.tx += tiles;
+      for (const r of s.robots?.list ?? []) { shiftPx(r); if (typeof r.zx === 'number') r.zx += px; shiftPx(r.target); }
+      for (const a of s.events?.anomalies ?? []) shiftPx(a);
+      for (const a of s.markers ?? []) shiftPx(a);
+      for (const a of s.flares ?? []) shiftPx(a);
+      for (const a of s.drops ?? []) shiftPx(a);
+      for (const a of s.final?.stabilizers ?? []) shiftPx(a);
+      for (const a of s.regrow ?? []) a.x += cells;
+    }
     this.time = s.time; this.flags = s.flags; this.selected = s.selected ?? 0; if (s.hotbar) this.hotbar = s.hotbar;
-    this.world.loadChunks(s.chunks);
-    if (s.explored) unpackBytes(s.explored, this.world.explored);
+    this.world.loadChunks(s.chunks, legacy);
+    if (legacy) {
+      const gen = this.world.gen, old = gen.legacySites(), left = (WORLD_W - LEGACY_WORLD_W) / 2, right = left + LEGACY_WORLD_W;
+      const outerRuins = gen.ruins.filter(r => r.x0 + r.w <= left || r.x0 >= right);
+      const outerLoose = gen.loose.filter(a => a.x < left || a.x >= right);
+      gen.ruins.splice(0, gen.ruins.length, ...old.ruins, ...outerRuins);
+      gen.loose.splice(0, gen.loose.length, ...old.loose, ...outerLoose);
+      this.lore = new Lore(this, old);
+      this.chests.migrateLegacy();
+    }
+    if (s.explored) {
+      if (legacy) {
+        const oldTw = LEGACY_WORLD_W * CELL / TILE, offset = (WORLD_TW - oldTw) / 2;
+        const old = new Uint8Array(oldTw * (WORLD_H * CELL / TILE));
+        unpackBytes(s.explored, old);
+        for (let y = 0; y < old.length / oldTw; y++) this.world.explored.set(old.subarray(y * oldTw, (y + 1) * oldTw), y * WORLD_TW + offset);
+      } else unpackBytes(s.explored, this.world.explored);
+    }
     for (let i = 0; i < this.world.explored.length; i++) if (this.world.explored[i]) this.world.sectorTileExplored[this.world.sectorTiles[i]]++;
     this.world.regrowQueue = s.regrow ?? [];
-    this.player.load(s.player); this.pack.items = s.pack.items; this.pack.level = s.pack.level; this.pack.g = s.pack.g ?? {};
+    this.player.load(s.player); this.player.x = wrapX(this.player.x, WORLD_W * CELL); this.pack.items = s.pack.items; this.pack.level = s.pack.level; this.pack.g = s.pack.g ?? {};
     this.stock.items = s.stock.items; this.stock.credits = s.stock.credits; this.stock.g = s.stock.g ?? {};
     this.machines.load(s.machines); this.robots.load(s.robots); this.sectors.load(s.sectors);
     this.planet.load(s.planet); this.research.load(s.research); this.crafting.load(s.crafting);

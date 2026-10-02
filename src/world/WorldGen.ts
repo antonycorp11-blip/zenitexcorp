@@ -1,4 +1,4 @@
-import { WORLD_W, WORLD_H, TILE_CELLS, SURFACE_Y } from '../core/constants';
+import { WORLD_W, WORLD_H, LEGACY_WORLD_W, TILE_CELLS, SURFACE_Y, wrapX } from '../core/constants';
 import { fbm, ridged, valueNoise, worley } from '../core/noise';
 import { hash2, RNG } from '../core/rng';
 import { MAT } from '../data/materials';
@@ -40,7 +40,11 @@ export class WorldGen {
     const c = WORLD_W / 2;
     for (let x = 0; x < WORLD_W; x++) {
       const d = Math.abs(x - c);
-      const hill = (fbm(x * 0.004, 3.3, seed + 5, 3) - 0.5) * 140 + (fbm(x * 0.015, 7.7, seed + 6, 2) - 0.5) * 24;
+      // Mistura a mesma faixa de ruído nas duas bordas para fechar a circunferência.
+      const t = x / WORLD_W;
+      const h1 = fbm(x * 0.004, 3.3, seed + 5, 3) * (1 - t) + fbm((x - WORLD_W) * 0.004, 3.3, seed + 5, 3) * t;
+      const h2 = fbm(x * 0.015, 7.7, seed + 6, 2) * (1 - t) + fbm((x - WORLD_W) * 0.015, 7.7, seed + 6, 2) * t;
+      const hill = (h1 - 0.5) * 140 + (h2 - 0.5) * 24;
       const k = Math.min(1, Math.max(0, (d - PLATEAU) / 100));   // platô plano no centro, morros nas pontas
       this.surface[x] = Math.round(SURFACE_Y + hill * k * k * (3 - 2 * k));
     }
@@ -50,14 +54,14 @@ export class WorldGen {
   }
 
   voronoi(_x: number, _y: number): [number, number, number] { return [this.layer, this.layer, 1e9]; }
-  insidePlanet(x: number, y: number): boolean { return x >= 3 && x < WORLD_W - 3 && y >= 0 && y < WORLD_H - 4; }
-  surfaceAt(x: number) { return this.surface[Math.max(0, Math.min(WORLD_W - 1, x | 0))]; }
+  insidePlanet(_x: number, y: number): boolean { return y >= 0 && y < WORLD_H - 4; }
+  surfaceAt(x: number) { return this.surface[wrapX(x | 0, WORLD_W)]; }
 
   private buildSites() {
     const rng = new RNG((this.seed ^ 0x7a11) >>> 0);
-    const nRuins = Math.round(2 + this.sd.ruins * 6);
+    const nRuins = Math.round(2 + this.sd.ruins * 6) * 3;
     let rid = 0, lid = 0;
-    for (let tries = 0; this.ruins.length < nRuins && tries < 200; tries++) {
+    for (let tries = 0; this.ruins.length < nRuins && tries < 600; tries++) {
       const big = this.sd.ruins > 0.5 && rng.chance(0.4);
       const kind: RuinSite['kind'] = big ? (rng.chance(0.5) ? 'cidade' : 'templo') : rng.chance(0.3) ? 'templo' : 'casa';
       const w = kind === 'cidade' ? rng.int(180, 240) : kind === 'templo' ? rng.int(100, 140) : rng.int(52, 80);
@@ -71,7 +75,31 @@ export class WorldGen {
       for (let i = 0; i < na; i++) arts.push({ x: x0 + Math.floor(w * (0.25 + 0.5 * rng.next())), y: y0 + h - 10 });
       this.ruins.push({ id: rid++, sector: this.layer, x0, y0, w, h, kind, artifacts: arts });
     }
-    for (let i = 0; i < 10; i++) this.loose.push({ id: lid++, x: rng.int(40, WORLD_W - 40), y: rng.int(SURFACE_Y + 80, WORLD_H - 60), sector: this.layer });
+    for (let i = 0; i < 30; i++) this.loose.push({ id: lid++, x: rng.int(40, WORLD_W - 40), y: rng.int(SURFACE_Y + 80, WORLD_H - 60), sector: this.layer });
+  }
+
+  /** Coordenadas das ruínas e registros da versão anterior, deslocadas para o centro do anel. */
+  legacySites(): { ruins: RuinSite[]; loose: LooseArtifact[] } {
+    const rng = new RNG((this.seed ^ 0x7a11) >>> 0);
+    const ruins: RuinSite[] = [], loose: LooseArtifact[] = [];
+    const offset = (WORLD_W - LEGACY_WORLD_W) / 2;
+    const nRuins = Math.round(2 + this.sd.ruins * 6);
+    for (let tries = 0; ruins.length < nRuins && tries < 200; tries++) {
+      const big = this.sd.ruins > 0.5 && rng.chance(0.4);
+      const kind: RuinSite['kind'] = big ? (rng.chance(0.5) ? 'cidade' : 'templo') : rng.chance(0.3) ? 'templo' : 'casa';
+      const w = kind === 'cidade' ? rng.int(180, 240) : kind === 'templo' ? rng.int(100, 140) : rng.int(52, 80);
+      const h = kind === 'cidade' ? rng.int(80, 112) : kind === 'templo' ? rng.int(68, 92) : rng.int(36, 52);
+      const x0 = rng.int(16, LEGACY_WORLD_W - w - 16);
+      const y0 = rng.int(SURFACE_Y + 140, WORLD_H - h - 40);
+      if (Math.abs(x0 + w / 2 - LEGACY_WORLD_W / 2) < PLATEAU && y0 < SURFACE_Y + 240) continue;
+      if (ruins.some(r => x0 + offset < r.x0 + r.w + 20 && r.x0 < x0 + offset + w + 20 && y0 < r.y0 + r.h + 20 && r.y0 < y0 + h + 20)) continue;
+      const artifacts: { x: number; y: number }[] = [];
+      const na = kind === 'cidade' ? 3 : kind === 'templo' ? 2 : 1;
+      for (let i = 0; i < na; i++) artifacts.push({ x: x0 + offset + Math.floor(w * (0.25 + 0.5 * rng.next())), y: y0 + h - 10 });
+      ruins.push({ id: ruins.length, sector: this.layer, x0: x0 + offset, y0, w, h, kind, artifacts });
+    }
+    for (let i = 0; i < 10; i++) loose.push({ id: i, x: offset + rng.int(40, LEGACY_WORLD_W - 40), y: rng.int(SURFACE_Y + 80, WORLD_H - 60), sector: this.layer });
+    return { ruins, loose };
   }
 
   /** Gera todo o mapa de uma vez (vista lateral é pequena o bastante). */
@@ -97,9 +125,10 @@ export class WorldGen {
   }
 
   private cell(x: number, y: number, S: number, sd: SectorDef, sec: number): number {
-    // bordas: rocha inviolável
-    const bottom = WORLD_H - 6 - Math.floor(valueNoise(x * 0.05, 0, S) * 8);
-    if (x < 4 || x >= WORLD_W - 4 || y >= bottom) return MAT.EDGE;
+    const seam = (f: (u: number) => number) => x < WORLD_W - 128 ? f(x) : f(x) * ((WORLD_W - x) / 128) + f(x - WORLD_W) * ((x - (WORLD_W - 128)) / 128);
+    // Só o fundo tem rocha inviolável; horizontalmente a camada fecha um anel.
+    const bottom = WORLD_H - 6 - Math.floor(seam(u => valueNoise(u * 0.05, 0, S)) * 8);
+    if (y >= bottom) return MAT.EDGE;
     const sy = this.surface[x];
     if (y < sy) return MAT.AIR;
     const depth = y - sy;
@@ -113,19 +142,19 @@ export class WorldGen {
     const underBase = Math.abs(x - WORLD_W / 2) < PLATEAU - 12 && depth < 80;
     if (!underBase && depth > 28) {
       // cavernas: câmaras alongadas na horizontal + túneis
-      const c = fbm(x * 0.006, y * 0.01, S + sec * 13, 4);
+      const c = seam(u => fbm(u * 0.006, y * 0.01, S + sec * 13, 4));
       const thr = 0.6 - (sd.openness - 0.36) * 0.6 - Math.min(0.04, depth * 0.0002);
-      const tun = ridged(x * 0.007, y * 0.011, S + 41, 2);
+      const tun = seam(u => ridged(u * 0.007, y * 0.011, S + 41, 2));
       if (c > thr || tun > 0.93) {
         if (sd.liquid && sd.liquid.mat !== MAT.CHASM) {
-          const l = fbm(x * 0.01, y * 0.01, S + 500 + sec, 3);
+          const l = seam(u => fbm(u * 0.01, y * 0.01, S + 500 + sec, 3));
           if (l < 0.24 + sd.liquid.amount * 0.7 && c > thr + 0.03) return sd.liquid.mat;
         }
         return MAT.AIR;
       }
     }
     // capa de solo solto/raízes perto da superfície da Terra
-    if (sd.roots && depth < 120 && ridged(x * 0.015, y * 0.025, S + 61, 2) > 0.95) return MAT.ROOT;
+    if (sd.roots && depth < 120 && seam(u => ridged(u * 0.015, y * 0.025, S + 61, 2)) > 0.95) return MAT.ROOT;
     // veios (manchas ricas)
     const [f1, , id] = worley(x / 18, y / 14, S + 33 + sec);
     if (depth > 8 && id < sd.oreDensity * 2.2 && f1 < 0.36 + 0.12 * valueNoise(x * 0.15, y * 0.15, S + 9)) {

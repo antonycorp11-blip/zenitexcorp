@@ -7,7 +7,7 @@ import { SECTORS, HAZARD_NAMES, type HazardKey } from '../data/sectors';
 import { SPEAKERS } from '../data/dialogue';
 import { ITEM, TOP_BAR_ITEMS, itemName } from '../data/items';
 import { SLOGANS } from '../data/slogans';
-import { MACHINE, MACHINES, nextDir } from '../data/machines';
+import { MACHINE, MACHINES } from '../data/machines';
 import { rawOf, compOf } from '../data/composition';
 import type { LoreDef } from '../data/lore';
 import type { Game } from '../Game';
@@ -67,7 +67,7 @@ export class UI {
       button.addEventListener('click', () => {
         const action = button.dataset.buildAction;
         if (action === 'confirm') g.confirmBuild();
-        else if (action === 'rotate') g.build.dir = nextDir(MACHINE[g.build.key ?? ''], g.build.dir);
+        else if (action === 'rotate') g.rotateBuild();
         else if (action === 'cancel') g.exitBuild();
       });
     });
@@ -353,7 +353,12 @@ export class UI {
           const path = g.beltPath();
           const n = path.filter(([px, py]) => !g.machines.at(px, py)?.belt).length;
           const tot: Record<string, number> = {}; for (const k in def.cost) tot[k] = def.cost[k] * Math.max(1, n);
-          this.el.buildHint.innerHTML = `${esc(def.name)} · ${b.anchor ? `${n} tile(s) · ${costStr(g, tot)}` : g.input.touch ? 'toque no início e arraste até o fim' : 'clique no início e arraste até o fim'} · CONFIRMAR instala a linha`;
+          const heading = path[0]?.[2] === 2 ? '◀ ESQUERDA' : '▶ DIREITA';
+          this.el.buildHint.innerHTML = `${esc(def.name)} · ${b.anchor ? `${n} tile(s) · ${costStr(g, tot)}` : g.input.touch ? 'toque no início e arraste até o fim' : 'clique no início e arraste até o fim'} · ${heading} · GIRAR/R inverte · CONFIRMAR instala a linha`;
+        } else if (def.behavior === 'riser' || def.behavior === 'tube') {
+          const path = g.beltPath();
+          const tool = def.behavior === 'riser' ? 'Arraste do fundo até o topo; saída no alto' : 'Arraste do ponto de entrada ao destino; aceita subida';
+          this.el.buildHint.innerHTML = `${esc(def.name)} · ${tool} · ${path.length} peça(s) · GIRAR/R muda a saída · CONFIRMAR instala`;
         } else this.el.buildHint.innerHTML = g.input.touch
           ? `${esc(def.name)} · ${costStr(g, def.cost)}${reason ? `<small>${esc(reason)}</small>` : ''}`
           : `${esc(def.name)} · mova o mouse para posicionar · confirme para construir · custo: ${costStr(g, def.cost)}${reason ? `<small>${esc(reason)}</small>` : ''}`;

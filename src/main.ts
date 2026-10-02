@@ -15,7 +15,7 @@ const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in win
 async function boot() {
   let save = await loadSlot('slot1');
   // saves da versão por setores (v1) não são compatíveis com o mundo em camadas
-  if (save && save.v !== 3) { await deleteSlot('slot1'); save = null; }
+  if (save && save.v !== 3 && save.v !== 4) { await deleteSlot('slot1'); save = null; }
   let pendingNG: GameOptions | null = null;
   try { const s = localStorage.getItem('zx_ng'); if (s) pendingNG = JSON.parse(s); } catch { /* */ }
   const title = document.getElementById('title')!;

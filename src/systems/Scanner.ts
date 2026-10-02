@@ -1,4 +1,4 @@
-import { CELL, TILE } from '../core/constants';
+import { CELL, TILE, WORLD_W, WORLD_H, WORLD_PX_W, nearestX, wrapX } from '../core/constants';
 import { matById } from '../data/materials';
 import { SCANNERS } from '../data/equipment';
 import { fmtInt } from '../core/math';
@@ -57,7 +57,7 @@ export class Scanner {
     for (const c of clusters.values()) this.marks.push(c);
     if (this.marks.length > 300) this.marks.splice(0, this.marks.length - 300);
     if (lv >= 2) {
-      for (const a of g.lore.artifacts) if (!a.done && !a.destroyed && Math.hypot(a.x - px, a.y - py) < R) { a.seen = true; this.addMarker(a.x, a.y, 'Assinatura ancestral', '#4af0e0', 'artifact'); }
+      for (const a of g.lore.artifacts) if (!a.done && !a.destroyed && Math.hypot(nearestX(a.x, px) - px, a.y - py) < R) { a.seen = true; this.addMarker(a.x, a.y, 'Assinatura ancestral', '#4af0e0', 'artifact'); }
     }
     return clusters.size;
   }
@@ -68,11 +68,11 @@ export class Scanner {
    */
   geology(px: number, py: number, R: number, lv: number) {
     const g = this.g, L = g.planet.layer, seed = g.world.gen.seed;
-    const here = gradeAt(seed, L, Math.floor(px / CELL), Math.floor(py / CELL));
+    const here = gradeAt(seed, L, wrapX(Math.floor(px / CELL), WORLD_W), Math.floor(py / CELL));
     let best = here, bx = px, by = py;
     for (const rr of [0.5, 1]) for (let a = 0; a < 12; a++) {
       const x = px + Math.cos(a / 12 * Math.PI * 2) * R * rr, y = py + Math.sin(a / 12 * Math.PI * 2) * R * rr;
-      const gr = gradeAt(seed, L, Math.floor(x / CELL), Math.floor(y / CELL));
+      const gr = gradeAt(seed, L, wrapX(Math.floor(x / CELL), WORLD_W), Math.floor(y / CELL));
       if (gr > best + 0.05) { best = gr; bx = x; by = y; }
     }
     const raw = ITEM[rawOf(L)]?.name ?? 'Material';
@@ -101,7 +101,7 @@ export class Scanner {
     const sec = g.sectors.current;
     let added = 0;
     for (let k = 0; k < 400 && added < 6; k++) {
-      const x = Math.floor(Math.random() * 2560), y = Math.floor(Math.random() * 2560);
+      const x = Math.floor(Math.random() * WORLD_W), y = Math.floor(Math.random() * WORLD_H);
       if (g.world.sectorAtPx(x * CELL, y * CELL) !== sec) continue;
       const d = matById(g.world.get(x, y));
       if (d.kind === 'ore' && (d.rare || Math.random() < 0.15)) { this.addMarker(x * CELL, y * CELL, `Região promissora: ${d.name}`, '#ffd04a', 'deposit'); added++; }
@@ -110,7 +110,8 @@ export class Scanner {
   }
 
   addMarker(x: number, y: number, label: string, color: string, kind: string) {
-    if (this.mapMarkers.some(m => Math.hypot(m.x - x, m.y - y) < 40 && m.kind === kind)) return;
+    x = wrapX(x, WORLD_PX_W);
+    if (this.mapMarkers.some(m => Math.hypot(nearestX(m.x, x) - x, m.y - y) < 40 && m.kind === kind)) return;
     this.mapMarkers.push({ x, y, label, color, kind, t: this.g.time });
     if (this.mapMarkers.length > 120) this.mapMarkers.shift();
   }

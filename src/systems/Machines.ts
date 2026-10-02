@@ -1,6 +1,6 @@
 import { fabVal, SILO_KEYS } from '../data/factory';
 import { LAYER_COUNT } from '../data/sectors';
-import { CELL, TILE, TILE_CELLS, WORLD_TW, WORLD_TH, WORLD_W } from '../core/constants';
+import { CELL, TILE, TILE_CELLS, WORLD_TW, WORLD_TH, WORLD_W, wrapX, nearestX } from '../core/constants';
 import { DIRS } from '../core/math';
 import { MACHINE, COMPLEX_LEVELS, TECTONIC_RATE, MANTLE_RATE, COLLECTOR_RATE, type MachineDef } from '../data/machines';
 import { MAT, IS_SOLID, IS_LIQUID, IS_LOOSE, GRAIN, GRAIN_ITEM, GRAIN_KG, matById } from '../data/materials';
@@ -105,7 +105,7 @@ export class Machines {
     }
     if (def.behavior === 'storage') {
       const cmd = this.list.find(m => m.def.behavior === 'command');
-      if (cmd && Math.hypot(tx - (cmd.tx + 1), ty - (cmd.ty + 1)) > BASE_RADIUS) return `Armazéns só na base (até ${BASE_RADIUS} tiles do Centro de Comando)`;
+      if (cmd && Math.hypot(nearestX(tx, cmd.tx + 1, WORLD_TW) - (cmd.tx + 1), ty - (cmd.ty + 1)) > BASE_RADIUS) return `Armazéns só na base (até ${BASE_RADIUS} tiles do Centro de Comando)`;
     }
     if (def.phase9 && !this.g.sectors.certified(sec)) return 'Camada ainda não certificada (fase 8)';
     if (def.sector12 && sec !== LAYER_COUNT) return 'Apenas no Núcleo (última camada)';
@@ -122,6 +122,7 @@ export class Machines {
     const def = MACHINE[key];
     if (!def) return null;
     if (this.canPlace(def, tx, ty)) return null;
+    tx = wrapX(tx, WORLD_TW);
     const m: Machine = {
       id: this.nextId++, key, def, tx, ty, dir: def.rotatable ? dir : 0, sector: this.g.world.sectorAtTile(tx, ty),
       cond: 100, broken: false, overheat: false, buried: 0, state: 'ok', inb: {}, out: {}, prog: 0, level: 0, eff: 1, boost: 1,
@@ -155,7 +156,7 @@ export class Machines {
     if (m.belt) this.belts.push(m);
     const w = this.g.world;
     for (let y = 0; y < m.def.h; y++) for (let x = 0; x < m.def.w; x++) {
-      const i = (m.ty + y) * WORLD_TW + m.tx + x;
+      const i = (m.ty + y) * WORLD_TW + wrapX(m.tx + x, WORLD_TW);
       if (m.def.behavior === 'platform') w.platform[i] = 1;
       else w.occ[i] = m.id;
     }
@@ -164,7 +165,7 @@ export class Machines {
   remove(m: Machine) {
     const w = this.g.world;
     for (let y = 0; y < m.def.h; y++) for (let x = 0; x < m.def.w; x++) {
-      const i = (m.ty + y) * WORLD_TW + m.tx + x;
+      const i = (m.ty + y) * WORLD_TW + wrapX(m.tx + x, WORLD_TW);
       if (m.def.behavior === 'platform') w.platform[i] = 0;
       else if (w.occ[i] === m.id) w.occ[i] = 0;
     }
@@ -190,7 +191,7 @@ export class Machines {
   shippable(k: string) { const c = ITEM[k]?.cat; return k === 'bloco_massa' || (c !== 'bruto' && c !== 'residuo'); }
   atBase(m: Machine) {
     const c = this.cmd; if (!c) return false;
-    return Math.hypot(m.tx + m.def.w / 2 - (c.tx + 1.5), m.ty + m.def.h / 2 - (c.ty + 1.5)) <= BASE_RADIUS;
+    return Math.hypot(nearestX(m.tx + m.def.w / 2, c.tx + 1.5, WORLD_TW) - (c.tx + 1.5), m.ty + m.def.h / 2 - (c.ty + 1.5)) <= BASE_RADIUS;
   }
   /** material que esta máquina processa, do mais aproveitado para o menos */
   inputs(m: Machine): string[] {
@@ -200,8 +201,8 @@ export class Machines {
   }
 
   at(tx: number, ty: number): Machine | undefined {
-    if (tx < 0 || ty < 0 || tx >= WORLD_TW || ty >= WORLD_TH) return undefined;
-    const id = this.g.world.occ[ty * WORLD_TW + tx];
+    if (ty < 0 || ty >= WORLD_TH) return undefined;
+    const id = this.g.world.occ[ty * WORLD_TW + wrapX(tx, WORLD_TW)];
     return id ? this.byId.get(id) : undefined;
   }
   count(key: string, sector?: number) { let n = 0; for (const m of this.list) if (m.key === key && (sector === undefined || m.sector === sector)) n++; return n; }
@@ -865,7 +866,7 @@ export class Machines {
         const i = y * WORLD_W + x;
         const m = w.mat[i];
         if (!IS_LOOSE[m]) continue;
-        const nx = x + d, ni = i + d;
+        const nx = wrapX(x + d, WORLD_W), ni = y * WORLD_W + nx;
         const occ = w.occAtCell(nx, y);
         if (occ && occ !== b.id) {
           const o = this.byId.get(occ);
@@ -902,7 +903,7 @@ export class Machines {
       if (!IS_LOOSE[mat]) continue;
       const k = GRAIN_ITEM[mat]; if (!k) continue;
       const q = k === 'bloco_massa' ? 1 : GRAIN_KG;
-      gradeMix(m.g, m.out[k] ?? 0, k, q, w.aux[y * WORLD_W + x] / 40);
+      gradeMix(m.g, m.out[k] ?? 0, k, q, w.aux[y * WORLD_W + wrapX(x, WORLD_W)] / 40);
       bagAdd(m.out, k, q);
       w.set(x, y, MAT.AIR);
       budget--; got += q;
@@ -1002,7 +1003,7 @@ export class Machines {
       const k = GRAIN_ITEM[mat];
       if (k !== raw && k !== 'fragmentado' && k !== other) continue;
       seen++; budget--;
-      const grade = w.aux[y * WORLD_W + x] / 40 || 1;
+      const grade = w.aux[y * WORLD_W + wrapX(x, WORLD_W)] / 40 || 1;
       // chance do grão inteiro ser do mineral (fração em massa × teor); a terra que sobra muda de cor
       let p = 0; for (const mm of mine) p += mm.frac * grade;
       if (k === other) p /= Math.max(0.3, 1 - (comp.minerals.filter((x: { k: string }) => !d.pick!.includes(x.k)).reduce((a: number, b: { frac: number }) => a + b.frac, 0) * grade));
@@ -1016,7 +1017,7 @@ export class Machines {
         this.g.sectors.counter(L, 'separated', GRAIN_KG);
         if (Math.random() < 0.5) this.g.fx.ember(x * CELL, y * CELL, magnet ? [230, 236, 250] : [90, 180, 255]);
       } else {
-        w.set(x, y, GRAIN[k === other ? 'residuo' : done], w.aux[y * WORLD_W + x]);
+        w.set(x, y, GRAIN[k === other ? 'residuo' : done], w.aux[y * WORLD_W + wrapX(x, WORLD_W)]);
       }
     }
     m.fin *= 0.97; this.flow(m, 'fin', got, dt);

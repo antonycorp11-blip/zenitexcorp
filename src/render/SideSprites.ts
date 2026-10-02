@@ -463,10 +463,14 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
     p.chute(right ? W - 1 : 0, bot - 10, right, P.or);
     p.hazard(3, bot - 4, W - 6, 2);
   } else if (def.behavior === 'riser') {
-    // elevador de grãos: trilhos com caçambas
+    // elevador de grãos: coluna blindada, visor de fluxo e caçambas
+    p.panel(1, 0, W - 2, H + ex, [42, 52, 68], { rivets: true });
+    p.r(4, 2, W - 8, H + ex - 4, P.stDD);
+    p.r(4, 2, 0.7, H + ex - 4, P.plasma, 0.65);
+    p.r(W - 5, 2, 0.7, H + ex - 4, P.plasma, 0.35);
     p.r(1, 0, 2, H + ex, P.ink); p.r(W - 3, 0, 2, H + ex, P.ink);
     p.r(2, 0, 1, H + ex, P.stL); p.r(W - 3, 0, 1, H + ex, P.st);
-    for (let y = ex + 1; y < H + ex; y += 6) { p.r(4, y, W - 8, 3, P.ink); p.r(5, y, W - 10, 2, P.or); }
+    for (let y = ex + 1; y < H + ex; y += 6) { p.r(4, y, W - 8, 3, P.ink); p.r(5, y, W - 10, 2, P.or); p.r(6, y, W - 12, 0.7, P.orL); }
     p.r(right ? W - 4 : 1, ex + 1, 3, 2, P.yellow);
   } else if (def.behavior === 'launcher') {
     // base com mola e um cano inclinado para o lado da seta
@@ -617,6 +621,8 @@ export function paintPlayer(x: CanvasRenderingContext2D, o: PlayerPose) {
   }
   // jetpack: casco grafite com tubeiras e luz
   fill(() => x.roundRect(0.4, 7.2, 5, 8.6, 1.6), vg(7.2, 8.6, dark));
+  x.fillStyle = '#111a27'; x.beginPath(); x.roundRect(1.2, 9, 3.1, 4.6, 0.7); x.fill();
+  x.fillStyle = '#86d9e7'; for (let k = 0; k < 3; k++) x.fillRect(1.6, 9.7 + k * 1.1, 2.1, 0.35);
   fill(() => { x.roundRect(0.9, 14.6, 1.6, 1.4, 0.4); x.roundRect(3.1, 14.6, 1.6, 1.4, 0.4); }, css(P.stD), 0.4);
   x.fillStyle = css(P.plasma); x.fillRect(1.2, 8.6, 0.6, 4.6);
   x.fillStyle = css(acc); x.fillRect(2.5, 8.2, 2.2, 0.8);
@@ -628,23 +634,36 @@ export function paintPlayer(x: CanvasRenderingContext2D, o: PlayerPose) {
     fill(() => x.roundRect(-1.35, 0, 2.7, 3.6, 1.1), vg(0, 3.6, c));
     x.translate(0, 3.2); x.rotate(knee);
     fill(() => x.roundRect(-1.2, 0, 2.4, 3.4, 1), vg(0, 3.4, c));
+    x.fillStyle = css(P.stD); x.fillRect(-1.25, 0.2, 2.5, 0.9);
+    x.fillStyle = css(P.plasma, 0.8); x.fillRect(-0.85, 1.45, 1.7, 0.4);
     fill(() => x.roundRect(-1.4, 2.8, 3.8, 1.6, 0.7), css(far ? sh(dark, 0.8) : dark), 0.45);
     x.fillStyle = css(acc); x.fillRect(-1.2, 0.4, 2.4, 0.5);
+    x.fillStyle = '#dfe8ec'; x.fillRect(0.65, 3.4, 1.4, 0.35);
     x.restore();
   };
   const fl = o.flying ? 0.35 : 0;
   leg(7.4, -sw - fl * 0.6, true); leg(9.2, sw - fl, false);
   // tronco: placa peitoral com núcleo emissivo
   fill(() => x.roundRect(4.2, 7.4, 8.6, 7.8, 2.4), vg(7.4, 7.8, white));
+  // placas separadas e cinto utilitário dão ao traje uma silhueta de exploração industrial
+  x.fillStyle = css(sh(white, 0.69)); x.beginPath(); x.moveTo(4.7, 8.5); x.lineTo(7.7, 9.8); x.lineTo(7.3, 13); x.lineTo(4.7, 12.1); x.closePath(); x.fill();
+  x.fillStyle = css(sh(white, 0.83)); x.beginPath(); x.moveTo(12.3, 8.3); x.lineTo(10.3, 9.6); x.lineTo(10.6, 12.5); x.lineTo(12.4, 11.8); x.closePath(); x.fill();
   fill(() => x.roundRect(4.6, 12.6, 7.8, 1.6, 0.6), css(dark), 0.4);
+  x.fillStyle = '#a7bbc4'; x.fillRect(6, 13.3, 1.2, 0.6); x.fillRect(9.5, 13.3, 1.2, 0.6);
   x.fillStyle = css(acc); x.fillRect(5, 9, 1.2, 3.2);
   x.fillStyle = css(P.plasma); x.beginPath(); x.arc(10.2, 10.4, 0.9, 0, 7); x.fill();
+  x.strokeStyle = css(acc); x.lineWidth = 0.45; x.beginPath(); x.moveTo(8.2, 9.9); x.lineTo(9.3, 9.9); x.moveTo(8.1, 10.9); x.lineTo(9.3, 10.9); x.stroke();
   x.fillStyle = 'rgba(255,255,255,0.9)'; x.beginPath(); x.arc(10, 10.2, 0.35, 0, 7); x.fill();
   // capacete com visor emissivo de faixa
   fill(() => x.arc(9, 4.4, 4.5, 0, 7), (() => { const g = x.createRadialGradient(7.2, 2.4, 0.5, 9, 4.4, 5.2); g.addColorStop(0, '#ffffff'); g.addColorStop(0.55, css(white)); g.addColorStop(1, css(sh(white, 0.62))); return g; })());
   fill(() => x.roundRect(8.6, 2.4, 5.6, 3.6, 1.8), (() => { const g = x.createLinearGradient(8.6, 2.4, 14, 6); g.addColorStop(0, '#0c1a2c'); g.addColorStop(1, '#05080f'); return g; })(), 0.5);
+  x.fillStyle = css(P.stD); x.beginPath(); x.roundRect(5.5, 0.2, 4.8, 1.25, 0.5); x.fill();
+  x.fillStyle = css(acc); x.fillRect(6.3, 0.55, 2.9, 0.35);
   x.fillStyle = css(P.plasma); x.beginPath(); x.roundRect(9.6, 3.6, 4, 0.9, 0.45); x.fill();
+  x.fillStyle = '#8cc9d9'; x.beginPath(); x.moveTo(12.8, 3); x.lineTo(13.8, 3.3); x.lineTo(11.1, 5.1); x.lineTo(10.7, 5); x.closePath(); x.fill();
   x.fillStyle = 'rgba(160,240,255,0.35)'; x.beginPath(); x.roundRect(9.2, 3.1, 4.8, 1.9, 0.9); x.fill();
+  x.fillStyle = css(P.st); x.beginPath(); x.roundRect(9.4, 6.4, 3.7, 1, 0.4); x.fill();
+  x.fillStyle = '#eea64f'; x.fillRect(11, 6.6, 0.8, 0.35);
   x.fillStyle = css(acc); x.fillRect(5.2, 2, 0.9, 3.2);
   x.fillStyle = css(P.stLL); x.fillRect(6, -0.6, 0.5, 1.6); x.fillStyle = css(P.red); x.fillRect(5.9, -0.9, 0.7, 0.5);
   x.restore();

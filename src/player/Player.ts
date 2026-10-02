@@ -1,4 +1,4 @@
-import { CELL, TILE } from '../core/constants';
+import { CELL, TILE, WORLD_PX_W, wrapX } from '../core/constants';
 import { DRILLS, ENERGY_LEVELS, HEALTH_LEVELS, SUIT_MODULES } from '../data/equipment';
 import type { HazardKey } from '../data/sectors';
 import { MAT, IS_BLOCKING } from '../data/materials';
@@ -111,11 +111,21 @@ export class Player {
     const sx = dx / steps;
     for (let i = 0; i < steps; i++) {
       const nx = this.x + sx;
-      if (!this.hits(nx, this.y)) { this.x = nx; continue; }
+      if (!this.hits(nx, this.y)) {
+        this.x = wrapX(nx, WORLD_PX_W);
+        if (nx < 0) this.g.camera.x += WORLD_PX_W;
+        else if (nx >= WORLD_PX_W) this.g.camera.x -= WORLD_PX_W;
+        continue;
+      }
       // degrau: sobe até 3 células (pilhas de areia, bordas)
       let climbed = false;
       for (let up = CELL; up <= 10; up += CELL) {
-        if (!this.hits(nx, this.y - up) && !this.hits(this.x, this.y - up)) { this.x = nx; this.y -= up; climbed = true; break; }
+        if (!this.hits(nx, this.y - up) && !this.hits(this.x, this.y - up)) {
+          this.x = wrapX(nx, WORLD_PX_W);
+          if (nx < 0) this.g.camera.x += WORLD_PX_W;
+          else if (nx >= WORLD_PX_W) this.g.camera.x -= WORLD_PX_W;
+          this.y -= up; climbed = true; break;
+        }
       }
       if (!climbed) { this.vx = 0; return; }
     }

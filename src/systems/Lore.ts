@@ -3,6 +3,7 @@ import { IS_SOLID } from '../data/materials';
 import { LORE, LORE_BY_ID, type LoreDef } from '../data/lore';
 import { fmtInt } from '../core/math';
 import type { Game } from '../Game';
+import type { RuinSite, LooseArtifact } from '../world/WorldGen';
 
 export interface Artifact { id: number; x: number; y: number; sector: number; cx: number; cy: number; done: boolean; destroyed: boolean; seen: boolean; kind: number; }
 
@@ -14,10 +15,15 @@ export class Lore {
   preserved = 0; demolished = 0; destroyed = 0;
   private byCell = new Map<number, Artifact>();
 
-  constructor(private g: Game) {
+  constructor(private g: Game, legacy?: { ruins: RuinSite[]; loose: LooseArtifact[] }) {
     let id = 0;
-    for (const site of g.world.gen.ruins) for (const a of site.artifacts) this.addArt(id++, a.x, a.y, site.sector);
-    for (const l of g.world.gen.loose) this.addArt(id++, l.x, l.y, l.sector);
+    // Os IDs dos registros antigos precisam vir antes dos novos para preservar o progresso salvo.
+    if (legacy) {
+      for (const site of legacy.ruins) for (const a of site.artifacts) this.addArt(id++, a.x, a.y, site.sector);
+      for (const a of legacy.loose) this.addArt(id++, a.x, a.y, a.sector);
+    }
+    for (const site of g.world.gen.ruins) if (!legacy?.ruins.includes(site)) for (const a of site.artifacts) this.addArt(id++, a.x, a.y, site.sector);
+    for (const l of g.world.gen.loose) if (!legacy?.loose.includes(l)) this.addArt(id++, l.x, l.y, l.sector);
   }
   private addArt(id: number, cx: number, cy: number, sector: number) {
     const a: Artifact = { id, x: cx * CELL + 2, y: cy * CELL + 2, sector, cx, cy, done: false, destroyed: false, seen: false, kind: id % 4 };

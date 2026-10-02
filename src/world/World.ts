@@ -1,4 +1,4 @@
-import { CELL, CHUNK, WORLD_W, WORLD_H, WORLD_CW, WORLD_CH, WORLD_TW, WORLD_TH, TILE, TILE_CELLS } from '../core/constants';
+import { CELL, CHUNK, WORLD_W, WORLD_H, WORLD_CW, WORLD_CH, WORLD_TW, WORLD_TH, TILE, TILE_CELLS, LEGACY_WORLD_W, wrapX } from '../core/constants';
 import { MAT, IS_SOLID, IS_BLOCKING, IS_LIQUID, IS_LOOSE, matById } from '../data/materials';
 
 /** log2(TILE_CELLS): célula -> tile */
@@ -61,12 +61,13 @@ export class World {
   ensureAroundPx(_px: number, _py: number, _r: number) {}
 
   inside(x: number, y: number) { return x >= 0 && y >= 0 && x < WORLD_W && y < WORLD_H; }
-  get(x: number, y: number): number { return x < 0 || y < 0 || x >= WORLD_W || y >= WORLD_H ? MAT.EDGE : this.mat[y * WORLD_W + x]; }
+  get(x: number, y: number): number { return y < 0 ? MAT.AIR : y >= WORLD_H ? MAT.EDGE : this.mat[y * WORLD_W + wrapX(x, WORLD_W)]; }
   peek(x: number, y: number): number { return this.get(x, y); }
-  occAtCell(x: number, y: number): number { return this.occ[(y >> TS) * WORLD_TW + (x >> TS)]; }
+  occAtCell(x: number, y: number): number { return y < 0 || y >= WORLD_H ? 0 : this.occ[(y >> TS) * WORLD_TW + (wrapX(x, WORLD_W) >> TS)]; }
 
   set(x: number, y: number, m: number, aux = 0) {
-    if (!this.inside(x, y)) return;
+    if (y < 0 || y >= WORLD_H) return;
+    x = wrapX(x, WORLD_W);
     const i = y * WORLD_W + x;
     if (this.mat[i] === m && this.aux[i] === aux) return;
     const wasSolid = IS_SOLID[this.mat[i]] === 1;
@@ -76,23 +77,24 @@ export class World {
 
   /** marca re-renderização e acorda a simulação ao redor */
   touch(x: number, y: number, rad = 1) {
+    x = wrapX(x, WORLD_W);
     const cx = (x / CHUNK) | 0, cy = (y / CHUNK) | 0;
     const k = cy * WORLD_CW + cx;
     const lx = x - cx * CHUNK, ly = y - cy * CHUNK;
     // o sombreamento do terreno depende dos vizinhos: re-renderiza um raio ao redor
     const R = rad;
     this.markDirty(k, lx - R, ly - R - 1, lx + R, ly + R);
-    if (lx < R && cx > 0) this.markDirty(k - 1, CHUNK - R, ly - R - 1, CHUNK - 1, ly + R);
-    if (lx > CHUNK - 1 - R && cx < WORLD_CW - 1) this.markDirty(k + 1, 0, ly - R - 1, R, ly + R);
+    if (lx < R) this.markDirty(cy * WORLD_CW + wrapX(cx - 1, WORLD_CW), CHUNK - R, ly - R - 1, CHUNK - 1, ly + R);
+    if (lx > CHUNK - 1 - R) this.markDirty(cy * WORLD_CW + wrapX(cx + 1, WORLD_CW), 0, ly - R - 1, R, ly + R);
     if (ly < R + 1 && cy > 0) this.markDirty(k - WORLD_CW, lx - R, CHUNK - R - 1, lx + R, CHUNK - 1);
     if (ly > CHUNK - 1 - R && cy < WORLD_CH - 1) this.markDirty(k + WORLD_CW, lx - R, 0, lx + R, R);
     this.wakeChunk(cx, cy);
     if (cy > 0) this.wakeChunk(cx, cy - 1);
-    if (lx < 2 && cx > 0) this.wakeChunk(cx - 1, cy);
-    if (lx > CHUNK - 3 && cx < WORLD_CW - 1) this.wakeChunk(cx + 1, cy);
+    if (lx < 2) this.wakeChunk(cx - 1, cy);
+    if (lx > CHUNK - 3) this.wakeChunk(cx + 1, cy);
   }
-  wake(x: number, y: number) { this.wakeChunk((x / CHUNK) | 0, (y / CHUNK) | 0); }
-  private wakeChunk(cx: number, cy: number) { if (cx >= 0 && cy >= 0 && cx < WORLD_CW && cy < WORLD_CH) { this.active[cy * WORLD_CW + cx] = 1; this.nextActive[cy * WORLD_CW + cx] = 1; } }
+  wake(x: number, y: number) { this.wakeChunk(Math.floor(x / CHUNK), Math.floor(y / CHUNK)); }
+  private wakeChunk(cx: number, cy: number) { if (cy >= 0 && cy < WORLD_CH) { const k = cy * WORLD_CW + wrapX(cx, WORLD_CW); this.active[k] = 1; this.nextActive[k] = 1; } }
 
   private markDirty(k: number, x0: number, y0: number, x1: number, y1: number) {
     if (k < 0 || k >= WORLD_CW * WORLD_CH) return;
@@ -132,12 +134,13 @@ export class World {
             if (this.canEnter(below, m, x, y + 1)) to = below;
             else if (loose !== 2) {
               const d = (Math.random() < 0.5) ? 1 : -1;
-              if (x + d > 0 && x + d < WORLD_W - 1 && this.canEnter(below + d, m, x + d, y + 1) && this.free(i + d)) to = below + d;
-              else if (x - d > 0 && x - d < WORLD_W - 1 && this.canEnter(below - d, m, x - d, y + 1) && this.free(i - d)) to = below - d;
+              const a = wrapX(x + d, WORLD_W), b = wrapX(x - d, WORLD_W);
+              if (this.canEnter((y + 1) * WORLD_W + a, m, a, y + 1) && this.free(y * WORLD_W + a)) to = (y + 1) * WORLD_W + a;
+              else if (this.canEnter((y + 1) * WORLD_W + b, m, b, y + 1) && this.free(y * WORLD_W + b)) to = (y + 1) * WORLD_W + b;
               else if (liq) {
                 // líquido só escorre de lado se houver um degrau para descer por perto (assim as poças assentam)
                 const fl = this.flowDir(x, y, d) || this.flowDir(x, y, -d);
-                if (fl) to = i + fl;
+                if (fl) to = y * WORLD_W + wrapX(x + fl, WORLD_W);
               }
             }
             if (to < 0) {
@@ -187,8 +190,9 @@ export class World {
       const sx = f.vx * dt / steps, sy = f.vy * dt / steps;
       let landed = false;
       for (let s2 = 0; s2 < steps; s2++) {
-        const nx = f.x + sx, ny = f.y + sy;
+        const nx = wrapX(f.x + sx, WORLD_W * CELL), ny = f.y + sy;
         const cx = Math.floor(nx / CELL), cy = Math.floor(ny / CELL);
+        if (cy < 0) { f.x = nx; f.y = ny; continue; }
         if (!this.inside(cx, cy)) { landed = true; break; }
         // recém-lançado: atravessa a pilha da própria boca
         if (f.t < 0.12 && !IS_SOLID[this.mat[cy * WORLD_W + cx]]) { f.x = nx; f.y = ny; continue; }
@@ -212,9 +216,8 @@ export class World {
   private flowDir(x: number, y: number, d: number): number {
     for (let k = 1; k <= 6; k++) {
       const nx = x + d * k;
-      if (nx <= 0 || nx >= WORLD_W - 1) return 0;
-      const j = y * WORLD_W + nx;
-      if (this.mat[j] !== MAT.AIR || this.occ[(y >> TS) * WORLD_TW + (nx >> TS)]) return 0;
+      const wx = wrapX(nx, WORLD_W), j = y * WORLD_W + wx;
+      if (this.mat[j] !== MAT.AIR || this.occ[(y >> TS) * WORLD_TW + (wx >> TS)]) return 0;
       if (this.mat[j + WORLD_W] === MAT.AIR) return d;
     }
     return 0;
@@ -231,8 +234,8 @@ export class World {
   spawnGrain(x: number, y: number, m: number, aux = 0, exact = false): boolean {
     for (const [dx, dy] of exact ? [[0, 0]] : [[0, 0], [1, 0], [-1, 0], [0, -1], [1, -1], [-1, -1], [2, 0], [-2, 0]]) {
       const nx = x + dx, ny = y + dy;
-      if (!this.inside(nx, ny)) continue;
-      const t = this.mat[ny * WORLD_W + nx];
+      if (ny < 0 || ny >= WORLD_H) continue;
+      const t = this.mat[ny * WORLD_W + wrapX(nx, WORLD_W)];
       if ((t === MAT.AIR || IS_LIQUID[t]) && !this.occAtCell(nx, ny)) { this.set(nx, ny, m, aux); return true; }
     }
     return false;
@@ -248,7 +251,7 @@ export class World {
     const m = this.get(x, y);
     if (!IS_SOLID[m]) return false;
     const def = matById(m);
-    const i = y * WORLD_W + x;
+    const i = y * WORLD_W + wrapX(x, WORLD_W);
     const v = this.dmg[i] + (amount / Math.max(0.01, def.hardness)) * 255;
     if (v >= 255) return true;
     const f = Math.floor(v);
@@ -257,7 +260,7 @@ export class World {
   }
 
   sectorAtPx(px: number, py: number): number { return this.sectorAtTile(Math.floor(px / TILE), Math.floor(py / TILE)); }
-  sectorAtTile(tx: number, ty: number): number { return tx < 0 || ty < 0 || tx >= WORLD_TW || ty >= WORLD_TH ? 0 : this.gen.layer; }
+  sectorAtTile(_tx: number, ty: number): number { return ty < 0 || ty >= WORLD_TH ? 0 : this.gen.layer; }
 
   reveal(px: number, py: number, radiusTiles: number): number {
     const cx = Math.floor(px / TILE), cy = Math.floor(py / TILE);
@@ -266,10 +269,9 @@ export class World {
     for (let y = cy - radiusTiles; y <= cy + radiusTiles; y++) {
       if (y < 0 || y >= WORLD_TH) continue;
       for (let x = cx - radiusTiles; x <= cx + radiusTiles; x++) {
-        if (x < 0 || x >= WORLD_TW) continue;
         const dx = x - cx, dy = y - cy;
         if (dx * dx + dy * dy > r2) continue;
-        const i = y * WORLD_TW + x;
+        const i = y * WORLD_TW + wrapX(x, WORLD_TW);
         if (!this.explored[i]) { this.explored[i] = 1; this.sectorTileExplored[this.gen.layer]++; newly++; }
       }
     }
@@ -279,8 +281,8 @@ export class World {
 
   /** Tile livre para construir: sem terreno fixo, sem máquina (grãos e líquido são empurrados/apagados). */
   tileFree(tx: number, ty: number, _onLiquid = false): boolean {
-    if (tx < 0 || ty < 0 || tx >= WORLD_TW || ty >= WORLD_TH) return false;
-    if (this.occ[ty * WORLD_TW + tx]) return false;
+    if (ty < 0 || ty >= WORLD_TH) return false;
+    if (this.occ[ty * WORLD_TW + wrapX(tx, WORLD_TW)]) return false;
     for (let y = 0; y < TILE_CELLS; y++) for (let x = 0; x < TILE_CELLS; x++) {
       if (IS_SOLID[this.get(tx * TILE_CELLS + x, ty * TILE_CELLS + y)]) return false;
     }
@@ -289,7 +291,7 @@ export class World {
   /** apoio: há terreno/grão/máquina logo abaixo do tile? */
   tileSupported(tx: number, ty: number): boolean {
     const y = (ty + 1) * TILE_CELLS;
-    if (ty + 1 < WORLD_TH && this.occ[(ty + 1) * WORLD_TW + tx]) return true;
+    if (ty + 1 < WORLD_TH && this.occ[(ty + 1) * WORLD_TW + wrapX(tx, WORLD_TW)]) return true;
     // chão irregular (rampa, pedrinhas): vale terreno até 1 tile abaixo (a máquina nivela o vão ao ser construída)
     for (let dy = 0; dy < TILE_CELLS; dy++) for (let x = 0; x < TILE_CELLS; x++) if (IS_BLOCKING[this.get(tx * TILE_CELLS + x, y + dy)]) return true;
     return false;
@@ -302,7 +304,7 @@ export class World {
   clearTile(tx: number, ty: number): { m: number; a: number }[] {
     const out: { m: number; a: number }[] = [];
     for (let y = 0; y < TILE_CELLS; y++) for (let x = 0; x < TILE_CELLS; x++) {
-      const cx = tx * TILE_CELLS + x, cy = ty * TILE_CELLS + y, i = cy * WORLD_W + cx;
+      const cx = tx * TILE_CELLS + x, cy = ty * TILE_CELLS + y, i = cy * WORLD_W + wrapX(cx, WORLD_W);
       const m = this.mat[i];
       if (IS_LOOSE[m]) out.push({ m, a: this.aux[i] });
       if (IS_LOOSE[m] || IS_LIQUID[m]) this.set(cx, cy, MAT.AIR);
@@ -312,10 +314,31 @@ export class World {
 
   // ---------------- save (RLE do mapa inteiro) ----------------
   serializeChunks(): Record<string, string> { return { mat: rle(this.mat), aux: rle(this.aux) }; }
-  loadChunks(data: Record<string, string>) {
+  loadChunks(data: Record<string, string>, legacy = false) {
     if (!data?.mat) return;
-    unrle(data.mat, this.mat);
-    if (data.aux) unrle(data.aux, this.aux);
+    if (legacy) {
+      const offset = (WORLD_W - LEGACY_WORLD_W) >> 1;
+      const copyOld = (encoded: string, dest: Uint8Array, terrain = false) => {
+        const old = new Uint8Array(LEGACY_WORLD_W * WORLD_H);
+        unrle(encoded, old);
+        for (let y = 0; y < WORLD_H; y++) {
+          const row = old.subarray(y * LEGACY_WORLD_W, (y + 1) * LEGACY_WORLD_W);
+          dest.set(row, y * WORLD_W + offset);
+          if (terrain) for (let x = 0; x < 4; x++) {
+            for (const edge of [x, LEGACY_WORLD_W - 1 - x]) {
+              const i = y * WORLD_W + offset + edge;
+              // Os muros da versão antiga não podem virar barreiras no meio do anel.
+              if (dest[i] === MAT.EDGE && y < WORLD_H - 14) dest[i] = y < this.gen.surfaceAt(offset + edge) ? MAT.AIR : row[edge < 4 ? 4 : LEGACY_WORLD_W - 5];
+            }
+          }
+        }
+      };
+      copyOld(data.mat, this.mat, true);
+      if (data.aux) copyOld(data.aux, this.aux);
+    } else {
+      unrle(data.mat, this.mat);
+      if (data.aux) unrle(data.aux, this.aux);
+    }
     for (let k = 0; k < WORLD_CW * WORLD_CH; k++) this.dirtyFull(k);
     this.active.fill(1);
   }

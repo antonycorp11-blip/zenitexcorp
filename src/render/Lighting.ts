@@ -2,6 +2,7 @@
  * Iluminação: camada de escuridão em baixa resolução onde as luzes "abrem buracos",
  * mais uma camada aditiva de brilho colorido. A névoa de guerra é desenhada por cima.
  */
+import { nearestX } from '../core/constants';
 type C3 = readonly number[];
 export interface Light { x: number; y: number; r: number; c: C3; a: number; }
 
@@ -92,7 +93,7 @@ export class Lighting {
     this.texs.length = 0;
     const white = this.gradient([255, 255, 255], true);
     for (const L of this.lights) {
-      const x = (L.x - camX) * s, y = (L.y - camY) * s, r = L.r * s;
+      const x = (nearestX(L.x, camX + w / zoom / 2) - camX) * s, y = (L.y - camY) * s, r = L.r * s;
       if (x + r < 0 || y + r < 0 || x - r > this.dark.width || y - r > this.dark.height) continue;
       d.globalAlpha = Math.min(1, L.a * 1.3);
       d.drawImage(white, x - r, y - r, r * 2, r * 2);
@@ -102,6 +103,6 @@ export class Lighting {
     d.globalAlpha = 1; g.globalAlpha = 1;
     d.globalCompositeOperation = 'source-over';
     this.lights.length = 0;
-    void w; void h;
+    void h;
   }
 }

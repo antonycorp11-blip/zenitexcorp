@@ -1,5 +1,5 @@
 import { fabVal } from '../data/factory';
-import { CELL, CHUNK_PX, TILE, TILE_CELLS, WORLD_CW, WORLD_PX_W } from '../core/constants';
+import { CELL, CHUNK_PX, TILE, TILE_CELLS, WORLD_CW, WORLD_PX_W, wrapX, nearestX } from '../core/constants';
 import { hash2 } from '../core/rng';
 import { DIRS } from '../core/math';
 import { MATERIALS } from '../data/materials';
@@ -23,6 +23,10 @@ export class Renderer {
   prof: Record<string, number> = {};
   private pt = 0;
   private mark(k: string) { const n = performance.now(); this.prof[k] = (this.prof[k] ?? 0) * 0.9 + (n - this.pt) * 0.1; this.pt = n; }
+  private screenX(x: number) { return nearestX(x, this.g.camera.x); }
+  private wrapDraw(x: number, draw: () => void) {
+    return () => { this.ctx.save(); this.ctx.translate(this.screenX(x) - x, 0); draw(); this.ctx.restore(); };
+  }
 
   constructor(private g: Game, private canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext('2d', { alpha: false })!;
@@ -64,26 +68,28 @@ export class Renderer {
     // prioriza o chunk do jogador
     const order: [number, number][] = [];
     for (let cy = c0y; cy <= c1y; cy++) for (let cx = c0x; cx <= c1x; cx++) order.push([cx, cy]);
-    const pcx = g.player.x / CHUNK_PX, pcy = g.player.y / CHUNK_PX;
+    const pcx = cam.x / CHUNK_PX, pcy = g.player.y / CHUNK_PX;
     order.sort((a, b) => Math.hypot(a[0] + 0.5 - pcx, a[1] + 0.5 - pcy) - Math.hypot(b[0] + 0.5 - pcx, b[1] + 0.5 - pcy));
     for (const [cx, cy] of order) {
-      const k = cy * WORLD_CW + cx;
-      const needs = g.world.dirty.has(k) || !g.terrain.get(cx, cy, false);
-      const ch = g.terrain.get(cx, cy, needs && budget-- > 0);
+      const sourceCx = wrapX(cx, WORLD_CW);
+      const k = cy * WORLD_CW + sourceCx;
+      const needs = g.world.dirty.has(k) || !g.terrain.get(sourceCx, cy, false);
+      const ch = g.terrain.get(sourceCx, cy, needs && budget-- > 0);
       if (!ch) continue;
       ctx.drawImage(ch.canvas, cx * CHUNK_PX, cy * CHUNK_PX, CHUNK_PX, CHUNK_PX);
       if (ch.lights.length) {
-        if (!ch.baked) ch.baked = g.lighting.bake(ch.lights, cx * CHUNK_PX, cy * CHUNK_PX, CHUNK_PX);
+        if (!ch.baked) ch.baked = g.lighting.bake(ch.lights, sourceCx * CHUNK_PX, cy * CHUNK_PX, CHUNK_PX);
         g.lighting.addBaked(ch.baked, cx * CHUNK_PX, cy * CHUNK_PX, CHUNK_PX, 0.88 + 0.12 * Math.sin(this.time * 1.7 + cx * 3 + cy * 7));
       }
     }
 
     // grãos em voo (soprados ou arremessados)
     for (const f of g.world.flyers) {
-      if (f.x < L || f.x > R || f.y < T || f.y > B) continue;
+      const x = this.screenX(f.x);
+      if (x < L || x > R || f.y < T || f.y > B) continue;
       const c = MATERIALS[f.m]?.top ?? [200, 200, 200];
       ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
-      ctx.fillRect(Math.floor(f.x), Math.floor(f.y), CELL, CELL);
+      ctx.fillRect(Math.floor(x), Math.floor(f.y), CELL, CELL);
     }
 
     this.mark('terrain');
@@ -96,25 +102,25 @@ export class Renderer {
       ctx.strokeStyle = rgba(col, a * (0.6 + 0.4 * Math.sin(this.time * 5 + m.x)));
       ctx.lineWidth = 1 / z * 2;
       const r = 3 + Math.min(10, m.n * 0.8) * (m.level >= 1 ? 1 : 0.5);
-      ctx.strokeRect(m.x - r, m.y - r, r * 2, r * 2);
+      ctx.strokeRect(this.screenX(m.x) - r, m.y - r, r * 2, r * 2);
       g.lighting.add(m.x, m.y, 20, col, 0.4 * a);
     }
     for (const r of g.scanner.rings) {
       ctx.strokeStyle = `rgba(120,220,255,${0.5 * (1 - r.r / r.max)})`;
       ctx.lineWidth = 2 / z;
-      ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(this.screenX(r.x), r.y, r.r, 0, Math.PI * 2); ctx.stroke();
     }
 
     // ---- esteiras (chão) ----
     for (const m of g.machines.list) {
       if (m.def.behavior !== 'belt') continue;
-      const x = m.tx * TILE, y = m.ty * TILE;
+      const x = this.screenX(m.tx * TILE), y = m.ty * TILE;
       if (x > R || x + TILE < L || y > B || y + TILE < T) continue;
       this.drawBelt(m, x, y);
     }
     // pisos orbitais: campo antigravidade embaixo (cone suave pulsando)
     for (const m of g.machines.list) if (m.key === 'piso_orbital') {
-      const x = m.tx * TILE, y = m.ty * TILE;
+      const x = this.screenX(m.tx * TILE), y = m.ty * TILE;
       if (x > R || x + TILE < L || y > B || y + TILE < T) continue;
       const pulse = 0.55 + 0.25 * Math.sin(this.time * 3 + m.tx * 0.7);
       const gr = ctx.createLinearGradient(0, y + 9, 0, y + 22);
@@ -123,7 +129,7 @@ export class Renderer {
       if ((m.tx & 1) === 0) g.lighting.add(x + 8, y + 10, 22, [110, 210, 255], 0.35 * pulse);
     }
     for (const m of g.machines.list) if (m.def.behavior === 'platform') {
-      const x = m.tx * TILE, y = m.ty * TILE;
+      const x = this.screenX(m.tx * TILE), y = m.ty * TILE;
       if (x > R || x + TILE < L || y > B || y + TILE < T) continue;
       const pi = g.sprites.machine(m.def, 0).img; ctx.drawImage(pi, x, y - 2, pi.width / SPRITE_K, pi.height / SPRITE_K);
     }
@@ -135,14 +141,14 @@ export class Renderer {
     for (const m of g.machines.list) {
       const b = m.def.behavior;
       if (b === 'belt' || b === 'platform') continue;
-      const x = m.tx * TILE, y = m.ty * TILE;
+      const x = this.screenX(m.tx * TILE), y = m.ty * TILE;
       const w = m.def.w * TILE, h = m.def.h * TILE;
       if (x > R || x + w < L || y - 60 > B || y + h < T) continue;
       // empilhadas: as de cima desenham por cima das de baixo (funil do coletor não cobre a peneira)
-      objs.push({ y: b === 'tube' ? -200000 - y : -100000 - y, draw: () => b === 'tube' ? this.drawTube(m) : this.drawMachine(m) });
+      objs.push({ y: b === 'tube' ? -200000 - y : -100000 - y, draw: this.wrapDraw(m.tx * TILE, () => b === 'tube' ? this.drawTube(m) : this.drawMachine(m)) });
     }
     const drop = g.capsuleDrop;
-    if (drop) objs.push({ y: -50000, draw: () => {
+    if (drop) objs.push({ y: -50000, draw: this.wrapDraw(drop.tx * TILE, () => {
       // cápsula descendo com retrofoguetes, freando perto do piso
       const def = MACHINE.comando, { img, oy } = g.sprites.machine(def, 0);
       const k = Math.min(1, drop.t / 3.2), fall = Math.pow(1 - k, 2.2) * 700;
@@ -155,67 +161,72 @@ export class Renderer {
       ctx.drawImage(img, x, y, img.width / SPRITE_K, img.height / SPRITE_K);
       g.lighting.add(cx, by + 4, 120, [255, 170, 80], 1);
       if (Math.random() < 0.5) g.fx.smoke(cx + (Math.random() - 0.5) * 30, by + fl * 0.6, [190, 170, 150]);
-    } });
+    }) });
     for (const r of g.robots.list) {
-      if (r.x < L - 20 || r.x > R + 20 || r.y < T - 20 || r.y > B + 20) continue;
-      objs.push({ y: r.y, draw: () => {
+      const x = this.screenX(r.x);
+      if (x < L - 20 || x > R + 20 || r.y < T - 20 || r.y > B + 20) continue;
+      objs.push({ y: r.y, draw: this.wrapDraw(r.x, () => {
         const ri = g.sprites.robot(r.kind, Math.floor(this.time * 20) % 2); ctx.drawImage(ri, Math.round(r.x - 8), Math.round(r.y - 12 + Math.sin(this.time * 3 + r.id) * 1.5), ri.width / SPRITE_K, ri.height / SPRITE_K);
         if (r.stuck || r.broken || r.energy <= 0) this.alert(r.x, r.y - 14, r.stuck ? '#ffd27a' : '#ff5a3a');
         g.lighting.add(r.x, r.y - 4, 26, [255, 210, 150], 0.5);
         if (r.name === 'KILO') { ctx.fillStyle = '#ffd27a'; ctx.font = `${7}px monospace`; }
-      } });
+      }) });
     }
     for (const a of g.lore.artifacts) {
-      if (a.x < L - 20 || a.x > R + 20 || a.y < T - 20 || a.y > B + 20) continue;
+      const x = this.screenX(a.x);
+      if (x < L - 20 || x > R + 20 || a.y < T - 20 || a.y > B + 20) continue;
       if (!g.lore.visible(a)) continue;
-      objs.push({ y: a.y + 4, draw: () => {
+      objs.push({ y: a.y + 4, draw: this.wrapDraw(a.x, () => {
         ctx.drawImage(g.sprites.artifact(a.kind), a.x - 6, a.y - 12 + Math.sin(this.time * 2 + a.id) * 0.5);
         g.lighting.add(a.x, a.y - 6, 40, [60, 230, 240], 0.75 + 0.2 * Math.sin(this.time * 3 + a.id));
-      } });
+      }) });
     }
     for (const c of g.chests.list) {
-      if (c.x < L - 20 || c.x > R + 20 || c.y < T - 20 || c.y > B + 20 || !g.chests.visible(c)) continue;
-      objs.push({ y: c.y + 4, draw: () => {
+      const x = this.screenX(c.x);
+      if (x < L - 20 || x > R + 20 || c.y < T - 20 || c.y > B + 20 || !g.chests.visible(c)) continue;
+      objs.push({ y: c.y + 4, draw: this.wrapDraw(c.x, () => {
         const bob = Math.sin(this.time * 2.5 + c.id) * 0.8;
         const ci = g.sprites.chest(); ctx.drawImage(ci, Math.round(c.x - 8), Math.round(c.y - 12 + bob), ci.width / SPRITE_K, ci.height / SPRITE_K);
         g.lighting.add(c.x, c.y - 6, 46, [255, 210, 110], 0.8 + 0.15 * Math.sin(this.time * 3 + c.id));
         if (Math.random() < 0.04) g.fx.ember(c.x + (Math.random() - 0.5) * 10, c.y - 8, [255, 220, 120]);
-      } });
+      }) });
     }
     for (const an of g.events.anomalies) {
-      if (an.x < L - 30 || an.x > R + 30 || an.y < T - 30 || an.y > B + 30) continue;
-      objs.push({ y: an.y, draw: () => {
+      const x = this.screenX(an.x);
+      if (x < L - 30 || x > R + 30 || an.y < T - 30 || an.y > B + 30) continue;
+      objs.push({ y: an.y, draw: this.wrapDraw(an.x, () => {
         const s = 6 + Math.sin(this.time * 4) * 2;
         ctx.fillStyle = 'rgba(190,120,255,0.8)';
         for (let i = 0; i < 6; i++) { const a = this.time * 1.5 + i; ctx.fillRect(an.x + Math.cos(a) * s * 1.6 - 1, an.y - 10 + Math.sin(a) * s - 1, 2, 2); }
         ctx.fillStyle = '#fff'; ctx.fillRect(an.x - 1, an.y - 11, 3, 3);
         g.lighting.add(an.x, an.y - 10, 70, [180, 100, 255], 0.9);
-      } });
+      }) });
     }
     const cargo = g.player.cargo;
-    if (cargo) objs.push({ y: cargo.y, draw: () => {
+    if (cargo) objs.push({ y: cargo.y, draw: this.wrapDraw(cargo.x, () => {
       ctx.fillStyle = '#e8962a'; ctx.fillRect(cargo.x - 4, cargo.y - 6, 8, 6); ctx.fillStyle = '#1c1e24'; ctx.fillRect(cargo.x - 3, cargo.y - 5, 6, 1);
       g.lighting.add(cargo.x, cargo.y - 4, 30, [255, 180, 80], 0.8); this.alert(cargo.x, cargo.y - 12, '#ffb04a');
-    } });
+    }) });
     for (const d of g.mining.drops) {
-      if (d.x < L || d.x > R || d.y < T || d.y > B) continue;
-      objs.push({ y: d.y, draw: () => {
+      const x = this.screenX(d.x);
+      if (x < L || x > R || d.y < T || d.y > B) continue;
+      objs.push({ y: d.y, draw: this.wrapDraw(d.x, () => {
         ctx.drawImage(g.sprites.item(d.k, 8), Math.round(d.x - 4), Math.round(d.y - 6 + Math.sin(this.time * 4 + d.x) * 1));
         const c = ITEM[d.k]?.color; if (c) g.lighting.add(d.x, d.y - 3, 10, c, 0.4);
-      } });
+      }) });
     }
     for (const e of g.mining.explosives) {
-      objs.push({ y: e.y, draw: () => {
+      objs.push({ y: e.y, draw: this.wrapDraw(e.x, () => {
         ctx.fillStyle = '#e83a2a'; ctx.fillRect(e.x - 2, e.y - 4, 4, 4);
         if (Math.floor(e.t * 6) % 2) { ctx.fillStyle = '#fff'; ctx.fillRect(e.x, e.y - 6, 1, 2); g.lighting.add(e.x, e.y, 30, [255, 60, 40], 0.9); }
-      } });
+      }) });
     }
     for (const s of g.flares) {
-      objs.push({ y: s.y, draw: () => { ctx.fillStyle = '#ffb04a'; ctx.fillRect(s.x - 1, s.y - 3, 2, 3); g.lighting.add(s.x, s.y - 2, 90, [255, 170, 80], 0.95); if (Math.random() < 0.2) g.fx.ember(s.x, s.y - 3, [255, 180, 80]); } });
+      objs.push({ y: s.y, draw: this.wrapDraw(s.x, () => { ctx.fillStyle = '#ffb04a'; ctx.fillRect(s.x - 1, s.y - 3, 2, 3); g.lighting.add(s.x, s.y - 2, 90, [255, 170, 80], 0.95); if (Math.random() < 0.2) g.fx.ember(s.x, s.y - 3, [255, 180, 80]); }) });
     }
     // jogador
     const p = g.player;
-    objs.push({ y: p.y + 2, draw: () => {
+    objs.push({ y: p.y + 2, draw: this.wrapDraw(p.x, () => {
       if (p.invuln > 0 && Math.floor(this.time * 10) % 2) return;
       const left = p.facing === 2;
       // pose contínua: passo pela velocidade, inclinação no voo, braço que acompanha a mira
@@ -253,7 +264,7 @@ export class Renderer {
       ctx.fillStyle = '#ec9628'; ctx.beginPath(); ctx.arc(sx, sy, 0.8, 0, 7); ctx.fill();
       ctx.imageSmoothingEnabled = true;
       if (p.jet > 0) { if (Math.random() < 0.5) g.fx.ember(p.x + (p.facing === 2 ? 5 : -5), p.y - 3, [130, 220, 255]); g.lighting.add(p.x, p.y - 2, 30, [120, 210, 255], 0.75); }
-    } });
+    }) });
     objs.sort((a, b) => a.y - b.y);
     for (const o of objs) o.draw();
 
@@ -351,8 +362,15 @@ export class Renderer {
     ctx.fillStyle = '#4a4e58';
     for (let k = -4; k < 20; k += 4) { const o = k + off; if (o >= 0 && o < 15) ctx.fillRect(x + o, y + 1, 1, 4); }
     ctx.fillStyle = '#6a6e78'; ctx.fillRect(x, y, 16, 1);
-    // seta da direção
-    ctx.fillStyle = '#ffd04a'; ctx.fillRect(x + (d > 0 ? 11 : 4), y + 7, 1, 1);
+    // roletes, marcação industrial e seta legível nas duas direções
+    for (const rx of [3, 8, 13]) {
+      ctx.fillStyle = '#0d1118'; ctx.beginPath(); ctx.arc(x + rx, y + 10, 1.8, 0, 7); ctx.fill();
+      ctx.fillStyle = '#9da8ae'; ctx.beginPath(); ctx.arc(x + rx, y + 10, 0.65, 0, 7); ctx.fill();
+    }
+    ctx.fillStyle = '#d39138'; ctx.fillRect(x, y + 6, 16, 0.8);
+    ctx.strokeStyle = '#ffd47a'; ctx.lineWidth = 1;
+    const ar = d > 0 ? x + 11 : x + 5;
+    ctx.beginPath(); ctx.moveTo(ar - d * 2.5, y + 4); ctx.lineTo(ar, y + 2.3); ctx.lineTo(ar - d * 2.5, y + 0.6); ctx.stroke();
     if (m.state.startsWith('Travada') && Math.floor(this.time * 2) % 2) { ctx.fillStyle = 'rgba(255,60,40,0.45)'; ctx.fillRect(x, y, 16, 9); }
   }
 
@@ -367,17 +385,17 @@ export class Renderer {
       gr.addColorStop(0, '#2f6fc2'); gr.addColorStop(0.5, '#6aa8e0'); gr.addColorStop(0.82, '#b6d8ee'); gr.addColorStop(1, '#f0dcb8');
       ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
       // sol com brilho atmosférico
-      const sx = W * 0.74 - L * 0.02 * z, sy = surfY - 190 * z;
+      const sx = W * 0.74, sy = surfY - 190 * z;
       const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, 160 * z);
       sg.addColorStop(0, 'rgba(255,250,230,1)'); sg.addColorStop(0.06, 'rgba(255,244,210,0.95)'); sg.addColorStop(0.12, 'rgba(255,226,170,0.45)'); sg.addColorStop(0.4, 'rgba(255,214,160,0.12)'); sg.addColorStop(1, 'rgba(255,214,160,0)');
       ctx.fillStyle = sg; ctx.fillRect(0, 0, W, H);
       // nuvens suaves em duas profundidades
       for (let i = 0; i < 8; i++) {
         const par = i < 4 ? 0.05 : 0.12;
-        const span = W / z + 600;
-        const cxw = (((i * 377 - L * par + this.time * (1.5 + (i % 3))) % span) + span) % span - 300;
+        const period = WORLD_PX_W * par;
+        const cxw = nearestX((i % 4) * period / 4 + this.time * (1.5 + (i % 3)), L * par, period) - L * par - 100;
         const cyw = surfY / z - 150 - ((i * 53) % 130) - (i < 4 ? 60 : 0);
-        this.softCloud(cxw * z, cyw * z, (i < 4 ? 0.7 : 1.1) * z, i % 3, i < 4 ? 0.55 : 0.85);
+        for (let off = -period; off < W / z + 200; off += period) this.softCloud((cxw + off) * z, cyw * z, (i < 4 ? 0.7 : 1.1) * z, i % 3, i < 4 ? 0.55 : 0.85);
       }
     } else {
       const SK: [string, string, string][] = [
@@ -401,16 +419,16 @@ export class Renderer {
       ctx.fillStyle = gr;
       ctx.beginPath(); ctx.moveTo(0, H);
       for (let sx = 0; sx <= W + 4; sx += 4) {
-        const wx = L * par + sx / z;
-        const hgt = (Math.sin(wx * 0.005 * (1 + k * 0.3)) * 0.45 + Math.sin(wx * 0.013 + k * 2) * 0.28 + Math.abs(Math.sin(wx * 0.031 + k)) * 0.22 + 0.85) * amp;
+        const phase = (L * par + sx / z) * Math.PI * 2 / (WORLD_PX_W * par);
+        const hgt = (Math.sin(phase * (2 + k)) * 0.45 + Math.sin(phase * (5 + k * 2) + k * 2) * 0.28 + Math.abs(Math.sin(phase * (11 + k * 3) + k)) * 0.22 + 0.85) * amp;
         ctx.lineTo(sx, base - hgt * z);
       }
       ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
       if (k === 1) {
         // torres da Zenitex na névoa
         for (let t = 0; t < 3; t++) {
-          const span = W / z + 500;
-          const wx = (((t * 610 + 240 - L * par) % span) + span) % span - 250;
+          const period = WORLD_PX_W * par;
+          const wx = nearestX(t * period / 3 + 240, L * par, period) - L * par;
           const q = z * 0.5, bx = wx * z, by = base - amp * 0.95 * z;
           ctx.fillStyle = layer === 1 ? 'rgba(110,130,150,0.7)' : 'rgba(0,0,0,0.5)';
           ctx.fillRect(bx, by - 52 * q, 5 * q, 64 * q); ctx.fillRect(bx - 10 * q, by - 34 * q, 25 * q, 2.5 * q); ctx.fillRect(bx + 11 * q, by - 26 * q, 2.5 * q, 34 * q);
@@ -427,8 +445,8 @@ export class Renderer {
       ctx.fillStyle = '#040507';
       ctx.beginPath(); ctx.moveTo(0, 0);
       for (let sx = 0; sx <= W + 6; sx += 6) {
-        const wx = L * 0.3 + sx / z;
-        const hang = (Math.sin(wx * 0.05) * 0.5 + 0.5) * 18 + Math.max(0, Math.sin(wx * 0.37) * Math.sin(wx * 0.11)) * 40;
+        const phase = (L * 0.3 + sx / z) * Math.PI * 2 / (WORLD_PX_W * 0.3);
+        const hang = (Math.sin(phase * 18) * 0.5 + 0.5) * 18 + Math.max(0, Math.sin(phase * 131) * Math.sin(phase * 39)) * 40;
         ctx.lineTo(sx, surfY - 260 * z + hang * z);
       }
       ctx.lineTo(W, 0); ctx.closePath(); ctx.fill();
@@ -507,7 +525,7 @@ export class Renderer {
       if (!n) continue;
       // vizinho que manda para mim
       const [bx, by] = DIRS[n.dir];
-      if (n.def.behavior === 'tube' && n.tx + bx === m.tx && n.ty + by === m.ty) sides.add(d);
+      if (n.def.behavior === 'tube' && wrapX(n.tx + bx, WORLD_PX_W / TILE) === m.tx && n.ty + by === m.ty) sides.add(d);
       if (n.def.behavior === 'blower' && dy === 0 && (n.dir === 2 ? -1 : 1) === -dx) sides.add(d);
     }
     const R = m.key === 'tubo_gigante' ? 6.4 : 4.2;
@@ -571,6 +589,13 @@ export class Renderer {
     ctx.drawImage(img, x, y, img.width / SPRITE_K, img.height / SPRITE_K);
     ctx.imageSmoothingEnabled = true;
     this.animate(m, x, y + oy);
+    if (m.def.w >= 2 && m.def.behavior !== 'platform') {
+      const px = m.tx * TILE + m.def.w * TILE - 8, py = m.ty * TILE + m.def.h * TILE - 6;
+      ctx.fillStyle = '#0b1118'; ctx.fillRect(px - 1, py - 1, 6, 4);
+      ctx.fillStyle = m.broken ? '#ff5944' : m.working ? '#75e2d1' : '#e6a34a';
+      ctx.fillRect(px, py, 3, 1.4);
+      ctx.fillStyle = '#d9e5df'; ctx.fillRect(px + 4, py, 0.6, 1.4);
+    }
     if (m.def.behavior === 'silo') {
       // visor com o nível e a cor do mineral guardado
       const k = Object.keys(m.inb).find(q => (m.inb[q] ?? 0) > 0) ?? m.filter;
@@ -611,6 +636,16 @@ export class Renderer {
   private animate(m: Machine, x: number, y: number) {
     const ctx = this.ctx, g = this.g, d = m.def, t = this.time;
     const W = d.w * TILE, H = d.h * TILE;
+    if (d.behavior === 'riser') {
+      const ph = (t * 10 + m.ty * 3) % TILE;
+      ctx.fillStyle = 'rgba(120,230,255,0.22)'; ctx.fillRect(x + 4, y + 2, W - 8, H - 4);
+      ctx.fillStyle = '#ffc46a';
+      for (let k = 0; k < 3; k++) {
+        const yy = y + H - ((ph + k * 6) % H) - 3;
+        if (yy > y + 1 && yy < y + H - 2) { ctx.fillRect(x + 6, yy, 4, 1.4); ctx.fillRect(x + 7, yy - 1, 2, 1); }
+      }
+      return;
+    }
     if (d.behavior === 'blower') {
       // núcleo de plasma: esfera pulsando com arcos girando; mais forte quando está aspirando
       const cx = x + W / 2, cy = y + H / 2 - 0.5, on = m.fin > 1, pulse = 0.75 + 0.25 * Math.sin(t * (on ? 14 : 4) + m.id);
@@ -742,7 +777,7 @@ export class Renderer {
     if (b.deconstruct) {
       const m = g.machines.at(tx, ty);
       ctx.strokeStyle = 'rgba(255,80,60,0.9)'; ctx.lineWidth = 1;
-      if (m) ctx.strokeRect(m.tx * TILE + 0.5, m.ty * TILE + 0.5, m.def.w * TILE - 1, m.def.h * TILE - 1);
+      if (m) ctx.strokeRect(this.screenX(m.tx * TILE) + 0.5, m.ty * TILE + 0.5, m.def.w * TILE - 1, m.def.h * TILE - 1);
       else ctx.strokeRect(tx * TILE + 0.5, ty * TILE + 0.5, TILE - 1, TILE - 1);
       return;
     }
@@ -753,23 +788,24 @@ export class Renderer {
         const ex = g.machines.at(px, py);
         const ok = (ex && ex.key === def.key) || !g.machines.canPlace(def, px, py);
         const { img, oy: e2 } = g.sprites.machine(def, dir);
-        ctx.globalAlpha = 0.65; ctx.drawImage(img, px * TILE, py * TILE - e2, img.width / SPRITE_K, img.height / SPRITE_K); ctx.globalAlpha = 1;
-        ctx.fillStyle = ok ? 'rgba(80,255,120,0.22)' : 'rgba(255,60,40,0.35)'; ctx.fillRect(px * TILE, py * TILE, TILE, TILE);
+        const x = this.screenX(px * TILE);
+        ctx.globalAlpha = 0.65; ctx.drawImage(img, x, py * TILE - e2, img.width / SPRITE_K, img.height / SPRITE_K); ctx.globalAlpha = 1;
+        ctx.fillStyle = ok ? 'rgba(80,255,120,0.22)' : 'rgba(255,60,40,0.35)'; ctx.fillRect(x, py * TILE, TILE, TILE);
       }
-      if (b.anchor) { ctx.strokeStyle = '#ffd04a'; ctx.strokeRect(b.anchor[0] * TILE + 0.5, b.anchor[1] * TILE + 0.5, TILE - 1, TILE - 1); }
+      if (b.anchor) { ctx.strokeStyle = '#ffd04a'; ctx.strokeRect(this.screenX(b.anchor[0] * TILE) + 0.5, b.anchor[1] * TILE + 0.5, TILE - 1, TILE - 1); }
       return;
     }
     if (def.behavior === 'tube') {
       for (const [px, py, dir] of g.beltPath()) {
         const ex = g.machines.at(px, py);
         const ok = (ex && ex.def.behavior === 'tube') || !g.machines.canPlace(def, px, py);
-        const cx = px * TILE + 8, cy = py * TILE + 8, [dx, dy] = DIRS[dir];
-        ctx.fillStyle = ok ? 'rgba(80,255,120,0.25)' : 'rgba(255,60,40,0.35)'; ctx.fillRect(px * TILE, py * TILE, TILE, TILE);
+        const x = this.screenX(px * TILE), cx = x + 8, cy = py * TILE + 8, [dx, dy] = DIRS[dir];
+        ctx.fillStyle = ok ? 'rgba(80,255,120,0.25)' : 'rgba(255,60,40,0.35)'; ctx.fillRect(x, py * TILE, TILE, TILE);
         ctx.fillStyle = def.key === 'reforcador' ? 'rgba(232,134,42,0.8)' : 'rgba(124,134,150,0.8)'; ctx.fillRect(cx - 4, cy - 4, 8, 8);
         ctx.strokeStyle = '#ffd04a'; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.moveTo(cx - dx * 4, cy - dy * 4); ctx.lineTo(cx + dx * 6, cy + dy * 6); ctx.stroke();
       }
-      if (b.anchor) { ctx.strokeStyle = '#ffd04a'; ctx.strokeRect(b.anchor[0] * TILE + 0.5, b.anchor[1] * TILE + 0.5, TILE - 1, TILE - 1); }
+      if (b.anchor) { ctx.strokeStyle = '#ffd04a'; ctx.strokeRect(this.screenX(b.anchor[0] * TILE) + 0.5, b.anchor[1] * TILE + 0.5, TILE - 1, TILE - 1); }
       return;
     }
     if (def.behavior === 'belt') {
@@ -777,20 +813,21 @@ export class Renderer {
       for (const [px, py, dir] of g.beltPath()) {
         const ex = g.machines.at(px, py);
         const ok = ex?.belt || !g.machines.canPlace(def, px, py);
-        ctx.globalAlpha = 0.65; this.drawBelt({ ...(ex ?? {}), def, dir, broken: false, belt: [], state: '', key: def.key } as any, px * TILE, py * TILE); ctx.globalAlpha = 1;
+        const x = this.screenX(px * TILE);
+        ctx.globalAlpha = 0.65; this.drawBelt({ ...(ex ?? {}), def, dir, broken: false, belt: [], state: '', key: def.key } as any, x, py * TILE); ctx.globalAlpha = 1;
         ctx.fillStyle = ok ? 'rgba(80,255,120,0.22)' : 'rgba(255,60,40,0.35)';
-        ctx.fillRect(px * TILE, py * TILE, TILE, TILE);
+        ctx.fillRect(x, py * TILE, TILE, TILE);
         const [dx, dy] = DIRS[dir];
         ctx.strokeStyle = '#ffd04a'; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(px * TILE + 8 - dx * 4, py * TILE + 8 - dy * 4); ctx.lineTo(px * TILE + 8 + dx * 5, py * TILE + 8 + dy * 5); ctx.stroke();
-        ctx.fillStyle = '#ffd04a'; ctx.fillRect(px * TILE + 7 + dx * 5, py * TILE + 7 + dy * 5, 3, 3);
+        ctx.beginPath(); ctx.moveTo(x + 8 - dx * 4, py * TILE + 8 - dy * 4); ctx.lineTo(x + 8 + dx * 5, py * TILE + 8 + dy * 5); ctx.stroke();
+        ctx.fillStyle = '#ffd04a'; ctx.fillRect(x + 7 + dx * 5, py * TILE + 7 + dy * 5, 3, 3);
       }
-      if (b.anchor) { ctx.strokeStyle = '#ffd04a'; ctx.strokeRect(b.anchor[0] * TILE + 0.5, b.anchor[1] * TILE + 0.5, TILE - 1, TILE - 1); }
+      if (b.anchor) { ctx.strokeStyle = '#ffd04a'; ctx.strokeRect(this.screenX(b.anchor[0] * TILE) + 0.5, b.anchor[1] * TILE + 0.5, TILE - 1, TILE - 1); }
       return;
     }
     const ox = tx - Math.floor((def.w - 1) / 2), oy = ty - Math.floor((def.h - 1) / 2);
     const err = g.machines.canPlace(def, ox, oy);
-    const tooFar = Math.hypot((ox + def.w / 2) * TILE - g.player.x, (oy + def.h / 2) * TILE - g.player.y) > 260;
+    const tooFar = Math.hypot(nearestX((ox + def.w / 2) * TILE, g.player.x) - g.player.x, (oy + def.h / 2) * TILE - g.player.y) > 260;
     const afford = g.stock.has(def.cost, g.pack.items);
     const { img, oy: ex } = g.sprites.machine(def, b.dir);
     ctx.globalAlpha = 0.6;
@@ -818,15 +855,15 @@ export class Renderer {
     const near = g.build.active ? 9999 : 230;
     // máquina em foco: a do rótulo de toque, ou a mais próxima do jogador
     let focus: Machine | null = g.hover?.kind === 'machine' ? (g.hover.ref as Machine) : null;
-    if (!focus) { let bd = 70; for (const m of g.machines.list) { if (m.def.behavior === 'belt') continue; const [mx, my] = g.machines.centerPx(m); const dd = Math.hypot(mx - p.x, my - p.y); if (dd < bd) { bd = dd; focus = m; } } }
+    if (!focus) { let bd = 70; for (const m of g.machines.list) { if (m.def.behavior === 'belt') continue; const [mx, my] = g.machines.centerPx(m); const dd = Math.hypot(nearestX(mx, p.x) - p.x, my - p.y); if (dd < bd) { bd = dd; focus = m; } } }
     for (const m of g.machines.list) {
       const d = m.def, bh = d.behavior;
       if (bh === 'belt' || bh === 'lamp' || bh === 'support' || bh === 'platform' || bh === 'scaffold') continue;
       if (!g.build.active && (bh === 'command' || bh === 'terminal' || bh === 'analyzer')) continue;   // fixos da base: sem poluir
-      const x0 = m.tx * TILE, y0 = m.ty * TILE, W = d.w * TILE, H = d.h * TILE;
+      const x0 = this.screenX(m.tx * TILE), y0 = m.ty * TILE, W = d.w * TILE, H = d.h * TILE;
       if (x0 > R || x0 + W < L || y0 > B || y0 + H < T) continue;
       const [cx, cy] = g.machines.centerPx(m);
-      if (Math.hypot(cx - p.x, cy - p.y) > near) continue;
+      if (Math.hypot(nearestX(cx, p.x) - p.x, cy - p.y) > near) continue;
       // sem poluir: fora do modo construção, só a máquina em foco (a que você toca/está perto) mostra entrada e saída
       if (!g.build.active && focus !== m) continue;
       if (bh === 'riser' || bh === 'launcher') continue;

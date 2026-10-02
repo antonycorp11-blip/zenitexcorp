@@ -1,4 +1,4 @@
-import { CELL, CHUNK, WORLD_W, WORLD_H, WORLD_CW, WORLD_CH } from '../core/constants';
+import { CELL, CHUNK, WORLD_W, WORLD_H, WORLD_CW, WORLD_CH, wrapX } from '../core/constants';
 import { hash2 } from '../core/rng';
 import { MAT, MATERIALS, IS_SOLID, IS_LOOSE, IS_LIQUID, GRAIN } from '../data/materials';
 import { SECTORS } from '../data/sectors';
@@ -129,7 +129,7 @@ export class TerrainRenderer {
     const back = this.texture('back' + L, [base[0] * 0.32, base[1] * 0.32, base[2] * 0.34], [base[0] * 0.18, base[1] * 0.18, base[2] * 0.2], [base[0] * 0.45, base[1] * 0.45, base[2] * 0.46], 'back');
     const ruin = this.texture('ruin', [44, 64, 72], [20, 30, 36], [70, 96, 104], 'ruin');
     const pat = (cnv: HTMLCanvasElement) => { const p = ctx.createPattern(cnv, 'repeat')!; p.setTransform(new DOMMatrix().translate(-ox * RES, -oy * RES)); return p; };
-    const at = (lx: number, ly: number) => { const X = ox + lx, Y = oy + ly; return X < 0 || Y < 0 || X >= WORLD_W || Y >= WORLD_H ? MAT.EDGE : mat[Y * WORLD_W + X]; };
+    const at = (lx: number, ly: number) => { const X = ox + lx, Y = oy + ly; return Y < 0 || Y >= WORLD_H ? MAT.EDGE : mat[Y * WORLD_W + wrapX(X, WORLD_W)]; };
 
     ctx.save();
     ctx.beginPath(); ctx.rect(x0 * RES, y0 * RES, (x1 - x0) * RES, (y1 - y0) * RES); ctx.clip();

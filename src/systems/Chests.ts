@@ -1,5 +1,7 @@
-import { CELL, WORLD_W, WORLD_H } from '../core/constants';
+import { CELL, WORLD_W, WORLD_H, LEGACY_WORLD_W, SURFACE_Y, nearestX } from '../core/constants';
 import { RNG } from '../core/rng';
+import { fbm } from '../core/noise';
+import { PLATEAU } from '../world/WorldGen';
 import { IS_SOLID, IS_BLOCKING, matById } from '../data/materials';
 import { SECTORS } from '../data/sectors';
 import { ITEM } from '../data/items';
@@ -18,7 +20,7 @@ export class Chests {
   constructor(private g: Game) {
     const w = g.world, gen = w.gen;
     const rng = new RNG((gen.seed ^ 0x5eed) >>> 0);
-    const n = 18 + gen.layer * 3;
+    const n = (18 + gen.layer * 3) * 3;
     for (let i = 0, tries = 0; this.list.length < n && tries < n * 80; tries++) {
       const cx = 16 + Math.floor(rng.next() * (WORLD_W - 32)), cy = Math.floor(gen.surfaceAt(cx) + 40 + rng.next() * (WORLD_H - gen.surfaceAt(cx) - 80));
       if (Math.abs(cx - gen.landing.x) < 120 && cy < gen.landing.y + 100) continue;
@@ -28,6 +30,33 @@ export class Chests {
       if (!buried && (IS_BLOCKING[w.get(cx, cy)] || !IS_SOLID[w.get(cx, cy + 1)])) continue;
       this.list.push({ id: i++, x: cx * CELL + 2, y: cy * CELL + 2, cx, cy, opened: false });
     }
+  }
+
+  /** Repõe os baús da área antiga nas posições originais antes de carregar os IDs abertos. */
+  migrateLegacy() {
+    const w = this.g.world, gen = w.gen, offset = (WORLD_W - LEGACY_WORLD_W) / 2;
+    const extra = this.list.filter(c => c.cx < offset || c.cx >= offset + LEGACY_WORLD_W);
+    const rng = new RNG((gen.seed ^ 0x5eed) >>> 0), old: Chest[] = [];
+    const n = 18 + gen.layer * 3;
+    const surfaceAt = (x: number) => {
+      const d = Math.abs(x - LEGACY_WORLD_W / 2);
+      const hill = (fbm(x * 0.004, 3.3, gen.seed + 5, 3) - 0.5) * 140 + (fbm(x * 0.015, 7.7, gen.seed + 6, 2) - 0.5) * 24;
+      const k = Math.min(1, Math.max(0, (d - PLATEAU) / 100));
+      return Math.round(SURFACE_Y + hill * k * k * (3 - 2 * k));
+    };
+    for (let i = 0, tries = 0; old.length < n && tries < n * 80; tries++) {
+      const cx0 = 16 + Math.floor(rng.next() * (LEGACY_WORLD_W - 32));
+      const sy = surfaceAt(cx0);
+      const cy = Math.floor(sy + 40 + rng.next() * (WORLD_H - sy - 80));
+      if (Math.abs(cx0 - LEGACY_WORLD_W / 2) < 120 && cy < SURFACE_Y - 1 + 100) continue;
+      if (cx0 < 3 || cx0 >= LEGACY_WORLD_W - 3 || cy < 0 || cy >= WORLD_H - 4) continue;
+      const cx = cx0 + offset;
+      const buried = rng.next() < 0.33;
+      if (!buried && (IS_BLOCKING[w.get(cx, cy)] || !IS_SOLID[w.get(cx, cy + 1)])) continue;
+      old.push({ id: i++, x: cx * CELL + 2, y: cy * CELL + 2, cx, cy, opened: false });
+    }
+    extra.forEach((c, i) => { c.id = old.length + i; });
+    this.list = [...old, ...extra];
   }
 
   visible(ch: Chest) { return !ch.opened && !IS_SOLID[this.g.world.get(ch.cx, ch.cy)]; }
@@ -74,7 +103,7 @@ export class Chests {
   /** Scanner: marca baús no alcance. */
   reveal(px: number, py: number, R: number) {
     let n = 0;
-    for (const ch of this.list) if (!ch.opened && Math.hypot(ch.x - px, ch.y - py) < R) { this.g.scanner.addMarker(ch.x, ch.y, 'Baú de Khelos', '#ffd04a', 'chest'); n++; }
+    for (const ch of this.list) if (!ch.opened && Math.hypot(nearestX(ch.x, px) - px, ch.y - py) < R) { this.g.scanner.addMarker(ch.x, ch.y, 'Baú de Khelos', '#ffd04a', 'chest'); n++; }
     return n;
   }
 

@@ -1,4 +1,4 @@
-import { CELL, TILE } from '../core/constants';
+import { CELL, TILE, WORLD_PX_W, WORLD_PX_H, WORLD_TW, wrapX, nearestX } from '../core/constants';
 import { GRAIN, matById as matDef } from '../data/materials';
 import { rawOf } from '../data/composition';
 import { MAT, IS_SOLID, matById } from '../data/materials';
@@ -77,7 +77,7 @@ export class Events {
         for (const m of M) {
           if (m.def.power >= 0 || m.broken) continue;
           const [x, y] = g.machines.centerPx(m);
-          if (protectedBy.some(p => { const [px, py] = g.machines.centerPx(p); return Math.hypot(px - x, py - y) / TILE < (p.def.radius ?? 12); })) continue;
+          if (protectedBy.some(p => { const [px, py] = g.machines.centerPx(p); return Math.hypot(nearestX(px, x) - x, py - y) / TILE < (p.def.radius ?? 12); })) continue;
           if (Math.random() < 0.18) { m.cond = Math.max(0, m.cond - 50); if (m.cond <= 0) { m.broken = true; } hit++; }
         }
         if (hit) { g.say('ev_surge', 60); g.toast(`Pico energético: ${hit} máquinas danificadas`, '#ffd04a'); this.record(`Pico energético (${hit} máquinas)`); }
@@ -98,10 +98,10 @@ export class Events {
         const s = secs[Math.floor(Math.random() * secs.length)];
         if (!s) break;
         for (let k = 0; k < 200; k++) {
-          const x = Math.random() * 10240, y = Math.random() * 10240;
+          const x = Math.random() * WORLD_PX_W, y = Math.random() * WORLD_PX_H;
           if (g.world.sectorAtPx(x, y) !== s) continue;
           const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
-          if (!g.world.explored[ty * 640 + tx] || IS_SOLID[g.world.get(Math.floor(x / CELL), Math.floor(y / CELL))]) continue;
+          if (!g.world.explored[ty * WORLD_TW + wrapX(tx, WORLD_TW)] || IS_SOLID[g.world.get(Math.floor(x / CELL), Math.floor(y / CELL))]) continue;
           this.anomalies.push({ id: this.nextId++, x, y, sector: s, t: 0 });
           g.scanner.addMarker(x, y, 'Anomalia alienígena', '#b07aff', 'anomaly');
           g.say('ev_anomaly', 60);
@@ -164,7 +164,7 @@ export class Events {
   supported(m: { tx: number; ty: number }) {
     for (const s of this.g.machines.list) {
       if (s.def.behavior !== 'support') continue;
-      if (Math.hypot(s.tx - m.tx, s.ty - m.ty) <= (s.def.radius ?? 9)) return true;
+      if (Math.hypot(nearestX(s.tx, m.tx, WORLD_TW) - m.tx, s.ty - m.ty) <= (s.def.radius ?? 9)) return true;
     }
     return false;
   }
@@ -186,7 +186,7 @@ export class Events {
       w.set(cx + i, cy + j, raw, 40);
       filled++;
     }
-    for (const r of g.robots.list) if (Math.hypot(r.x - x, r.y - y) < R * CELL) r.stuck = true;
+    for (const r of g.robots.list) if (Math.hypot(nearestX(r.x, x) - x, r.y - y) < R * CELL) r.stuck = true;
     if (filled) {
       g.fx.dust(x, y, 40);
       g.shake(5);
