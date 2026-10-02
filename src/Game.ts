@@ -187,7 +187,7 @@ export class Game {
   setupNew() {
     this.setupBase();
     this.markLayerStart();
-    this.stock.add('ferronox', 120, false); this.stock.add('lumenita', 60, false);   // kit inicial: 1 perfuradora, armazém e esteiras
+    this.stock.add('ferronox', 180, false); this.stock.add('lumenita', 90, false);   // kit inicial: a primeira fábrica vertical inteira, com folga
     this.stock.credits = 300;
     this.pack.add('sinalizador', 3); this.pack.add('kit_reparo', 1);
     this.world.reveal(this.player.x, this.player.y, 22);
@@ -455,17 +455,28 @@ export class Game {
     // volta para o perfurador: senão o slot de construção continua ativo e nada minera
     if (this.hotbar[this.selected]?.type === 'build') this.selected = 0;
     this.build.active = false; this.build.deconstruct = false; this.build.key = null; this.build.anchor = null; this.build.dragging = false; this.input.placeMode = false; }
-  isLineBuild() { const d = this.build.key ? MACHINE[this.build.key] : null; return !!d && d.behavior === 'belt'; }
+  isLineBuild() { const d = this.build.key ? MACHINE[this.build.key] : null; return !!d && (d.behavior === 'belt' || d.behavior === 'riser' || d.behavior === 'scaffold'); }
 
-  /** Linha de esteiras (vista lateral): horizontal, na altura do primeiro toque, andando para o lado arrastado. */
+  /**
+   * Linha de peças arrastando: esteira = horizontal (anda no sentido do arrasto);
+   * Elevador de Grãos = coluna vertical (a seta da saída no topo vem do GIRAR); Plataforma = horizontal ou vertical.
+   */
   beltPath(): [number, number, number][] {
     const b = this.build;
+    const def = b.key ? MACHINE[b.key] : null;
     if (!b.anchor) return [[b.tx, b.ty, b.dir === 2 ? 2 : 0]];
-    const [ax, ay] = b.anchor, ex = b.tx;
-    const dir = ex > ax ? 0 : ex < ax ? 2 : (b.dir === 2 ? 2 : 0);
+    const [ax, ay] = b.anchor;
     const out: [number, number, number][] = [];
+    const vertical = def?.behavior === 'riser' || (def?.behavior === 'scaffold' && Math.abs(b.ty - ay) > Math.abs(b.tx - ax));
+    if (vertical) {
+      const step = b.ty >= ay ? 1 : -1;
+      for (let y = ay; ; y += step) { out.push([ax, y, b.dir === 2 ? 2 : 0]); if (y === b.ty || out.length >= 60) break; }
+      return out;
+    }
+    const ex = b.tx;
+    const dir = ex > ax ? 0 : ex < ax ? 2 : (b.dir === 2 ? 2 : 0);
     const step = ex >= ax ? 1 : -1;
-    for (let x = ax; ; x += step) { out.push([x, ay, dir]); if (x === ex || out.length >= 120) break; }
+    for (let x = ax; ; x += step) { out.push([x, ay, def?.behavior === 'belt' ? dir : (b.dir === 2 ? 2 : 0)]); if (x === ex || out.length >= 120) break; }
     return out;
   }
 
@@ -474,7 +485,7 @@ export class Game {
     let placed = 0, turned = 0, blocked = 0, poor = false;
     for (const [tx, ty, dir] of this.beltPath()) {
       const ex = this.machines.at(tx, ty);
-      if (ex?.belt) { if (ex.dir !== dir) { ex.dir = dir; turned++; } continue; } // reaproveita esteira existente
+      if (ex && ex.key === def.key) { if (def.rotatable && ex.dir !== dir) { ex.dir = dir; turned++; } continue; } // reaproveita peça existente
       if (this.machines.canPlace(def, tx, ty)) { blocked++; continue; }
       if (!this.stock.pay(def.cost, this.pack.items)) { poor = true; break; }
       if (this.machines.place(def.key, tx, ty, dir)) { placed++; this.stats.built++; }
@@ -514,12 +525,12 @@ export class Game {
     }
     const def = MACHINE[this.build.key!];
     if (!def) return;
-    if (def.behavior === 'belt') { this.placeBeltLine(); return; }
+    if (this.isLineBuild()) { this.placeBeltLine(); return; }
     const ox = tx - Math.floor((def.w - 1) / 2), oy = ty - Math.floor((def.h - 1) / 2);
     const err = this.machines.canPlace(def, ox, oy);
     if (err) { this.toast(err, '#ff8a3a'); this.audio.error(); return; }
     if (Math.hypot((ox + def.w / 2) * TILE - this.player.x, (oy + def.h / 2) * TILE - this.player.y) > 260) { this.toast('Muito longe para construir', '#ff8a3a'); this.audio.error(); return; }
-    if (!this.stock.pay(def.cost, this.pack.items)) { this.toast('Recursos insuficientes (Estoque Central + mochila)', '#ff8a3a'); this.audio.error(); return; }
+    if (!this.stock.pay(def.cost, this.pack.items)) { this.toast('Recursos insuficientes (Estoque Central + aspirador)', '#ff8a3a'); this.audio.error(); return; }
     const m = this.machines.place(def.key, ox, oy, this.build.dir);
     if (m) {
       this.stats.built++;
@@ -538,7 +549,7 @@ export class Game {
 
   private useItem(k: string) {
     const p = this.player, inp = this.input;
-    if (this.pack.count(k) < 1) { this.toast(`Sem ${ITEM[k]?.name ?? k} na mochila`, '#ff8a3a'); return; }
+    if (this.pack.count(k) < 1) { this.toast(`Sem ${ITEM[k]?.name ?? k} no equipamento`, '#ff8a3a'); return; }
     switch (k) {
       case 'explosivo': this.mining.throwExplosive(inp.worldX, inp.worldY); break;
       case 'sinalizador': this.pack.take(k, 1); this.flares.push({ x: inp.worldX, y: inp.worldY, t: 240 }); this.scanner.addMarker(inp.worldX, inp.worldY, 'Sinalizador', '#ffb04a', 'flare'); break;

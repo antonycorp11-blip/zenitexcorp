@@ -5,7 +5,7 @@ import { REFINE_MAP } from './recipes';
 /** Lado de uma saída: 0 = direita, 2 = esquerda (na orientação atual da máquina). */
 export interface IOSpec {
   inTop: string[] | 'tudo' | null;     // o que entra pelo funil de cima
-  outs: { side: 0 | 2; keys: string[]; label: string }[];
+  outs: { side: 0 | 2 | 'down'; keys: string[]; label: string }[];
   base?: boolean;                        // liga direto no estoque quando está na base
 }
 
@@ -24,10 +24,12 @@ export function ioSpec(def: MachineDef, dir: number, layer: number): IOSpec {
     case 'terminal': case 'launchpad': return { inTop: ['bloco_massa', ...minerals], outs: [] };
     case 'separator': {
       const takes = Object.keys(def.takes ?? {});
+      if (def.outMode === 'sieve') return { inTop: takes.length ? takes : [raw], outs: [{ side: 'down', keys: minerals, label: 'minerais' }, { side: right, keys: ['residuo'], label: 'resíduo' }] };
       return { inTop: takes.length ? takes : [raw], outs: [{ side: right, keys: [...minerals, 'residuo'], label: 'minerais + resíduo' }] };
     }
-    case 'prep': return { inTop: Object.keys(def.takes ?? {}).filter(k => RAW_BY_LAYER.includes(k)).slice(0, 3), outs: [{ side: right, keys: ['fragmentado'], label: 'fragmentado' }] };
-    case 'compactor': return { inTop: ['residuo'], outs: [{ side: right, keys: ['bloco_massa'], label: 'blocos' }], base: true };
+    case 'prep': return { inTop: Object.keys(def.takes ?? {}).filter(k => RAW_BY_LAYER.includes(k)).slice(0, 3), outs: [{ side: def.outMode === 'bottom' ? 'down' : right, keys: ['fragmentado'], label: 'fragmentado' }] };
+    case 'compactor': return { inTop: ['residuo'], outs: [{ side: def.outMode === 'bottom' ? 'down' : right, keys: ['bloco_massa'], label: 'blocos' }], base: true };
+    case 'filter': return { inTop: 'tudo', outs: [{ side: 'down', keys: [], label: 'tipo escolhido' }, { side: right, keys: [], label: 'o resto' }] };
     case 'refinery': return { inTop: minerals, outs: [{ side: right, keys: minerals.map(k => REFINE_MAP[k]).filter(Boolean), label: 'barras' }] };
     case 'riser': return { inTop: 'tudo', outs: [{ side: right, keys: [], label: 'sai no topo' }] };
     case 'launcher': return { inTop: 'tudo', outs: [{ side: right, keys: [], label: 'arremesso' }] };
@@ -46,11 +48,13 @@ export function howTo(def: MachineDef, layer: number): string {
     case 'launcher': return 'O grão que entra é arremessado em arco para o lado da seta. Use para pular buracos ou jogar dentro de um funil longe.';
     case 'storage': return 'O funil em cima engole TUDO o que cair dentro (esteira, soprar, perfuradora encostada) e manda para o Estoque Central.';
     case 'link': return 'Aumenta a vazão do armazém da base para o Estoque Central.';
-    case 'command': return 'Toque E perto dela para entregar a mochila. Também engole grãos pelo funil.';
+    case 'command': return 'Toque nela para descarregar o aspirador. Também engole grãos soprados no funil.';
     case 'terminal': return 'Exporta os Blocos de Massa do estoque sozinho (é isso que remove o resíduo do planeta). Também aceita blocos jogados em cima.';
-    case 'separator': return `Entra ${rawName} pelo funil ou por uma esteira encostada na lateral. Minerais e resíduo saem juntos pela calha do lado da seta: ponha ali uma esteira até o Armazém.`;
-    case 'prep': return 'Entra material bruto pelo funil ou pela lateral. Sai Material Fragmentado pela calha da seta: leve por esteira até um Separador Mineral.';
-    case 'compactor': return 'Construa colado na base: ele puxa sozinho o resíduo que chega ao estoque (o pátio) e transforma em Blocos de Massa, que o Terminal Orbital exporta.';
+    case 'separator': return def.outMode === 'sieve' ? `Deixe ${rawName} CAIR em cima (elevador, lançador ou soprando). Os minerais passam pela grade e caem POR BAIXO — ponha um Coletor embaixo. O resíduo escorrega para o lado da seta — ponha uma Prensa ali.` : `Entra ${rawName} pelo funil ou pela lateral; tudo sai pela calha da seta.`;
+    case 'prep': return 'A rocha cai por cima e sai fragmentada POR BAIXO: empilhe uma Peneira logo embaixo e a terra cai direto nela.';
+    case 'compactor': return 'Resíduo cai por cima e vira Bloco de Massa. Perto da base, os blocos vão direto ao estoque (o Terminal exporta) e ela também puxa o resíduo do pátio sozinha.';
+    case 'filter': return 'Grão que cai em cima: se for do tipo escolhido (toque na peça para escolher), passa e cai por baixo; o resto desvia para o lado da seta.';
+    case 'scaffold': return 'Viga para subir a fábrica: você pisa nela, os grãos ficam em cima, e peças podem ser apoiadas nela.';
     case 'refinery': return 'Jogue minerais no funil: 2 kg viram 1 barra refinada, que vai para um armazém encostado.';
     case 'analyzer': return 'Toque E: escolha o material, dê o pulso de frequência e veja o que existe dentro. Processamento manual.';
     case 'dronepad': return 'O drone trabalha sozinho ao redor da estação e volta para recarregar.';

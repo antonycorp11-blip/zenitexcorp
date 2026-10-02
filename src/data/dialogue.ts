@@ -38,7 +38,7 @@ export const POOLS: Record<string, Pool> = {
   rich_vein: [['rocha', 'Teor alto aqui. Bota as perfuradoras nessa região que o processador agradece.'], ['br7', 'Concentração mineral acima da média. Segundo o manual, isso se chama "sorte geológica". Eu chamo de estatística.']],
   crystal_damage: [['br7', 'O Triturador está quebrando a Matriz Cristalina junto com os raros. Eficiência perdida vira resíduo. Fragmentador Controlado resolve.'], ['sera', 'Esses cristais demoraram milhões de anos para crescer. Pelo menos esmague com cuidado.']],
   // Início / tutorial
-  t_start: [['zena', 'Você possui: perfurador básico, scanner e uma pequena mochila. É mais do que a maioria dos planetas tem contra você.']],
+  t_start: [['zena', 'Você possui: perfurador básico, scanner e um aspirador de grãos. É mais do que a maioria dos planetas tem contra você.']],
   t_first_deliver: [['zena', 'Excelente começo. Nesse ritmo, terminaremos em aproximadamente 438 anos. Recomendo melhorias.']],
   t_build_workshop: [['br7', 'Recomendo construir uma Oficina. Segundo o manual, ferramentas são 73% mais eficientes quando existem.']],
   t_build_drill: [['rocha', 'Primeira perfuradora? Aponta pra parede, liga numa esteira e reza. É assim que se faz desde sempre.']],
@@ -48,7 +48,7 @@ export const POOLS: Record<string, Pool> = {
   first_ore: [['zena', 'Minério detectado. Seu primeiro ativo. Sinto algo parecido com orgulho. Provavelmente é um bug.']],
   rare_found: [['zena', 'Depósito raro. Robôs não têm a delicadeza necessária. Você tem? Veremos.'], ['rocha', 'Isso aí brilha diferente. Vai com calma, que esse tipo de pedra não perdoa pressa.'], ['br7', 'Variante rara identificada. Probabilidade de eu conseguir extrair isso sem destruí-lo: 0%. Boa sorte.']],
   too_hard: [['br7', 'Material acima da classe do seu perfurador. Segundo o manual, insistir não é uma estratégia válida. Eu testei.'], ['rocha', 'Isso aí é Contenção. Com essa broca você vai só fazer cosquinha. Melhora o equipamento.']],
-  pack_full: [['zena', 'Mochila cheia. Lembre-se: capacidade de carga é um estado de espírito. E também um limite físico.'], ['rocha', 'Mochila cheia. Volta pra base ou constrói um armazém. Já carreguei pedra nas costas por três planetas, não recomendo.']],
+  pack_full: [['zena', 'Aspirador cheio. Sopre num funil. Capacidade de carga é um estado de espírito. E também um limite físico.'], ['rocha', 'Aspirador cheio. Sopra num coletor e segue cavando. Já carreguei pedra nas costas por três planetas, não recomendo.']],
   need_containment: [['br7', 'Este material exige slot especial de contenção. Carregá-lo no bolso é tecnicamente possível e tecnicamente fatal.']],
   explosive: [['br7', 'Detonação registrada. Probabilidade de colapso: 18%. Segundo o manual, somente valores acima de 20% justificam preocupação.'], ['rocha', 'Toda vez que alguém usa explosivo eu perco um ano de vida. Já devo estar morto há uns dez.']],
   mining_idle: [['zena', 'Você removeu uma parede. Faltam aproximadamente todas as outras.'], ['rocha', 'Sabe o que eu mais gosto desse trabalho? Nada. Mas a vista até que é bonita.'], ['zena', 'Lembrete: cada tonelada removida é uma tonelada a menos de planeta ocupando espaço improdutivamente.']],

@@ -111,7 +111,7 @@ export class UI {
       <div class="ui-block hcard vitals">
         <div class="vb hp"><span>❤</span><div class="bar"><i data-id="hpBar"></i><em data-id="hpTxt"></em></div></div>
         <div class="vb en"><span>⚡</span><div class="bar"><i data-id="enBar"></i><em data-id="enTxt"></em></div></div>
-        <div class="vb pack"><span title="Mochila">▣</span><div class="bar"><i data-id="packBar"></i><em data-id="packTxt"></em></div></div>
+        <div class="vb pack"><span title="Aspirador">◎</span><div class="bar"><i data-id="packBar"></i><em data-id="packTxt"></em></div></div>
         <div class="hzchip" data-id="hz"></div>
       </div>
       <div class="ui-block hotbar" data-id="hotbar"></div>

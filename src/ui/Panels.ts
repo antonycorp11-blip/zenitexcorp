@@ -24,7 +24,7 @@ import { ioSpec, howTo } from '../data/howto';
 export type PanelId = 'inventory' | 'build' | 'upgrades' | 'research' | 'sectors' | 'robots' | 'contracts' | 'archive' | 'map' | 'help' | 'menu' | 'machine' | 'ops' | 'lifts' | 'settings' | 'missions';
 
 /** O menu único: 5 abas grandes. Os painéis antigos viram atalhos para elas. */
-const MAIN: [PanelId, string, string][] = [['build', '⚒', 'CONSTRUIR'], ['upgrades', '✚', 'MELHORIAS'], ['inventory', '▣', 'MOCHILA'], ['missions', '◎', 'MISSÕES'], ['map', '⌖', 'MAPA']];
+const MAIN: [PanelId, string, string][] = [['build', '⚒', 'CONSTRUIR'], ['upgrades', '✚', 'MELHORIAS'], ['inventory', '▣', 'ESTOQUE'], ['missions', '◎', 'MISSÕES'], ['map', '⌖', 'MAPA']];
 const IS_MAIN = new Set(MAIN.map(m => m[0]));
 
 const TITLES: Record<PanelId, string> = {
@@ -127,6 +127,7 @@ export class Panels {
     build: (a) => { if (!this.g.canBuildKey(a)) { this.st.buildInfo = a; this.render(); return; } this.g.startBuild(a); this.close(); },
     buildInfo: (a) => { this.st.buildInfo = this.st.buildInfo === a ? '' : a; this.render(); },
     mdet: () => { this.st.mDetails = !this.st.mDetails; this.render(); },
+    setFilter: (a) => { if (this.machine) this.machine.filter = a; this.render(); },
     pin: (a) => { this.g.hotbar[this.g.selected] = { type: 'build', key: a }; this.g.toast(`Fixado no slot ${(this.g.selected + 1) % 10}`, '#9cff8a'); },
     pinItem: (a) => { this.g.hotbar[this.g.selected] = { type: 'item', key: a }; this.g.toast(`Fixado no slot ${(this.g.selected + 1) % 10}`, '#9cff8a'); },
     research: (a) => { const e = this.g.research.start(a); if (e) { this.g.toast(e, '#ff8a3a'); this.g.audio.error(); } else this.g.audio.success(); this.render(); },
@@ -206,7 +207,7 @@ export class Panels {
   r_inventory() {
     const g = this.g, P = g.pack;
     const tab = this.st.invTab === 'fab' ? 'fab' : 'todos';
-    let h = this.tabs('invTab', [{ key: 'todos', name: '▣ Estoque e mochila' }, { key: 'fab', name: '⚒ Refinar e fabricar' }]);
+    let h = this.tabs('invTab', [{ key: 'todos', name: '▣ Estoque e aspirador' }, { key: 'fab', name: '⚒ Refinar e fabricar' }]);
     if (tab === 'todos') {
       const w = P.weight(), mw = P.maxWeight();
       const cell = (k: string, n: number, pin = false, gr?: number) => `<div class="cell" title="${esc(ITEM[k]?.desc ?? '')}">${this.icon(k, 30)}<span>${esc(itemName(k))}${gr !== undefined && ITEM[k]?.cat === 'bruto' ? `<small style="color:${gradeColor(gr)}">teor ${gradeLabel(gr)}</small>` : ''}</span><b>${fmtShort(n)}</b>${pin ? `<button class="mini" data-act="pinItem" data-arg="${k}">📌</button>` : ''}</div>`;
@@ -220,10 +221,10 @@ export class Panels {
         ['Outros', k => ['especial', 'liga', 'componente', 'britado'].includes(ITEM[k]?.cat ?? '') && k !== 'pecas'],
       ];
       const stockKeys = Object.keys(g.stock.items).filter(k => g.stock.count(k) >= 0.5);
-      h += `<div class="cols"><div class="col"><h3>MOCHILA</h3>
+      h += `<div class="cols"><div class="col"><h3>ASPIRADOR</h3>
         <div class="kv"><span>${esc(P.def.name)}</span><b>${fmtInt(w)} / ${fmtInt(mw)} kg</b></div>${this.bar(w, mw, w > mw * 0.9 ? '#ff6a3a' : '#e8962a')}
         <div class="grid">${Object.keys(P.items).sort().map(k => cell(k, P.items[k], ITEM[k]?.cat === 'consumivel', P.grade(k))).join('') || '<p class="muted">Vazia.</p>'}</div>
-        <p class="muted">Entregue a mochila na cápsula laranja [E]: vira estoque e paga créditos (◆ ${fmtInt(g.stock.credits)}).</p>
+        <p class="muted">Sopre num funil (coletor, cápsula) ou toque na cápsula: o que está no aspirador vira estoque e paga créditos (◆ ${fmtInt(g.stock.credits)}).</p>
         <button class="btn orange" data-act="analyzer">🔬 ANALISADOR DE MATRIZ</button></div>
         <div class="col wide"><h3>ESTOQUE CENTRAL</h3>${groups.map(([name, f]) => { const ks = stockKeys.filter(f); return ks.length ? `<h4>${name}</h4><div class="grid">${ks.map(k => cell(k, g.stock.count(k), false, g.stock.grade(k))).join('')}</div>` : ''; }).join('') || '<p class="muted">Estoque vazio. Minere e processe na base.</p>'}</div></div>`;
       return h;
@@ -269,7 +270,7 @@ export class Panels {
   // =============== MELHORIAS: árvore única ===============
   r_upgrades() {
     const g = this.g, p = g.player;
-    const BR: { key: string; name: string }[] = [{ key: 'perf', name: '⛏ Perfurador' }, { key: 'traje', name: '🧑‍🚀 Traje e Mochila' },
+    const BR: { key: string; name: string }[] = [{ key: 'perf', name: '⛏ Perfurador' }, { key: 'traje', name: '🧑‍🚀 Traje e Aspirador' },
       ...RESEARCH_CATS.filter(c => c.key !== 'energia').map(c => ({ key: c.key, name: c.key === 'robotica' ? 'Drones' : c.key === 'mineracao' ? 'Extração' : c.name }))];
     const br = this.st.upBr;
     let h = `<div class="tabs branches">${BR.map(b => {
@@ -333,7 +334,7 @@ export class Panels {
     const s = SCANNERS[p.scannerLevel], sn = SCANNERS[p.scannerLevel + 1];
     h += item('scanner', 'Scanner', s.name, `${s.radius} tiles — ${s.desc}`, sn ? `${sn.radius} tiles — ${sn.desc}` : null, sn?.cost ?? null, rq(sn?.research));
     const pk = PACKS[g.pack.level], pn = PACKS[g.pack.level + 1];
-    h += item('pack', 'Mochila', pk.name, `${pk.weight} kg · slots ${pk.contencao}/${pk.frio}/${pk.magnetico}`, pn ? `${pn.weight} kg · slots ${pn.contencao}/${pn.frio}/${pn.magnetico}` : null, pn?.cost ?? null, null);
+    h += item('pack', 'Aspirador', pk.name, `${pk.weight} kg · slots ${pk.contencao}/${pk.frio}/${pk.magnetico}`, pn ? `${pn.weight} kg · slots ${pn.contencao}/${pn.frio}/${pn.magnetico}` : null, pn?.cost ?? null, null);
     const en = ENERGY_LEVELS[p.energyLevel + 1];
     h += item('energy', 'Bateria do Traje', `Nível ${p.energyLevel + 1}`, `${p.maxEnergy} de energia`, en ? `${en.max}` : null, en?.cost ?? null, null);
     const hl = HEALTH_LEVELS[p.healthLevel + 1];
@@ -463,7 +464,7 @@ export class Panels {
         <h4>OBJETIVO</h4><div class="kv"><span>${sel.item ? this.icon(sel.item, 22) : ''} ${esc(what)}</span><b>${fmtShort(sel.progress)} / ${fmtShort(sel.target)}</b></div>${this.bar(sel.progress, sel.target, '#3ab4ff')}
         <div class="kv"><span>⏱ Prazo restante</span><b>${fmtTime(sel.left)}</b></div><div class="kv"><span>Recompensa</span><b class="gold">◆ ${fmtInt(sel.reward)} créditos</b></div>
         <div class="note">Observação da Corporação: "${esc(POOLS.ambient[sel.id % POOLS.ambient.length][1])}"</div>
-        ${sel.kind === 'ship' ? `<p class="muted">Conta tudo que chega ao Estoque Central: mochila entregue na cápsula ou minério dos armazéns. Barras: refine na Mochila ou na Refinaria.</p>` : ''}
+        ${sel.kind === 'ship' ? `<p class="muted">Conta tudo que chega ao Estoque Central: material soprado ou entregue na cápsula ou minério dos armazéns. Barras: refine na Mochila ou na Refinaria.</p>` : ''}
         ${!sel.accepted ? `<button class="btn green" data-act="accept" data-arg="${sel.id}">ACEITAR CONTRATO</button>` : ''}</div></div>`;
     }
     return h + '</div>';
@@ -494,7 +495,7 @@ export class Panels {
     const g = this.g, io = ioSpec(d, dir, g.planet.layer);
     const icons = (ks: string[]) => ks.map(k => this.icon(k, compact ? 16 : 22)).join('');
     const inp = io.inTop ? `<div class="hw-in"><small>ENTRA ▼ funil</small><div>${io.inTop === 'tudo' ? '<b>qualquer grão</b>' : icons(io.inTop)}</div></div>` : (d.behavior === 'drill' || d.behavior === 'complex' ? '<div class="hw-in"><small>CAVA</small><div><b>a terra à frente da seta</b></div></div>' : '');
-    const outs = io.outs.map(o => `<div class="hw-out"><small>SAI ${o.side === 0 ? '▶ direita' : '◀ esquerda'}</small><div>${o.keys.length ? icons(o.keys) : ''}<b>${o.label}</b></div></div>`).join('');
+    const outs = io.outs.map(o => `<div class="hw-out"><small>SAI ${o.side === 'down' ? '▼ por baixo' : o.side === 0 ? '▶ direita' : '◀ esquerda'}</small><div>${o.keys.length ? icons(o.keys) : ''}<b>${o.label}</b></div></div>`).join('');
     if (!inp && !outs) return compact ? '' : `<p class="hw-txt">${howTo(d, g.planet.layer)}</p>`;
     return `<div class="howto ${compact ? 'c' : ''}"><div class="hw-flow">${inp}${inp && outs ? '<i>→</i>' : ''}${compact ? '' : `<img src="${g.sprites.machineUrl(d)}">${outs ? '<i>→</i>' : ''}`}<div class="hw-outs">${outs}</div></div>${compact ? '' : `<p class="hw-txt">${howTo(d, g.planet.layer)}</p>`}${io.base && !compact ? '<p class="muted">◆ Na base (perto da cápsula) ela também puxa e entrega direto no estoque.</p>' : ''}</div>`;
   }
@@ -533,6 +534,10 @@ export class Panels {
     let h = `<div class="mc-head"><img src="${g.sprites.machineUrl(d)}"><div><b>${esc(d.name)}</b><span style="color:${stCol}">● ${esc(m.state === 'ok' ? 'Pronta' : m.state)}</span></div><button class="x" data-act="close">✕</button></div>`;
     h += this.howtoHtml(d, m.dir, true);
     h += `<p class="mc-how">${esc(howTo(d, g.planet.layer))}</p>`;
+    if (d.behavior === 'filter') {
+      const L = g.planet.layer, opts = [...compOf(L).minerals.map(x => x.k), 'residuo', RAW_BY_LAYER[L], 'fragmentado'];
+      h += `<div class="mc-filter"><small>PASSA POR BAIXO:</small>${opts.map(k => `<button class="${m.filter === k ? 'on' : ''}" data-act="setFilter" data-arg="${k}" title="${esc(itemName(k))}">${this.icon(k, 18)}</button>`).join('')}</div>`;
+    }
     h += `<div class="mc-btns">`;
     if (d.rotatable) h += `<button class="btn" data-act="rotate">↻ GIRAR <small>${['▶', '▼', '◀', '▲'][m.dir]}</small></button>`;
     if (m.cond < 50 || m.broken) h += `<button class="btn orange" data-act="repair">🔧 CONSERTAR</button>`;
@@ -640,8 +645,8 @@ export class Panels {
       <h3>MOBILE</h3><p>Joystick esquerdo move. Joystick direito mira e usa a ferramenta. Botões grandes: interagir, scanner, ferramenta, construção, inventário, mapa, recolher HUD.</p></div>
       <div class="col wide"><h3>COMO A ZENITEX FUNCIONA</h3>
       <p><b>Objetivo:</b> extrair 100% da massa planetária. Cada célula removida, cada tonelada da reserva profunda conta.</p>
-      <p><b>Minerar:</b> segure o botão sobre paredes. Minérios vão para a mochila (peso e slots especiais). Rocha dura exige perfuradores de classe maior (Melhorias).</p>
-      <p><b>Estoque Central:</b> entregue a mochila no Centro de Comando, armazéns ou elevadores [E]. Construções e pesquisas usam o Estoque Central.</p>
+      <p><b>Minerar:</b> segure o botão sobre paredes. O aspirador da arma guarda os grãos até você soprar num funil. Rocha dura exige perfuradores de classe maior (Melhorias).</p>
+      <p><b>Estoque Central:</b> sopre o aspirador num funil ou toque na cápsula. Construções e pesquisas usam o Estoque Central.</p>
       <p><b>Logística:</b> perfuradoras despejam minério em esteiras que saem delas. Esteiras apontando para máquinas as alimentam. Armazéns e elevadores formam o <i>buffer do setor</i>, que sobe ao Estoque Central na vazão dos elevadores. Gargalos aparecem em vermelho.</p>
       <p><b>Energia e calor:</b> cada setor tem sua própria rede. Reatores aquecem o setor; sem refrigeração as máquinas superaquecem.</p>
       <p><b>Saga de automação:</b> cada setor passa por 9 fases (G). Após a certificação, Complexos de Extração Profunda drenam a reserva do setor — mas perdem calibração com o tempo e só você pode recalibrá-los.</p>

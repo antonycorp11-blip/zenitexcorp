@@ -42,7 +42,8 @@ export class Mining {
       const cx = Math.floor(hx / CELL), cy = Math.floor(hy / CELL);
       const cm = w.get(cx, cy);
       if (IS_SOLID[cm]) { hit = true; break; }
-      if (IS_LOOSE[cm]) { loose = true; break; }
+      // grão solto só segura o feixe se o aspirador tiver espaço; cheio, o laser atravessa e continua cortando
+      if (IS_LOOSE[cm] && !this.vacFull()) { loose = true; break; }
       const m = g.machines.at(Math.floor(hx / TILE), Math.floor(hy / TILE));
       if (m && m.buried > 0) { m.buried = Math.max(0, m.buried - dt * 0.35 * dr.power); hit = true; if (m.buried <= 0) g.toast(`${m.def.name} desenterrada`, '#9cff8a'); break; }
     }
@@ -90,6 +91,8 @@ export class Mining {
   }
 
   private vacAcc = 0;
+  /** aspirador da arma cheio? */
+  vacFull() { const p = this.g.pack; return p.weight() >= p.maxWeight() - GRAIN_KG; }
   private blowAcc = 0;
   blowing = false;
   /** SOPRAR: a arma do traje joga grãos da mochila na direção da mira (alimenta funis e esteiras à mão). */
@@ -100,9 +103,14 @@ export class Mining {
     const raw = rawOf(g.planet.layer);
     const order = [raw, 'residuo', 'fragmentado', ...Object.keys(g.pack.items).filter(k => GRAIN[k] !== undefined && ITEM[k]?.cat === 'bruto')];
     const item = order.find(k => GRAIN[k] !== undefined && g.pack.count(k) >= GRAIN_KG - 1e-6);
-    if (!item) { if (this.hardWarnT <= 0) { g.toast('Mochila sem material para soprar: cave e aspire primeiro', '#ffd04a'); this.hardWarnT = 3; } return; }
-    this.blowing = true;
     const sx = p.x, sy = p.y - 12;
+    if (!item) {
+      // aspirador vazio: puxa os grãos soltos ao redor (o chão onde você está) e sopra direto
+      this.blowing = this.blowThrough(dt, sx, sy, ax, ay);
+      if (!this.blowing && this.hardWarnT <= 0) { g.toast('Nada para soprar: aspire terra ou fique perto de grãos soltos', '#ffd04a'); this.hardWarnT = 3; }
+      return;
+    }
+    this.blowing = true;
     const ang = Math.atan2(ay - sy, ax - sx);
     this.blowAcc += dt * 45;
     while (this.blowAcc >= 1) {
@@ -134,11 +142,40 @@ export class Mining {
       const item = GRAIN_ITEM[m]; if (!item) continue;
       const q = item === 'bloco_massa' ? 1 : GRAIN_KG;
       const got = g.pack.add(item, q, w.aux[y * WORLD_W + x] / 40);
-      if (got < q - 1e-6) { if (got > 0) g.pack.take(item, got); g.say('pack_full', 90); if (this.hardWarnT <= 0) { g.toast('Mochila cheia: entregue na cápsula [E]', '#ffd04a'); this.hardWarnT = 4; } budget = 0; break; }
+      if (got < q - 1e-6) { if (got > 0) g.pack.take(item, got); if (this.hardWarnT <= 0) { g.toast('Aspirador cheio: SOPRE num funil (coletor, peneira, cápsula). O laser continua cortando.', '#ffd04a'); this.hardWarnT = 6; } budget = 0; break; }
       w.set(x, y, MAT.AIR);
       budget--;
       this.collected(item, q, x, y);
     }
+  }
+
+  /** soprar sem guardar: pega grãos soltos perto dos pés/bocal e lança na mira */
+  private blowThrough(dt: number, sx: number, sy: number, ax: number, ay: number): boolean {
+    const g = this.g, w = g.world, p = g.player;
+    this.blowAcc += dt * 45;
+    let n = 0;
+    const cx = Math.floor(p.x / CELL), cy = Math.floor((p.y - 4) / CELL), R = 12;
+    while (this.blowAcc >= 1) {
+      this.blowAcc -= 1;
+      let found = -1;
+      for (let r = 0; r <= R && found < 0; r++) for (let j = -r; j <= r && found < 0; j++) for (let i = -r; i <= r; i++) {
+        if (Math.max(Math.abs(i), Math.abs(j)) !== r) continue;
+        const x = cx + i, y = cy + j + 2;
+        if (IS_LOOSE[w.get(x, y)]) { found = y * WORLD_W + x; break; }
+      }
+      if (found < 0) break;
+      const x = found % WORLD_W, y = (found / WORLD_W) | 0, m = w.mat[found], aux = w.aux[found];
+      const ang = Math.atan2(ay - sy, ax - sx);
+      const ox = sx + Math.cos(ang) * 14, oy = sy + Math.sin(ang) * 14;
+      const dx = ax - ox + (Math.random() - 0.5) * 6, dy = ay - oy + (Math.random() - 0.5) * 6;
+      const t = Math.max(0.12, Math.min(0.9, Math.hypot(dx, dy) / 230));
+      let vx = dx / t, vy = dy / t - 0.5 * 520 * t;
+      const sp = Math.hypot(vx, vy); if (sp > 340) { vx *= 340 / sp; vy *= 340 / sp; }
+      w.set(x, y, MAT.AIR);
+      if (!w.launch(ox, oy, vx, vy, m, aux, true)) { w.set(x, y, m, aux); break; }
+      n++;
+    }
+    return n > 0 || this.blowAcc > 0;
   }
 
   /** um grão chegou à mochila */

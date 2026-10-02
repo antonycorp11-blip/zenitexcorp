@@ -129,7 +129,7 @@ export class Minigames {
     const P: [string, string, string][] = [
       ['zenitex', 'QUEM VOCÊ É', 'Você é um <b>minerador contratado pela ZENITEX Planetary Resources</b>. A Zenitex procura <b>MUNDOS MORTOS</b>: núcleo resfriado, sem tectônica, sem magnetosfera, sem biosfera, sem valor de colonização. Juridicamente, <b>RECURSO PLANETÁRIO RECUPERÁVEL</b>. O seu é o <b>K-37</b>.'],
       ['zena', 'O OBJETIVO', 'Remover <b>100% da massa do planeta</b>, camada por camada. A barra da <b>CAMADA</b> mede massa <b>REMOVIDA</b>: minerais separados e resíduo exportado. Escavar não basta — o planeta só fica menor quando a massa sai dele.'],
-      ['rocha', 'COMO SE AVANÇA', '<ul><li><b>Cave</b>: o feixe solta o chão em <b>grãos</b> de material bruto (Solo K-37) e o aspirador do traje puxa para a mochila. O <b>jetpack</b> te tira do buraco. Com <b>SOPRAR</b>, a mesma arma joga material da mochila em funis e esteiras.</li><li><b>Processe</b> no <b>Analisador de Matriz</b> da base: viram minerais (Ferronox, Lumenita…) e <b>resíduo</b>.</li><li>Com os minerais você <b>constrói</b>. <b>Automatize</b>: perfuradora → esteira → processador → compactador → terminal orbital.</li><li>O resíduo é ~80% do planeta: <b>compacte em blocos e exporte</b>.</li></ul>'],
+      ['rocha', 'COMO SE AVANÇA', '<ul><li><b>Cave</b>: o feixe solta o chão em <b>grãos</b> de material bruto (Solo K-37) e o aspirador da arma puxa e guarda. O <b>jetpack</b> te tira do buraco. Com <b>SOPRAR</b>, a mesma arma joga material da mochila em funis e esteiras.</li><li><b>Processe</b> no <b>Analisador de Matriz</b> da base: viram minerais (Ferronox, Lumenita…) e <b>resíduo</b>.</li><li>Com os minerais você <b>constrói</b>. <b>Automatize</b>: perfuradora → esteira → processador → compactador → terminal orbital.</li><li>O resíduo é ~80% do planeta: <b>compacte em blocos e exporte</b>.</li></ul>'],
       ['br7', 'A ESCALA', 'O planeta tem <b>7 camadas</b>, da superfície ao núcleo. Cada material exige um processamento diferente: terra se separa por ressonância, rocha precisa ser triturada, cristal precisa de cuidado, manto precisa ser descomprimido.<br><br><b>Nenhuma automação é total:</b> gargalos aparecem, máquinas quebram, regiões se esgotam. Você sempre terá trabalho.'],
       ['sera', 'O QUE NINGUÉM TE CONTOU', 'A Zenitex diz que o planeta é abandonado. Mas há <b>ruínas com brilho ciano</b> pelo caminho. Pare perto delas e segure <b>E</b> para catalogar os registros no Arquivo. Talvez você descubra quem morava aqui.'],
     ];
@@ -158,7 +158,7 @@ export class Minigames {
     const yardCap = g.machines.yardCap();
     if (!src.length) {
       const el = this.mount(`<div class="mg-h">🔬 ANALISADOR DE MATRIZ <small>processamento manual</small></div>
-        <p>Sem material bruto. <b>Minere a terra</b> (o material vai para a mochila) e volte aqui — ou traga por esteira até o armazém.</p>
+        <p>Sem material bruto. <b>Minere a terra</b> (o aspirador da arma guarda) e volte aqui — ou traga por esteira até o armazém.</p>
         <p class="muted">Ninguém sabe o que existe dentro do ${esc(ITEM[RAW_BY_LAYER[g.planet.layer]]?.name ?? 'material')} até processar.</p>
         <div class="row"><button class="btn orange" data-b="x">ENTENDIDO</button></div>`);
       el.querySelector('[data-b="x"]')!.addEventListener('click', () => this.close());

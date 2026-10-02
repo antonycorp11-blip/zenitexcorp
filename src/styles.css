@@ -710,3 +710,6 @@ body.touch #mobile div.mobile-actions { top: 148px !important; bottom: auto !imp
 .mc-btns .btn { padding: 6px 10px !important; font-size: 12px !important; }
 .mc-det { max-height: 30vh; overflow-y: auto; margin-top: 6px; font-size: 12px; }
 .mc-det .cols { display: block !important; }
+
+.mc-filter { display: flex; align-items: center; gap: 4px; margin: 4px 0; flex-wrap: wrap; } .mc-filter small { font-size: 10px; color: #8ab; margin-right: 4px; }
+.mc-filter button { width: 30px; height: 30px; border-radius: 8px; border: 1px solid #2a4a60; background: #0e1e2c; } .mc-filter button.on { border-color: #ffb84a; background: #3a2a10; }

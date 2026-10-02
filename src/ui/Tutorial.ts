@@ -75,32 +75,32 @@ const lineOk = (g: Game) => g.blueprint.checkLine().ok;
 const STEPS: Step[] = [
   { title: 'Andar e voar', text: t => t ? '<b>Joystick esquerdo</b>: andar. Segure o botão <b>JATO</b> para voar.' : '<b>A / D</b> anda. <b>W</b> ou <b>Espaço</b> liga o jetpack.',
     target: (g, t) => t ? (g.flags.tutMoved0 ? '#mobile [data-b="jet"]' : '#mobile .stick.left .base') : null, done: g => !!g.flags.tutMoved },
-  { title: 'Cavar e aspirar', text: t => (t ? '<b>Joystick direito</b> apontado para o chão, segure.' : 'Mire no chão e <b>segure o botão esquerdo</b>.') + ' O feixe solta a terra em grãos e o aspirador puxa para a mochila. Junte <b>40 kg de Solo K-37</b>.',
+  { title: 'Cavar e aspirar', text: t => (t ? '<b>Joystick direito</b> apontado para o chão, segure.' : 'Mire no chão e <b>segure o botão esquerdo</b>.') + ' O feixe solta a terra em grãos e o <b>aspirador</b> da arma puxa e guarda. Junte <b>40 kg de Solo K-37</b>.',
     target: g => () => nearestWall(g), done: g => g.stats.manualKg >= 40 || analyzed(g) },
   { title: 'Processar à mão', text: t => `Vá até o <b>Analisador de Matriz</b> (seta) e ${t ? '<b>toque rápido no lado direito</b> da tela (USAR)' : 'aperte <b>E</b>'}. Escolha o Solo K-37, <b>INICIAR</b> e dê o <b>PULSO</b> na faixa verde.`,
     target: (g, t) => t && (g.hover?.ref as any)?.key === 'analisador' ? '#mobile .stick.right .base' : g.ui.mini.isOpen() ? null : () => machinePos(g, 'analisador'), done: analyzed },
   { title: 'O que existe dentro', text: () => 'Viu? <b>~80% é resíduo</b> e o resto são minerais, que foram para o <b>estoque</b> (é com eles que você constrói). Agora vamos montar a <b>primeira linha de produção</b>, reta, ao lado da base: <b>Perfuradora → esteira → Processador → esteira → Armazém</b>. <b>Toque aqui.</b>',
     target: () => '.hcard.meta', done: () => false, manual: true },
-  { title: 'Linha 1/6 · Armazém', bp: 'armazem', text: (_t, g) => 'Começamos pelo fim da linha: o <b>Armazém</b>, no quadrado verde. <b>MENU → Construir → Logística → Armazém</b>. Tudo o que entrar nele (pelo funil de cima ou pela lateral) vai para o estoque.' + rotHint(g, 'armazem'),
+  { title: 'Fábrica 1/6 · Coletor', bp: 'armazem', text: (_t, g) => 'Vamos montar uma <b>fábrica vertical</b>: o material sobe, cai pela peneira e se separa por gravidade. Primeiro o <b>Coletor</b> (o armazém) no quadrado verde: <b>Construir → Logística → Armazém</b>. Tudo que cair dentro dele vai para o estoque.' + rotHint(g, 'armazem'),
     target: g => bpTarget(g, 'logistica', 'armazem'), done: g => g.blueprint.placed('armazem') },
-  { title: 'Soprar no funil', text: t => (t ? 'Teste o funil: toque em <b>SOPRAR</b> e arraste o <b>lado direito</b>' : 'Teste o funil: <b>segure o botão direito</b> do mouse') + ' mirando o <b>funil do Armazém</b> (seta). O material da mochila voa em arco e entra. Jogue <b>20 kg</b>. Depois desligue o SOPRAR.',
+  { title: 'Soprar no funil', text: t => (t ? 'Teste: toque em <b>SOPRAR</b> e arraste o <b>lado direito</b>' : 'Teste: <b>segure o botão direito</b> do mouse') + ' mirando o <b>funil do Coletor</b>. Sai o que está no aspirador (vazio, ele sopra a terra solta ao seu redor). Jogue <b>20 kg</b> e desligue o SOPRAR.',
     target: (g, t) => t && !g.flags.blowMode ? '#mobile [data-b="blow"]' : () => storagePos(g), done: g => fed(g) >= 20 },
-  { title: 'Linha 2/6 · Processador', bp: 'processador_solo', text: (_t, g) => '<b>Processamento → Processador de Solo</b>, no quadrado marcado. Ele recebe a terra pela <b>lateral direita</b> e solta minerais + resíduo pela <b>calha do lado da seta</b>. A seta tem que apontar para a <b>ESQUERDA</b> (para o armazém).' + rotHint(g, 'processador_solo'),
-    target: g => bpTarget(g, 'processamento', 'processador_solo'), done: g => g.blueprint.placed('processador_solo') },
-  { title: 'Linha 3/6 · Esteira até o armazém', bp: 'esteira_a', text: t => `<b>Logística → Esteira</b>. Ela liga a <b>calha do processador</b> ao <b>armazém</b>. A esteira anda no sentido em que você arrasta — de 1 (processador) para 2 (armazém). ${t ? 'O caminho já está marcado:' : ''} <b>CONFIRMAR</b>.`,
-    target: g => buildFlow(g, 'logistica', 'esteira'), done: g => g.blueprint.placed('esteira_a') },
-  { title: 'Linha 4/6 · Perfuradora', bp: 'perfuradora', text: (_t, g) => '<b>Extração → Perfuradora</b>, no quadrado da ponta. A <b>seta</b> é para onde ela cava: <b>para BAIXO</b>, na terra. A terra sai pela <b>calha da esquerda</b>.' + rotHint(g, 'perfuradora'),
+  { title: 'Fábrica 2/6 · Peneira', bp: 'peneira', text: (_t, g) => '<b>Processamento → Peneira</b>, <b>em cima do Coletor</b>. A terra que cair nela se separa: os <b>minerais passam pela grade</b> e caem no Coletor embaixo; o <b>resíduo escorrega</b> para o lado da seta. Seta para a <b>ESQUERDA</b>.' + rotHint(g, 'peneira'),
+    target: g => bpTarget(g, 'processamento', 'peneira'), done: g => g.blueprint.placed('peneira') },
+  { title: 'Fábrica 3/6 · Prensa', bp: 'compactador', text: () => '<b>Processamento → Prensa</b>, no lado esquerdo, <b>embaixo da borda</b> por onde o resíduo escorrega. O resíduo cai nela e vira <b>bloco</b>, que vai direto para a base e o Terminal exporta.',
+    target: g => bpTarget(g, 'processamento', 'compactador'), done: g => g.blueprint.placed('compactador') },
+  { title: 'Fábrica 4/6 · Elevador', bp: 'elevador', text: (_t, g) => '<b>Logística → Elevador de Grãos</b>: é uma <b>coluna</b> — arraste de baixo (1) até em cima (2). O que entra embaixo sai no topo, para o lado da seta: <b>◀ ESQUERDA</b>, caindo em cima da Peneira.' + (g.build.active && g.build.key === 'elevador_grao' && g.build.dir !== 2 ? ' <b style="color:#ffd04a">↻ Toque GIRAR: a saída tem que ser ◀.</b>' : ''),
+    target: g => { const it = g.blueprint.item('elevador'); if (g.build.active && g.build.key === 'elevador_grao' && it && g.build.dir !== it.dir) return '[data-build-action="rotate"]'; return buildFlow(g, 'logistica', 'elevador_grao'); }, done: g => g.blueprint.placed('elevador') },
+  { title: 'Fábrica 5/6 · Perfuradora', bp: 'perfuradora', text: (_t, g) => '<b>Extração → Perfuradora</b>, na ponta. A <b>seta</b> é para onde ela cava: <b>para BAIXO</b>. A terra sai pela <b>calha da esquerda</b>.' + rotHint(g, 'perfuradora'),
     target: g => bpTarget(g, 'extracao', 'perfuradora'), done: g => g.blueprint.placed('perfuradora') },
-  { title: 'Linha 5/6 · Esteira até o processador', bp: 'esteira_b', text: () => 'Última esteira: da <b>calha da perfuradora</b> (1) até a <b>lateral do processador</b> (2). <b>Logística → Esteira</b> e <b>CONFIRMAR</b>.',
-    target: g => buildFlow(g, 'logistica', 'esteira'), done: g => g.blueprint.placed('esteira_b') },
-  { title: 'Linha 6/6 · Funcionando?', text: (_t, g) => { const r = g.blueprint.checkLine(); return r.ok && r.stage === 3 ? '✔ <b>' + r.msg + '</b> Acompanhe: a broca cava, a terra anda na esteira, entra no processador, e minerais + resíduo seguem para o armazém. Espere os minerais chegarem.' : '✖ <b>' + r.msg + '</b> Toque na peça errada: no cartão dela use <b>GIRAR</b> ou <b>DESMONTAR</b> e refaça.'; },
-    target: g => () => { const it = g.blueprint.item('esteira_b'); return it ? [((it.tx + it.tx2!) / 2 + 0.5) * TILE, it.ty * TILE] : null; },
-    done: g => { const r = g.blueprint.checkLine(); return r.ok && r.stage === 3 && (g.sectors.s[g.planet.layer]?.counters.separated ?? 0) > 12 && (g.sectors.rt[g.planet.layer]?.linkedTotal ?? 0) > 20; } },
-  { title: 'Resíduo: Compactador', bp: 'compactador', text: (_t, g) => 'O resíduo chegou ao estoque (o <b>pátio</b> da base). <b>Processamento → Compactador</b>, colado no armazém: ele puxa o resíduo sozinho e faz <b>blocos</b>, que o Terminal Orbital exporta. Sem isso o pátio enche e <b>tudo para</b>.' + rotHint(g, 'compactador'),
-    target: g => bpTarget(g, 'processamento', 'compactador'), done: g => g.machines.count('compactador') > 0 },
+  { title: 'Fábrica 6/6 · Esteira', bp: 'esteira', text: () => '<b>Logística → Esteira</b>, da <b>calha da perfuradora</b> (1) até o <b>pé do elevador</b> (2). A esteira anda no sentido em que você arrasta. <b>CONFIRMAR</b>.',
+    target: g => buildFlow(g, 'logistica', 'esteira'), done: g => g.blueprint.placed('esteira') },
+  { title: 'Funcionando?', text: (_t, g) => { const r = g.blueprint.checkLine(); return r.ok ? '✔ <b>' + r.msg + '</b> Olhe: a broca cava, a esteira leva, o elevador sobe, a peneira separa. Espere os minerais chegarem ao Coletor.' : '✖ <b>' + r.msg + '</b> Toque na peça para <b>GIRAR</b> ou <b>DESMONTAR</b>.'; },
+    target: g => () => { const it = g.blueprint.item('peneira'); return it ? [(it.tx + 1) * TILE, it.ty * TILE] : null; },
+    done: g => g.blueprint.checkLine().ok && (g.sectors.s[g.planet.layer]?.counters.separated ?? 0) > 12 && (g.sectors.rt[g.planet.layer]?.linkedTotal ?? 0) > 10 },
   { title: 'Scanner', text: t => `${t ? 'Toque em <b>SCANNER</b>' : 'Aperte <b>F</b>'}: ele mostra o <b>teor</b> da região. Perfuradoras em teor ALTO rendem muito mais minerais.`,
     target: (_g, t) => t ? '#mobile [data-b="scan"]' : null, done: g => (g.sectors.s[g.planet.layer]?.counters.scans ?? 0) > 0 },
-  { title: 'Sua indústria', text: () => 'Pronto: <b>perfuradora → esteira → processador → esteira → armazém → compactador → terminal</b>. Para crescer: mais perfuradoras (em teor ALTO) ligadas na mesma esteira, e um segundo processador quando a fila encher. Buraco fundo? <b>Elevador de Grãos</b> ou <b>Lançador</b>. A barra da <b>CAMADA</b> sobe com massa removida. <b>Toque aqui</b> para terminar.',
+  { title: 'Sua fábrica', text: () => 'Pronto: <b>perfuradora → esteira → elevador → peneira → coletor + prensa → terminal</b>. Para crescer: mais perfuradoras na mesma esteira, outra peneira empilhada, <b>Plataformas</b> para subir, <b>Lançador</b> para atravessar buracos e <b>Filtro</b> para separar por tipo. Buraco fundo? <b>Elevador de Grãos</b> ou <b>Lançador</b>. A barra da <b>CAMADA</b> sobe com massa removida. <b>Toque aqui</b> para terminar.',
     target: () => '.hcard.layer', done: () => false, manual: true },
 ];
 
@@ -128,6 +128,7 @@ export class Tutorial {
     const g = this.g, it = this.currentBp(), b = g.build;
     if (!it || !b.active || b.key !== it.key) return;
     if (it.key === 'esteira') { b.anchor = [it.tx, it.ty]; b.tx = it.tx2!; b.ty = it.ty; return; }
+    if (it.ty2 !== undefined) { b.anchor = [it.tx, it.ty]; b.tx = it.tx; b.ty = it.ty2; return; }
     const d = MACHINE[it.key];
     b.tx = it.tx + Math.floor((d.w - 1) / 2); b.ty = it.ty + Math.floor((d.h - 1) / 2);
   }

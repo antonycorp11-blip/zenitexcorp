@@ -126,7 +126,8 @@ export class Renderer {
       const x = m.tx * TILE, y = m.ty * TILE;
       const w = m.def.w * TILE, h = m.def.h * TILE;
       if (x > R || x + w < L || y - 60 > B || y + h < T) continue;
-      objs.push({ y: y + h, draw: () => this.drawMachine(m) });
+      // empilhadas: as de cima desenham por cima das de baixo (funil do coletor não cobre a peneira)
+      objs.push({ y: -100000 - y, draw: () => this.drawMachine(m) });
     }
     for (const r of g.robots.list) {
       if (r.x < L - 20 || r.x > R + 20 || r.y < T - 20 || r.y > B + 20) continue;
@@ -598,6 +599,17 @@ export class Renderer {
     }
     const def = MACHINE[b.key!];
     if (!def) return;
+    if (def.behavior === 'riser' || def.behavior === 'scaffold') {
+      for (const [px, py, dir] of g.beltPath()) {
+        const ex = g.machines.at(px, py);
+        const ok = (ex && ex.key === def.key) || !g.machines.canPlace(def, px, py);
+        const { img, oy: e2 } = g.sprites.machine(def, dir);
+        ctx.globalAlpha = 0.65; ctx.drawImage(img, px * TILE, py * TILE - e2, img.width / SPRITE_K, img.height / SPRITE_K); ctx.globalAlpha = 1;
+        ctx.fillStyle = ok ? 'rgba(80,255,120,0.22)' : 'rgba(255,60,40,0.35)'; ctx.fillRect(px * TILE, py * TILE, TILE, TILE);
+      }
+      if (b.anchor) { ctx.strokeStyle = '#ffd04a'; ctx.strokeRect(b.anchor[0] * TILE + 0.5, b.anchor[1] * TILE + 0.5, TILE - 1, TILE - 1); }
+      return;
+    }
     if (def.behavior === 'belt') {
       // linha de esteiras: cada tile com a seta da direção
       for (const [px, py, dir] of g.beltPath()) {
@@ -642,14 +654,20 @@ export class Renderer {
   private drawIO(L: number, T: number, R: number, B: number) {
     const g = this.g, ctx = this.ctx, p = g.player;
     const near = g.build.active ? 9999 : 230;
+    // máquina em foco: a do rótulo de toque, ou a mais próxima do jogador
+    let focus: Machine | null = g.hover?.kind === 'machine' ? (g.hover.ref as Machine) : null;
+    if (!focus) { let bd = 70; for (const m of g.machines.list) { if (m.def.behavior === 'belt') continue; const [mx, my] = g.machines.centerPx(m); const dd = Math.hypot(mx - p.x, my - p.y); if (dd < bd) { bd = dd; focus = m; } } }
     for (const m of g.machines.list) {
       const d = m.def, bh = d.behavior;
-      if (bh === 'belt' || bh === 'lamp' || bh === 'support' || bh === 'platform') continue;
+      if (bh === 'belt' || bh === 'lamp' || bh === 'support' || bh === 'platform' || bh === 'scaffold') continue;
       if (!g.build.active && (bh === 'command' || bh === 'terminal' || bh === 'analyzer')) continue;   // fixos da base: sem poluir
       const x0 = m.tx * TILE, y0 = m.ty * TILE, W = d.w * TILE, H = d.h * TILE;
       if (x0 > R || x0 + W < L || y0 > B || y0 + H < T) continue;
       const [cx, cy] = g.machines.centerPx(m);
       if (Math.hypot(cx - p.x, cy - p.y) > near) continue;
+      // sem poluir: fora do modo construção, só a máquina em foco (a que você toca/está perto) mostra entrada e saída
+      if (!g.build.active && focus !== m) continue;
+      if (bh === 'riser' || bh === 'launcher') continue;
       const io = ioSpec(d, m.dir, g.planet.layer);
       const ex = g.sprites.machine(d, m.dir).oy;
       const t = this.time;
@@ -660,6 +678,16 @@ export class Renderer {
       }
       // saídas
       for (const o of io.outs) {
+        if (o.side === 'down') {
+          const sx = x0 + W / 2, sy = y0 + H + 3;
+          const k = (t * 1.6 + m.id * 0.3) % 1;
+          ctx.globalAlpha = m.working ? 0.9 : 0.45;
+          ctx.fillStyle = '#4aa8ff';
+          for (let j = 0; j < 2; j++) { const ay = sy + ((k + j * 0.5) % 1) * 9; ctx.beginPath(); ctx.moveTo(sx - 3, ay); ctx.lineTo(sx + 3, ay); ctx.lineTo(sx, ay + 4); ctx.closePath(); ctx.fill(); }
+          ctx.globalAlpha = 1;
+          if (o.keys.length) this.badge(sx + 14, sy + 6, o.keys.slice(0, 2), '#4aa8ff', 'down');
+          continue;
+        }
         const right = o.side === 0;
         const sx = right ? x0 + W + 2 : x0 - 2, sy = y0 + H - 6;
         const col = o.label.startsWith('minerais') ? '#4aa8ff' : '#ff9a2a';
@@ -712,6 +740,22 @@ export class Renderer {
         ctx.fillStyle = '#d8ffe0'; ctx.font = 'bold 6px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(n, cx, cy + 2.2);
       }
       ctx.textAlign = 'left';
+    } else if (it.ty2 !== undefined) {
+      const y0 = Math.min(it.ty, it.ty2) * TILE, y1 = (Math.max(it.ty, it.ty2) + 1) * TILE, x = it.tx * TILE;
+      ctx.fillStyle = `rgba(120,255,150,${0.12 + pulse * 0.1})`; ctx.fillRect(x, y0, TILE, y1 - y0);
+      ctx.strokeRect(x + 0.5, y0 + 0.5, TILE - 1, y1 - y0 - 1);
+      ctx.setLineDash([]);
+      // setas subindo e a saída no topo
+      for (let k = 0; k < 3; k++) { const ay = y1 - (((this.time * 20) + k * 14) % (y1 - y0)); ctx.fillStyle = 'rgba(160,255,180,0.9)'; ctx.beginPath(); ctx.moveTo(x + 8, ay - 4); ctx.lineTo(x + 4, ay); ctx.lineTo(x + 12, ay); ctx.closePath(); ctx.fill(); }
+      const dx = it.dir === 2 ? -1 : 1;
+      ctx.fillStyle = '#7aff8a'; ctx.beginPath(); ctx.moveTo(x + 8 + dx * 14, y0 + 4); ctx.lineTo(x + 8 + dx * 7, y0); ctx.lineTo(x + 8 + dx * 7, y0 + 8); ctx.closePath(); ctx.fill();
+      for (const [ty, n] of [[it.ty, '1'], [it.ty2, '2']] as [number, string][]) {
+        const cx = x + TILE + 6, cy = ty * TILE + 8;
+        ctx.fillStyle = '#1a3a22'; ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, 7); ctx.fill();
+        ctx.strokeStyle = '#7aff8a'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = '#d8ffe0'; ctx.font = 'bold 6px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(n, cx, cy + 2.2);
+      }
+      ctx.textAlign = 'left';
     } else {
       const x = it.tx * TILE, y = it.ty * TILE, W = d.w * TILE, H = d.h * TILE;
       ctx.fillStyle = `rgba(120,255,150,${0.12 + pulse * 0.12})`; ctx.fillRect(x, y, W, H);
@@ -726,7 +770,7 @@ export class Renderer {
       }
     }
     // etiqueta
-    const lx = (it.key === 'esteira' ? (it.tx + it.tx2!) / 2 + 0.5 : it.tx + d.w / 2) * TILE, ly = it.key === 'esteira' ? it.ty * TILE - 16 : (it.ty + d.h / 2) * TILE + 2;   // dentro do quadrado: não briga com o rótulo de toque
+    const lx = (it.key === 'esteira' ? (it.tx + it.tx2!) / 2 + 0.5 : it.tx + d.w / 2) * TILE, ly = it.key === 'esteira' ? it.ty * TILE - 16 : it.ty2 !== undefined ? Math.min(it.ty, it.ty2) * TILE - 6 : (it.ty + d.h / 2) * TILE + 2;   // dentro do quadrado: não briga com o rótulo de toque
     ctx.font = 'bold 6px sans-serif'; ctx.textAlign = 'center';
     const tw = ctx.measureText(it.label).width + 8;
     ctx.fillStyle = 'rgba(10,30,16,0.88)'; ctx.fillRect(lx - tw / 2, ly - 7, tw, 9);
@@ -765,13 +809,17 @@ export class Renderer {
       ctx.fillStyle = col;
       ctx.beginPath(); ctx.moveTo(x + ddx * 5, y + ddy * 5); ctx.lineTo(x - ddy * 4 - ddx * 1.5, y + ddx * 4 - ddy * 1.5); ctx.lineTo(x + ddy * 4 - ddx * 1.5, y - ddx * 4 - ddy * 1.5); ctx.closePath(); ctx.fill();
     };
-    const takesGrains = ['separator', 'prep', 'compactor', 'storage', 'link', 'command', 'riser', 'launcher', 'terminal'].includes(bh);
+    const takesGrains = ['separator', 'prep', 'compactor', 'storage', 'link', 'command', 'riser', 'launcher', 'terminal', 'filter'].includes(bh);
     if (takesGrains) tri(x0 + W / 2, y0 - 10 + bob, 0, 1, '#7aff8a');                  // funil: entra por cima
     const right = dir !== 2;
     const outSide = (r: boolean, col: string) => tri(r ? x0 + W + 7 + bob : x0 - 7 - bob, y0 + H - 6, r ? 1 : -1, 0, col);
+    const downOut = () => tri(x0 + W / 2, y0 + H + 8 + bob, 0, 1, '#6ab4ff');
     if (bh === 'drill' || bh === 'complex') outSide(!(dir === 0), '#ffb04a');
+    else if (def.outMode === 'sieve') { downOut(); outSide(right, '#b09a84'); }
+    else if (def.outMode === 'bottom') downOut();
     else if (bh === 'separator') outSide(right, '#6ab4ff');
-    else if (bh === 'prep' || bh === 'compactor' || bh === 'refinery' || bh === 'launcher') outSide(right, '#ffb04a');
+    else if (bh === 'filter') { downOut(); outSide(right, '#ffb04a'); }
+    else if (bh === 'refinery' || bh === 'launcher') outSide(right, '#ffb04a');
     if (bh === 'drill') {
       const [dx, dy] = DIRS[dir];
       const rng = (def.key === 'perfuradora' ? 56 : def.key === 'perfuradora2' ? 80 : 112) * CELL;

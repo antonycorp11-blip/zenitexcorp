@@ -93,7 +93,7 @@ export class Machines {
     const sec = w.sectorAtTile(tx, ty);
     if (!sec) return 'Fora do planeta';
     // vista lateral: construções precisam de apoio (esteiras e elevadores podem ficar suspensos)
-    if (!['belt', 'riser', 'lamp', 'support'].includes(def.behavior)) {
+    if (!['belt', 'riser', 'lamp', 'support', 'scaffold', 'filter', 'launcher'].includes(def.behavior)) {
       let sup = false;
       for (let x = 0; x < def.w && !sup; x++) sup = w.tileSupported(tx + x, ty + def.h - 1);
       if (!sup && def.behavior === 'drill') sup = true;
@@ -702,23 +702,37 @@ export class Machines {
       const aux = Math.min(255, Math.round((m.g[key] ?? 1) * 40));
       while ((m.out[key] ?? 0) >= unit - 1e-6 && n < per) {
         let ok = false;
-        for (const [x, y] of ports) if (w.spawnGrain(x, y, gm, aux, true)) { ok = true; break; }
+        for (const [x, y] of ports) {
+          // saída caindo direto em outra máquina (peças empilhadas): entra nela
+          const occ = w.occAtCell(x, y);
+          if (occ && occ !== m.id) { this.lastAux = aux; if (this.sinkGrain(occ, gm)) { ok = true; break; } continue; }
+          if (w.spawnGrain(x, y, gm, aux, true)) { ok = true; break; }
+        }
         if (!ok) { if (!m.state.startsWith('Saída')) m.state = 'Saída bloqueada: limpe a frente da porta'; break; }
         bagAdd(m.out, key, -unit); n++;
       }
     }
   }
 
-  /** células de saída (fora da máquina, na base da lateral) */
+  /** células de saída: lateral (calha da seta), por baixo, ou peneira (minerais por baixo, resíduo pela lateral) */
   private ports(m: Machine, key: string): [number, number][] {
     const d = m.def;
+    const down = d.outMode === 'bottom' || (d.outMode === 'sieve' && key !== 'residuo');
+    if (down) {
+      // grade de baixo: espalha pela largura (como peneira)
+      const y = (m.ty + d.h) * TILE_CELLS, out: [number, number][] = [];
+      const x0 = m.tx * TILE_CELLS + 1, x1 = (m.tx + d.w) * TILE_CELLS - 2;
+      const start = Math.floor(Math.random() * (x1 - x0 + 1));
+      for (let k = 0; k <= x1 - x0; k++) out.push([x0 + ((start + k) % (x1 - x0 + 1)), y]);
+      return out;
+    }
     let side: number; // 0 = direita, 2 = esquerda
     if (d.behavior === 'drill' || d.behavior === 'complex') side = m.dir === 0 ? 2 : m.dir === 2 ? 0 : 2;
-    else if (d.behavior === 'separator') side = m.dir === 2 ? 2 : 0;   // minerais e resíduo saem pela mesma calha, na esteira para o armazém
     else side = m.dir === 2 ? 2 : 0;
     const x = side === 0 ? (m.tx + d.w) * TILE_CELLS : m.tx * TILE_CELLS - 1;
-    // de baixo para cima pela lateral inteira: se houver esteira encostada, o grão sai em cima dela
+    // peneira: o resíduo escorrega pela borda de cima; o resto sai de baixo para cima pela lateral
     const out: [number, number][] = [];
+    if (d.outMode === 'sieve') { for (let y = m.ty * TILE_CELLS; y < (m.ty + d.h) * TILE_CELLS; y++) out.push([x, y]); return out; }
     for (let y = (m.ty + d.h) * TILE_CELLS - 1; y >= m.ty * TILE_CELLS - 1; y--) out.push([x, y]);
     return out;
   }
@@ -743,8 +757,22 @@ export class Machines {
     const k = GRAIN_ITEM[mat];
     if (!m || !k) return false;
     const b = m.def.behavior;
-    if (b === 'belt') return false;
+    if (b === 'belt' || b === 'scaffold') return false;
     if (b === 'riser') return this.riserTake(m, mat);
+    if (b === 'filter') {
+      // o tipo escolhido passa por baixo; o resto desvia para o lado da seta
+      const w = this.g.world, cx = m.tx * TILE_CELLS + TILE_CELLS / 2;
+      const pass = !!m.filter && k === m.filter;
+      const tries: [number, number][] = pass ? [[cx, (m.ty + 1) * TILE_CELLS], [cx - 1, (m.ty + 1) * TILE_CELLS], [cx + 1, (m.ty + 1) * TILE_CELLS]]
+        : (() => { const x = m.dir === 2 ? m.tx * TILE_CELLS - 1 : (m.tx + 1) * TILE_CELLS; const o: [number, number][] = []; for (let y = m.ty * TILE_CELLS; y < (m.ty + 1) * TILE_CELLS; y++) o.push([x, y]); return o; })();
+      for (const [x, y] of tries) {
+        const occ = w.occAtCell(x, y);
+        if (occ && occ !== m.id) { if (this.sinkGrain(occ, mat)) { m.produced += GRAIN_KG; return true; } continue; }
+        if (w.spawnGrain(x, y, mat, this.lastAux, true)) { m.produced += GRAIN_KG; m.state = pass ? 'Passando ' + (ITEM[k]?.name ?? k) : 'Desviando'; return true; }
+      }
+      m.state = 'Travado: saída bloqueada';
+      return false;
+    }
     if (b === 'launcher') {
       if (m.loaders > 14 || m.broken) return false;
       const d = m.dir === 2 ? -1 : 1;

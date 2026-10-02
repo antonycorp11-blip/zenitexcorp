@@ -310,6 +310,52 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
     const ar: Record<number, [number, number]> = { 0: [W - 7, top + 24], 1: [W / 2 - 1, bot - 7], 2: [5, top + 24], 3: [W / 2 - 1, top + 11] };
     const [axp, ayp] = ar[dir] ?? ar[1];
     p.r(axp, ayp, 3, 3, P.yellow);
+  } else if (def.outMode === 'sieve') {
+    // peneira: moldura com grade inclinada; minerais caem pela grade, resíduo escorrega para o lado da seta
+    const x = p.x, heavy = def.key === 'peneira_pesada';
+    const fr: C3 = heavy ? [110, 80, 150] : [58, 104, 132];
+    p.panel(1, top + 1, W - 2, H - 3, fr, { rivets: true });
+    x.save(); x.beginPath(); x.rect(3, top + 3, W - 6, H - 7); x.clip();
+    x.fillStyle = 'rgba(10,20,30,0.85)'; x.fillRect(3, top + 3, W - 6, H - 7);
+    // grade inclinada (desce para o lado da seta)
+    const hi = right ? top + 4 : top + H - 6, lo = right ? top + H - 6 : top + 4;
+    x.strokeStyle = css(P.stLL); x.lineWidth = 0.9;
+    x.beginPath(); x.moveTo(3, right ? top + 4 : top + H - 7); x.lineTo(W - 3, right ? top + H - 7 : top + 4); x.stroke();
+    x.strokeStyle = css(P.stL, 0.8); x.lineWidth = 0.5;
+    for (let k = 4; k < W - 4; k += 2) { const t = (k - 3) / (W - 6); const yy = (right ? top + 4 + t * (H - 11) : top + H - 7 - t * (H - 11)); x.beginPath(); x.moveTo(k, yy); x.lineTo(k, yy + 2.2); x.stroke(); }
+    void hi; void lo;
+    x.restore();
+    // bocas: em cima (entrada), embaixo (minerais), lateral (resíduo)
+    x.fillStyle = 'rgba(10,10,14,0.9)'; x.fillRect(4, top + 0.5, W - 8, 1.2);
+    x.fillStyle = css([90, 170, 255]); x.fillRect(W / 2 - 3, bot - 2, 6, 1.4);
+    p.chute(right ? W - 1 : 0, top + 4, right, [150, 120, 96]);
+    p.light(right ? 2 : W - 4, top + 3, glow);
+  } else if (def.behavior === 'compactor' && def.outMode === 'bottom') {
+    // prensa vertical: funil em cima, pistão, bloco saindo por baixo
+    const x = p.x;
+    p.hopper(1, top - 4, W - 2, 5);
+    p.panel(1, top + 1, W - 2, H - 4, P.stD, { rivets: true });
+    p.panel(3, top + 4, W - 6, 4, P.or);
+    p.pipe(W / 2 - 1.2, top + 8, 2.4, 9, P.stLL);
+    p.panel(3, top + 17, W - 6, 3, P.orD);
+    x.fillStyle = css([160, 136, 108]); x.beginPath(); x.roundRect(4, bot - 9, W - 8, 5, 0.8); x.fill();
+    x.strokeStyle = 'rgba(16,18,24,0.9)'; x.lineWidth = 0.5; x.stroke();
+    p.hazard(1, bot - 3, W - 2, 2);
+  } else if (def.behavior === 'filter') {
+    const x = p.x;
+    p.panel(1, top + 2, W - 2, H - 3, [70, 80, 96], { rivets: false });
+    x.strokeStyle = css(P.stLL); x.lineWidth = 0.6;
+    for (let k = 3; k < W - 2; k += 2) { x.beginPath(); x.moveTo(k, top + 4); x.lineTo(k, top + H - 4); x.stroke(); }
+    x.fillStyle = css(P.yellow);
+    const ax = right ? W - 3 : 3; x.beginPath(); x.moveTo(ax, top + H / 2); x.lineTo(W / 2, top + 4); x.lineTo(W / 2, top + H - 3); x.closePath(); x.globalAlpha = 0.85; x.fill(); x.globalAlpha = 1;
+  } else if (def.behavior === 'scaffold') {
+    const x = p.x;
+    x.beginPath(); x.roundRect(0.3, top + 0.3, W - 0.6, 4, 0.8);
+    const g = x.createLinearGradient(0, top, 0, top + 4); g.addColorStop(0, css(P.stLL)); g.addColorStop(1, css(P.st));
+    x.fillStyle = g; x.fill(); x.strokeStyle = 'rgba(16,18,24,0.95)'; x.lineWidth = 0.5; x.stroke();
+    x.strokeStyle = css(P.stD); x.lineWidth = 1;
+    x.beginPath(); x.moveTo(2, top + 4); x.lineTo(W - 2, bot); x.moveTo(W - 2, top + 4); x.lineTo(2, bot); x.stroke();
+    x.fillStyle = css(P.stD); x.fillRect(1, top + 4, 1.4, H - 4); x.fillRect(W - 2.4, top + 4, 1.4, H - 4);
   } else if (def.behavior === 'separator') {
     // peneira vibratória: grade inclinada vista pela janela, calhas dos dois lados (minerais / resíduo)
     const ind = def.key === 'separador_industrial';
@@ -341,7 +387,8 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
       p.gear(W / 2 - 5, top + 8 + (H - 18) / 2, 4, P.stLL); p.gear(W / 2 + 5, top + 8 + (H - 18) / 2, 4, P.stL);
     }
     p.hopper(4, top - 4, W - 8, 6);
-    p.chute(right ? W - 1 : 0, bot - 10, right, P.or);
+    if (def.outMode === 'bottom') { p.x.fillStyle = 'rgba(10,10,14,0.9)'; p.x.fillRect(W / 2 - 4, bot - 2, 8, 1.6); p.x.fillStyle = css([90, 170, 255]); p.x.fillRect(W / 2 - 3, bot - 1.4, 6, 0.8); }
+    else p.chute(right ? W - 1 : 0, bot - 10, right, P.or);
     p.hazard(2, bot - 4, W - 4, 2);
   } else if (def.behavior === 'compactor') {
     // prensa: pórtico com pistão e blocos prontos
