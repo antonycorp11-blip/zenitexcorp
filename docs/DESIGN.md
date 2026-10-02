@@ -15,6 +15,11 @@ e, abaixo, rocha com estratos, cavernas, veios ricos, bolsões de líquido e ru�
 - Máquinas são físicas: grãos que caem em cima entram pelo funil (se a máquina aceitar; senão empilham),
   a saída sai pela lateral (o Separador solta minerais de um lado e resíduo do outro), esteiras horizontais
   empurram os grãos apoiados nelas, e o Elevador de Grãos sobe o material do fundo dos buracos.
+- Células de 2 px (grão fino). A arma do traje também **SOPRA**: joga material da mochila em arco
+  (mira assistida) para alimentar funis e esteiras à mão. Grãos em voo viram areia ao cair ou entram na máquina atingida.
+- **Lançador de Grãos**: arremessa em arco o que entra nele (atravessa buracos, alimenta funis de longe).
+- Tutorial físico: andar/voar → cavar e aspirar → Analisador → Armazém → soprar no funil → perfuradora
+  com a calha sobre uma esteira → esteira até o funil → Processador → Compactador → scanner → meta.
 
 ## Estrutura: 7 camadas
 Terra → Pedra → Basalto → Cristalina → Manto → Núcleo Externo → Núcleo. Cada camada é um mapa (disco visto de cima),

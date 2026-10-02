@@ -55,7 +55,7 @@ export function separate(layer: number, kg: number, grade: number, eff: number, 
 
 /** Teor regional (0.4..2.0): campo procedural. Veios visíveis multiplicam o teor. */
 export function gradeAt(seed: number, layer: number, cx: number, cy: number): number {
-  const n = fbm(cx * 0.006, cy * 0.006, seed + 900 + layer * 17, 3);
+  const n = fbm(cx * 0.003, cy * 0.003, seed + 900 + layer * 17, 3);
   const t = Math.max(0, Math.min(1, (n - 0.3) / 0.4));
   return 0.4 + 1.6 * Math.pow(t, 1.5);
 }

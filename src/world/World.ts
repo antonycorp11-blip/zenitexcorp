@@ -1,12 +1,16 @@
 import { CELL, CHUNK, WORLD_W, WORLD_H, WORLD_CW, WORLD_CH, WORLD_TW, WORLD_TH, TILE, TILE_CELLS } from '../core/constants';
 import { MAT, IS_SOLID, IS_BLOCKING, IS_LIQUID, IS_LOOSE, matById } from '../data/materials';
 
+/** log2(TILE_CELLS): célula -> tile */
+const TS = Math.round(Math.log2(TILE_CELLS));
 const MOBILE = new Uint8Array(256);
 for (let i = 0; i < 256; i++) MOBILE[i] = IS_LOOSE[i] || IS_LIQUID[i] ? 1 : 0;
 import { WorldGen } from './WorldGen';
 
 /** Chamado quando um grão tenta entrar numa célula ocupada por máquina. true = a máquina absorveu. */
 export type GrainSink = (machineId: number, mat: number, aux: number, x: number, y: number) => boolean;
+/** grão em voo (px de mundo): soprado pelo traje ou arremessado por um Lançador */
+export interface Flyer { x: number; y: number; vx: number; vy: number; m: number; a: number; t: number; byPlayer: boolean; }
 
 /**
  * Terreno em VISTA LATERAL: grade de células (4 px). Terreno fixo, grãos soltos que caem e escorregam
@@ -32,6 +36,9 @@ export class World {
   readonly sectorTileExplored = new Int32Array(13);
   regrowQueue: { x: number; y: number; m: number; t: number }[] = [];
   sink: GrainSink | null = null;
+  flyers: Flyer[] = [];
+  /** grão soprado pelo jogador caiu dentro de uma máquina */
+  onFed: ((machineId: number, mat: number) => void) | null = null;
   private quiet = false;
   moving = 0;           // grãos que se moveram no último passo (telemetria)
 
@@ -43,7 +50,7 @@ export class World {
     this.active.fill(1);
     // assenta os líquidos em silêncio antes do primeiro quadro
     this.quiet = true;
-    for (let k = 0; k < 260; k++) { this.simulate(); if (this.moving < 4) break; }
+    for (let k = 0; k < 110; k++) { this.simulate(); if (this.moving < 8) break; }
     this.quiet = false;
     this.active.fill(0);
     this.stamp.fill(0);
@@ -56,7 +63,7 @@ export class World {
   inside(x: number, y: number) { return x >= 0 && y >= 0 && x < WORLD_W && y < WORLD_H; }
   get(x: number, y: number): number { return x < 0 || y < 0 || x >= WORLD_W || y >= WORLD_H ? MAT.EDGE : this.mat[y * WORLD_W + x]; }
   peek(x: number, y: number): number { return this.get(x, y); }
-  occAtCell(x: number, y: number): number { return this.occ[(y >> 2) * WORLD_TW + (x >> 2)]; }
+  occAtCell(x: number, y: number): number { return this.occ[(y >> TS) * WORLD_TW + (x >> TS)]; }
 
   set(x: number, y: number, m: number, aux = 0) {
     if (!this.inside(x, y)) return;
@@ -133,7 +140,7 @@ export class World {
             if (to < 0) {
               // grão parado em cima de máquina: a máquina pode puxar (funil)
               if (loose && this.sink) {
-                const tid = this.occ[((y + 1) >> 2) * WORLD_TW + (x >> 2)];
+                const tid = this.occ[((y + 1) >> TS) * WORLD_TW + (x >> TS)];
                 if (tid && this.sink(tid, m, aux[i], x, y + 1)) { mat[i] = MAT.AIR; aux[i] = 0; this.touch(x, y); any = true; moved++; }
               }
               continue;
@@ -156,12 +163,52 @@ export class World {
     this.active.set(this.nextActive);
   }
 
+  /** Lança um grão. Retorna false se já há grãos demais no ar. */
+  launch(x: number, y: number, vx: number, vy: number, m: number, a = 40, byPlayer = false): boolean {
+    if (this.flyers.length > 600) return false;
+    this.flyers.push({ x, y, vx, vy, m, a, t: 0, byPlayer });
+    return true;
+  }
+
+  /** grãos em voo: gravidade; ao bater, viram grão no chão ou entram na máquina atingida */
+  updateFlyers(dt: number) {
+    const F = this.flyers;
+    for (let k = F.length - 1; k >= 0; k--) {
+      const f = F[k];
+      f.t += dt;
+      f.vy += 520 * dt;
+      const steps = Math.max(1, Math.ceil(Math.hypot(f.vx, f.vy) * dt / CELL));
+      const sx = f.vx * dt / steps, sy = f.vy * dt / steps;
+      let landed = false;
+      for (let s2 = 0; s2 < steps; s2++) {
+        const nx = f.x + sx, ny = f.y + sy;
+        const cx = Math.floor(nx / CELL), cy = Math.floor(ny / CELL);
+        if (!this.inside(cx, cy)) { landed = true; break; }
+        // recém-lançado: atravessa a pilha da própria boca
+        if (f.t < 0.12 && !IS_SOLID[this.mat[cy * WORLD_W + cx]]) { f.x = nx; f.y = ny; continue; }
+        const occ = this.occAtCell(cx, cy);
+        if (occ) {
+          if (this.sink && this.sink(occ, f.m, f.a, cx, cy)) { if (f.byPlayer) this.onFed?.(occ, f.m); landed = true; f.m = 0; break; }
+        }
+        const t = this.mat[cy * WORLD_W + cx];
+        if (occ || (t !== MAT.AIR && !IS_LIQUID[t])) {
+          // assenta na última célula livre
+          const px = Math.floor(f.x / CELL), py = Math.floor(f.y / CELL);
+          if (f.m) this.spawnGrain(px, py, f.m, f.a);
+          landed = true; break;
+        }
+        f.x = nx; f.y = ny;
+      }
+      if (landed || f.t > 6) { if (!landed && f.m) this.spawnGrain(Math.floor(f.x / CELL), Math.floor(f.y / CELL), f.m, f.a); F[k] = F[F.length - 1]; F.pop(); }
+    }
+  }
+
   private flowDir(x: number, y: number, d: number): number {
     for (let k = 1; k <= 6; k++) {
       const nx = x + d * k;
       if (nx <= 0 || nx >= WORLD_W - 1) return 0;
       const j = y * WORLD_W + nx;
-      if (this.mat[j] !== MAT.AIR || this.occ[(y >> 2) * WORLD_TW + (nx >> 2)]) return 0;
+      if (this.mat[j] !== MAT.AIR || this.occ[(y >> TS) * WORLD_TW + (nx >> TS)]) return 0;
       if (this.mat[j + WORLD_W] === MAT.AIR) return d;
     }
     return 0;
@@ -171,7 +218,7 @@ export class World {
   private canEnter(i: number, m: number, x: number, y: number): boolean {
     const t = this.mat[i];
     if (t !== MAT.AIR && !(IS_LIQUID[t] && !IS_LIQUID[m])) return false;
-    return !this.occ[(y >> 2) * WORLD_TW + (x >> 2)];
+    return !this.occ[(y >> TS) * WORLD_TW + (x >> TS)];
   }
 
   /** Coloca um grão solto na primeira célula livre perto de (x,y). Retorna false se não couber. */

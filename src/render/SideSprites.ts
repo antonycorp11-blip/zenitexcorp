@@ -275,6 +275,14 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
     p.r(2, 0, 1, H + ex, P.stL); p.r(W - 3, 0, 1, H + ex, P.st);
     for (let y = ex + 1; y < H + ex; y += 6) { p.r(4, y, W - 8, 3, P.ink); p.r(5, y, W - 10, 2, P.or); }
     p.r(right ? W - 4 : 1, ex + 1, 3, 2, P.yellow);
+  } else if (def.behavior === 'launcher') {
+    // base com mola e um cano inclinado para o lado da seta
+    p.panel(1, top + 8, W - 2, H - 8, P.stD, { rivets: false });
+    p.hazard(2, bot - 3, W - 4, 2);
+    const d = right ? 1 : -1, bx = W / 2, by = top + 9;
+    for (let k = 0; k < 9; k++) { p.r(bx + d * k - 2, by - k - 2, 5, 5, P.ink); }
+    for (let k = 0; k < 9; k++) { p.r(bx + d * k - 1, by - k - 1, 3, 3, k > 6 ? P.orL : P.or); }
+    p.r(bx - 3, top + 2, 6, 5, P.stL); p.r(bx - 3, top + 2, 6, 1, P.stLL);
   } else if (def.behavior === 'link') {
     p.r(1, top, 3, H, P.ink); p.r(W - 4, top, 3, H, P.ink); p.r(2, top, 1, H, P.stL); p.r(W - 3, top, 1, H, P.stL);
     p.panel(5, top + 6, W - 10, H - 10, P.or, { rivets: true });

@@ -174,8 +174,8 @@ export class Events {
     const g = this.g, w = g.world;
     if (this.supported({ tx: Math.floor(x / TILE), ty: Math.floor(y / TILE) })) return;
     // vista lateral: o teto se solta em grãos de material bruto que despencam
-    const R = 5 + Math.random() * 4;
-    const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL) - 6;
+    const R = 10 + Math.random() * 8;
+    const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL) - 12;
     let filled = 0;
     const raw = GRAIN[rawOf(g.planet.layer)];
     for (let j = -Math.ceil(R); j <= R; j++) for (let i = -Math.ceil(R); i <= R; i++) {

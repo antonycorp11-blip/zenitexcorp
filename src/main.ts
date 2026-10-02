@@ -51,6 +51,7 @@ function start(opts: GameOptions, save: any) {
       g.audio.init();
       if (b === 'interact') { if (g.hover) { g.input.press('e'); g.input.keys.add('e'); setTimeout(() => g.input.keys.delete('e'), (g.hover.kind === 'machine' && (g.hover.ref as any).broken) || g.hover.kind === 'artifact' || g.hover.kind === 'anomaly' ? 2800 : 100); } }
       if (b === 'scan') g.scanner.pulse();
+      if (b === 'blow') { g.flags.blowMode = !g.flags.blowMode; document.querySelector('#mobile [data-b="blow"]')?.classList.toggle('on', !!g.flags.blowMode); g.toast(g.flags.blowMode ? 'SOPRAR: o joystick direito joga material da mochila' : 'CAVAR: o joystick direito cava e aspira', '#ffd04a'); }
       if (b === 'tool2') g.selectSlot(g.selected === 0 ? 1 : 0);
       const panel = ({ inv: 'inventory', build: 'build', upgrades: 'upgrades', research: 'research', sectors: 'sectors', robots: 'robots', contracts: 'contracts', archive: 'archive', map: 'map', help: 'help' } as Record<string, PanelId>)[b];
       if (panel) g.ui.open(panel);

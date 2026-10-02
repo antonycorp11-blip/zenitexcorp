@@ -14,7 +14,7 @@ export interface RuinSite {
 export interface LooseArtifact { id: number; x: number; y: number; sector: number; }
 
 /** Meia-largura (células) do platô plano da base. */
-export const PLATEAU = 70;
+export const PLATEAU = 140;
 
 /**
  * Geração determinística em VISTA LATERAL: um corte vertical da camada.
@@ -40,12 +40,12 @@ export class WorldGen {
     const c = WORLD_W / 2;
     for (let x = 0; x < WORLD_W; x++) {
       const d = Math.abs(x - c);
-      const hill = (fbm(x * 0.008, 3.3, seed + 5, 3) - 0.5) * 70 + (fbm(x * 0.03, 7.7, seed + 6, 2) - 0.5) * 12;
-      const k = Math.min(1, Math.max(0, (d - PLATEAU) / 50));   // platô plano no centro, morros nas pontas
+      const hill = (fbm(x * 0.004, 3.3, seed + 5, 3) - 0.5) * 140 + (fbm(x * 0.015, 7.7, seed + 6, 2) - 0.5) * 24;
+      const k = Math.min(1, Math.max(0, (d - PLATEAU) / 100));   // platô plano no centro, morros nas pontas
       this.surface[x] = Math.round(SURFACE_Y + hill * k * k * (3 - 2 * k));
     }
     this.landing = { x: c, y: SURFACE_Y - 1 };
-    this.coreCenter = { x: c, y: WORLD_H - 90 };
+    this.coreCenter = { x: c, y: WORLD_H - 180 };
     this.buildSites();
   }
 
@@ -60,18 +60,18 @@ export class WorldGen {
     for (let tries = 0; this.ruins.length < nRuins && tries < 200; tries++) {
       const big = this.sd.ruins > 0.5 && rng.chance(0.4);
       const kind: RuinSite['kind'] = big ? (rng.chance(0.5) ? 'cidade' : 'templo') : rng.chance(0.3) ? 'templo' : 'casa';
-      const w = kind === 'cidade' ? rng.int(90, 120) : kind === 'templo' ? rng.int(50, 70) : rng.int(26, 40);
-      const h = kind === 'cidade' ? rng.int(40, 56) : kind === 'templo' ? rng.int(34, 46) : rng.int(18, 26);
-      const x0 = rng.int(8, WORLD_W - w - 8);
-      const y0 = rng.int(SURFACE_Y + 70, WORLD_H - h - 20);
-      if (Math.abs(x0 + w / 2 - WORLD_W / 2) < PLATEAU && y0 < SURFACE_Y + 120) continue;
-      if (this.ruins.some(r => x0 < r.x0 + r.w + 10 && r.x0 < x0 + w + 10 && y0 < r.y0 + r.h + 10 && r.y0 < y0 + h + 10)) continue;
+      const w = kind === 'cidade' ? rng.int(180, 240) : kind === 'templo' ? rng.int(100, 140) : rng.int(52, 80);
+      const h = kind === 'cidade' ? rng.int(80, 112) : kind === 'templo' ? rng.int(68, 92) : rng.int(36, 52);
+      const x0 = rng.int(16, WORLD_W - w - 16);
+      const y0 = rng.int(SURFACE_Y + 140, WORLD_H - h - 40);
+      if (Math.abs(x0 + w / 2 - WORLD_W / 2) < PLATEAU && y0 < SURFACE_Y + 240) continue;
+      if (this.ruins.some(r => x0 < r.x0 + r.w + 20 && r.x0 < x0 + w + 20 && y0 < r.y0 + r.h + 20 && r.y0 < y0 + h + 20)) continue;
       const arts: { x: number; y: number }[] = [];
       const na = kind === 'cidade' ? 3 : kind === 'templo' ? 2 : 1;
-      for (let i = 0; i < na; i++) arts.push({ x: x0 + Math.floor(w * (0.25 + 0.5 * rng.next())), y: y0 + h - 5 });
+      for (let i = 0; i < na; i++) arts.push({ x: x0 + Math.floor(w * (0.25 + 0.5 * rng.next())), y: y0 + h - 10 });
       this.ruins.push({ id: rid++, sector: this.layer, x0, y0, w, h, kind, artifacts: arts });
     }
-    for (let i = 0; i < 10; i++) this.loose.push({ id: lid++, x: rng.int(20, WORLD_W - 20), y: rng.int(SURFACE_Y + 40, WORLD_H - 30), sector: this.layer });
+    for (let i = 0; i < 10; i++) this.loose.push({ id: lid++, x: rng.int(40, WORLD_W - 40), y: rng.int(SURFACE_Y + 80, WORLD_H - 60), sector: this.layer });
   }
 
   /** Gera todo o mapa de uma vez (vista lateral é pequena o bastante). */
@@ -98,41 +98,41 @@ export class WorldGen {
 
   private cell(x: number, y: number, S: number, sd: SectorDef, sec: number): number {
     // bordas: rocha inviolável
-    const bottom = WORLD_H - 4 - Math.floor(valueNoise(x * 0.1, 0, S) * 4);
-    if (x < 3 || x >= WORLD_W - 3 || y >= bottom) return MAT.EDGE;
+    const bottom = WORLD_H - 6 - Math.floor(valueNoise(x * 0.05, 0, S) * 8);
+    if (x < 4 || x >= WORLD_W - 4 || y >= bottom) return MAT.EDGE;
     const sy = this.surface[x];
     if (y < sy) return MAT.AIR;
     const depth = y - sy;
     // Coração planetário (Núcleo): câmara com anel de núcleo
     if (sec === LAYER_COUNT) {
       const dc = Math.hypot(x - this.coreCenter.x, (y - this.coreCenter.y) * 1.4);
-      if (dc < 30) return MAT.AIR;
-      if (dc < 38) return hash2(x >> 1, y >> 1, S) < 0.6 ? MAT.NUCLEO : MAT.ANCIENT;
+      if (dc < 60) return MAT.AIR;
+      if (dc < 76) return hash2(x >> 2, y >> 2, S) < 0.6 ? MAT.NUCLEO : MAT.ANCIENT;
     }
     // sob a base o chão é firme por um bom trecho
-    const underBase = Math.abs(x - WORLD_W / 2) < PLATEAU - 6 && depth < 40;
-    if (!underBase && depth > 14) {
+    const underBase = Math.abs(x - WORLD_W / 2) < PLATEAU - 12 && depth < 80;
+    if (!underBase && depth > 28) {
       // cavernas: câmaras alongadas na horizontal + túneis
-      const c = fbm(x * 0.012, y * 0.02, S + sec * 13, 4);
-      const thr = 0.6 - (sd.openness - 0.36) * 0.6 - Math.min(0.04, depth * 0.0004);
-      const tun = ridged(x * 0.014, y * 0.022, S + 41, 2);
+      const c = fbm(x * 0.006, y * 0.01, S + sec * 13, 4);
+      const thr = 0.6 - (sd.openness - 0.36) * 0.6 - Math.min(0.04, depth * 0.0002);
+      const tun = ridged(x * 0.007, y * 0.011, S + 41, 2);
       if (c > thr || tun > 0.93) {
         if (sd.liquid && sd.liquid.mat !== MAT.CHASM) {
-          const l = fbm(x * 0.02, y * 0.02, S + 500 + sec, 3);
-          if (l < 0.28 + sd.liquid.amount * 0.9 && c > thr + 0.03) return sd.liquid.mat;
+          const l = fbm(x * 0.01, y * 0.01, S + 500 + sec, 3);
+          if (l < 0.24 + sd.liquid.amount * 0.7 && c > thr + 0.03) return sd.liquid.mat;
         }
         return MAT.AIR;
       }
     }
     // capa de solo solto/raízes perto da superfície da Terra
-    if (sd.roots && depth < 60 && ridged(x * 0.03, y * 0.05, S + 61, 2) > 0.95) return MAT.ROOT;
+    if (sd.roots && depth < 120 && ridged(x * 0.015, y * 0.025, S + 61, 2) > 0.95) return MAT.ROOT;
     // veios (manchas ricas)
-    const [f1, , id] = worley(x / 9, y / 7, S + 33 + sec);
-    if (depth > 4 && id < sd.oreDensity * 2.2 && f1 < 0.36 + 0.12 * valueNoise(x * 0.3, y * 0.3, S + 9)) {
+    const [f1, , id] = worley(x / 18, y / 14, S + 33 + sec);
+    if (depth > 8 && id < sd.oreDensity * 2.2 && f1 < 0.36 + 0.12 * valueNoise(x * 0.15, y * 0.15, S + 9)) {
       return this.pickOre(sd, hash2(Math.floor(id * 1e6), sec, S + 3));
     }
     // camada de cima um pouco diferente (estratos)
-    if (sec === 1 && depth > 120 + valueNoise(x * 0.02, 1, S) * 30) return MAT.R2;
+    if (sec === 1 && depth > 240 + valueNoise(x * 0.01, 1, S) * 60) return MAT.R2;
     return sd.rock;
   }
 
@@ -147,17 +147,17 @@ export class WorldGen {
   /** Ruínas vistas de lado: salões com paredes, pisos e colunas de pedra ancestral. */
   private ruinCell(site: RuinSite, lx: number, ly: number): number {
     const { w, h } = site;
-    const wall = 3;
+    const wall = 6;
     if (ly >= h - wall) return MAT.ANCIENT;                          // piso
-    if (ly < wall) return (Math.abs(lx - w / 2) < 6) ? MAT.AIR : MAT.ANCIENT; // teto com abertura
-    if (lx < wall || lx >= w - wall) return (ly > h - 14) ? MAT.AIR : MAT.ANCIENT; // paredes com portas embaixo
+    if (ly < wall) return (Math.abs(lx - w / 2) < 12) ? MAT.AIR : MAT.ANCIENT; // teto com abertura
+    if (lx < wall || lx >= w - wall) return (ly > h - 28) ? MAT.AIR : MAT.ANCIENT; // paredes com portas embaixo
     if (site.kind === 'cidade') {
-      if (ly % 18 < 2 && !(lx % 30 > 10 && lx % 30 < 18)) return MAT.ANCIENT; // andares
-      if (lx % 30 < 2) return MAT.ANCIENT;
+      if (ly % 36 < 4 && !(lx % 60 > 20 && lx % 60 < 36)) return MAT.ANCIENT; // andares
+      if (lx % 60 < 4) return MAT.ANCIENT;
       return MAT.AIR;
     }
     if (site.kind === 'templo') {
-      if (lx % 12 < 3 && ly > 6) return MAT.ANCIENT; // colunatas
+      if (lx % 24 < 6 && ly > 12) return MAT.ANCIENT; // colunatas
       return MAT.AIR;
     }
     return MAT.AIR;

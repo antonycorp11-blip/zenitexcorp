@@ -107,7 +107,7 @@ export class TerrainRenderer {
         const i = y * WORLD_W + x;
         const m = mat[i];
         const o = (py * rw + px) * 4;
-        const f = this.fine.at(x, y), n = this.fb.at(x, y);
+        const f = this.fine.at(x, y), n = this.fb.at(x >> 1, y >> 1);
         let c: readonly number[] = [0, 0, 0];
         let a = 255;
         if (m === MAT.AIR) {
@@ -124,18 +124,18 @@ export class TerrainRenderer {
             // parede do fundo: rocha escura em blocos, com rachaduras
             const inRuin = ruins.length && ruins.some(r => x >= r.x0 && x < r.x0 + r.w && y >= r.y0 && y < r.y0 + r.h);
             if (inRuin) {
-              const seam = x % 8 === 0 || y % 6 === 0;
+              const seam = x % 12 === 0 || y % 8 === 0;
               c = seam ? [16, 26, 30] : (f > 0.5 ? [30, 48, 54] : [26, 42, 48]);
               if (!seam && f > 0.985) c = [50, 150, 160];
             } else {
-              const row = Math.floor(y / 5), off = (row & 1) * 4;
-              const seam = (x + off) % 9 === 0 || y % 5 === 0;
+              const row = Math.floor(y / 8), off = (row & 1) * 7;
+              const seam = (x + off) % 14 === 0 || y % 8 === 0;
               const t = n > 0.55 ? 1 : 0;
               const base = rockPal[t];
               const k = seam ? 0.22 : 0.34 + f * 0.06;
               c = [base[0] * k, base[1] * k, base[2] * k];
               // raízes penduradas logo abaixo da superfície da Terra
-              if (L1 && y < sy + 26 && hash2(x, 0, 17) < 0.06 && y - sy < 8 + hash2(x, 1, 17) * 14) c = [70, 52, 34];
+              if (L1 && y < sy + 52 && hash2(x >> 1, 0, 17) < 0.06 && y - sy < 16 + hash2(x >> 1, 1, 17) * 28) c = [70, 52, 34];
             }
           }
         } else if (IS_LOOSE[m]) {
@@ -160,7 +160,7 @@ export class TerrainRenderer {
           c = surf ? pal[4] : depth < 2 ? pal[3] : depth < 5 ? pal[2] : pal[1];
           if (m === MAT.LAVA) { if (f > 0.93) c = [255, 236, 150]; else if (n < 0.3 && !surf) c = [140, 40, 16]; }
           else if (f > 0.985) c = pal[4];
-          if (lights && m === MAT.LAVA && f > 0.985) lights.push({ x: x * CELL + 2, y: y * CELL + 2, r: 40, c: [255, 100, 30], a: 0.6, flicker: f });
+          if (lights && m === MAT.LAVA && f > 0.995) lights.push({ x: x * CELL + 2, y: y * CELL + 2, r: 40, c: [255, 100, 30], a: 0.6, flicker: f });
         } else {
           const def = MATERIALS[m];
           const pal = this.pal(m);
@@ -173,20 +173,20 @@ export class TerrainRenderer {
             c = pal[facet];
             if (f > 0.975) c = [255, 255, 255];
             if (openDn) c = pal[0];
-            if (lights && def.glow && f > 0.992) lights.push({ x: x * CELL + 2, y: y * CELL + 2, r: 22 + f * 20, c: def.glow, a: 0.5, flicker: f });
+            if (lights && def.glow && f > 0.997) lights.push({ x: x * CELL + 2, y: y * CELL + 2, r: 22 + f * 20, c: def.glow, a: 0.5, flicker: f });
           } else if (def.kind === 'edge') {
             const v = (x + (y >> 1)) % 7 === 0 ? 10 : 0;
             c = [22 + f * 8 + v, 18 + f * 6 + v, 22 + f * 8 + v];
           } else if (def.kind === 'ancient') {
             const seam = x % 6 === 0 || y % 4 === 0;
             c = seam ? pal[0] : (f > 0.5 ? pal[2] : pal[1]);
-            if (!seam && f > 0.975) { c = [80, 236, 236]; if (lights && f > 0.995) lights.push({ x: x * CELL + 2, y: y * CELL + 2, r: 26, c: [60, 220, 230], a: 0.5, flicker: f }); }
+            if (!seam && f > 0.975) { c = [80, 236, 236]; if (lights && f > 0.998) lights.push({ x: x * CELL + 2, y: y * CELL + 2, r: 26, c: [60, 220, 230], a: 0.5, flicker: f }); }
             if (openUp) c = pal[3];
           } else {
             // rocha: estratos pontilhados + pedrinhas + bordas definidas
-            const st = this.strata.at(x, y);
+            const st = this.strata.at(x >> 1, y >> 1);
             let t = st > 0.62 ? 1 : n > 0.62 ? 3 : 2;
-            const peb = hash2(x >> 1, y >> 1, 77);
+            const peb = hash2(x >> 1, y >> 1, 77) * 0.6 + hash2(x >> 2, y >> 2, 78) * 0.4;
             if (f > 0.992) t = 4;
             c = pal[t];
             // pedrinhas: 2x2 cinzentas na terra, escuras nas rochas

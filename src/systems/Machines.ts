@@ -81,6 +81,7 @@ export class Machines {
   constructor(private g: Game) {
     // grãos que caem/andam para dentro de uma máquina: funil
     g.world.sink = (id, mat, aux) => { this.lastAux = aux; return this.sinkGrain(id, mat); };
+    g.world.onFed = (_id, mat) => { const k = GRAIN_ITEM[mat]; if (k) g.sectors.counter(g.planet.layer, 'fed', k === 'bloco_massa' ? 100 : GRAIN_KG); };
   }
 
   // ---------------- construção ----------------
@@ -374,7 +375,7 @@ export class Machines {
         return true;
       case 'tectonic': case 'mantle': case 'collector':
         return true;
-      case 'belt': case 'riser': return true;
+      case 'belt': case 'riser': case 'launcher': return true;
       case 'link': case 'terminal': case 'launchpad': case 'lamp': case 'field': case 'lift': case 'workshop': case 'lab': case 'robotics':
       case 'archaeo': case 'logcenter': case 'orbital': case 'splitter': case 'cannon': case 'cutter':
         return true;
@@ -400,7 +401,7 @@ export class Machines {
       return;
     }
     const [dx, dy] = DIRS[m.dir];
-    const range = d.key === 'perfuradora' ? 28 : d.key === 'perfuradora2' ? 40 : 56;
+    const range = d.key === 'perfuradora' ? 56 : d.key === 'perfuradora2' ? 80 : 112;
     const width = d.w * TILE_CELLS + 4;
     const cx0 = m.tx * TILE_CELLS + (dx > 0 ? d.w * TILE_CELLS : dx < 0 ? -1 : 0);
     const cy0 = m.ty * TILE_CELLS + (dy > 0 ? d.h * TILE_CELLS : dy < 0 ? -1 : 0);
@@ -408,7 +409,7 @@ export class Machines {
     const power = sp * 0.09 * dt;
     while (m.depth < range) {
       let hits = 0, name = '';
-      for (let i = 0; i < width && hits < 4; i++) {
+      for (let i = 0; i < width && hits < 6; i++) {
         const off = i - 2;
         const x = dx !== 0 ? cx0 + dx * m.depth : cx0 + off;
         const y = dy !== 0 ? cy0 + dy * m.depth : cy0 + off;
@@ -743,6 +744,13 @@ export class Machines {
     const b = m.def.behavior;
     if (b === 'belt') return false;
     if (b === 'riser') return this.riserTake(m, mat);
+    if (b === 'launcher') {
+      if (m.loaders > 14 || m.broken) return false;
+      const d = m.dir === 2 ? -1 : 1;
+      const ok = this.g.world.launch((m.tx + 0.5) * TILE + d * 6, m.ty * TILE - 2, d * (120 + Math.random() * 30), -210 - Math.random() * 20, mat, this.lastAux);
+      if (ok) { m.loaders++; m.produced += GRAIN_KG; m.state = 'Arremessando'; }
+      return ok;
+    }
     const q = k === 'bloco_massa' ? 1 : GRAIN_KG;
     return this.accept(m, k, q, this.lastAux / 40);
   }
@@ -794,7 +802,7 @@ export class Machines {
     top.loaders++; top.produced += GRAIN_KG; top.state = 'Elevando';
     return true;
   }
-  private updateRisers() { for (const m of this.list) if (m.def.behavior === 'riser') m.loaders = 0; }
+  private updateRisers() { for (const m of this.list) if (m.def.behavior === 'riser' || m.def.behavior === 'launcher') m.loaders = 0; }
 
   // ---- ações manuais ----
   repairCost(m: Machine): Record<string, number> {

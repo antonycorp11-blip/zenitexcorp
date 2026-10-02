@@ -38,7 +38,7 @@ export class Scanner {
     const R = Rtiles * TILE;
     this.rings.push({ x: px, y: py, r: 0, max: R });
     const clusters = new Map<string, ScanMark>();
-    const step = 3;
+    const step = 5;
     const cx0 = Math.floor(px / CELL), cy0 = Math.floor(py / CELL);
     const Rc = Math.floor(R / CELL);
     for (let j = -Rc; j <= Rc; j += step) for (let i = -Rc; i <= Rc; i += step) {
@@ -49,7 +49,7 @@ export class Scanner {
       const d = matById(m);
       if (d.kind !== 'ore') continue;
       if (lv < 2 && d.rare) continue;
-      const key = `${m}_${(cx0 + i) >> 4}_${(cy0 + j) >> 4}`;
+      const key = `${m}_${(cx0 + i) >> 5}_${(cy0 + j) >> 5}`;
       const c = clusters.get(key);
       if (c) { c.n++; c.x = (c.x * (c.n - 1) + (cx0 + i) * CELL) / c.n; c.y = (c.y * (c.n - 1) + (cy0 + j) * CELL) / c.n; }
       else clusters.set(key, { x: (cx0 + i) * CELL, y: (cy0 + j) * CELL, mat: m, n: 1, t: g.time, level: lv });

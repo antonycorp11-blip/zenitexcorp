@@ -20,6 +20,7 @@ export class MobileControls {
       <div class="mobile-actions">
         <button data-b="interact" aria-label="Interagir">E<small>USAR</small></button>
         <button data-b="scan" aria-label="Scanner">◎<small>SCANNER</small></button>
+        <button data-b="blow" aria-label="Soprar">⇶<small>SOPRAR</small></button>
       </div>`;
     document.body.appendChild(this.root);
     this.lb = this.root.querySelector('.left .base')!; this.lk = this.root.querySelector('.left .knob')!;

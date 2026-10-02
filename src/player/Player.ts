@@ -64,6 +64,7 @@ export class Player {
     } else this.frame = this.grounded ? 0 : 5;
     // mirando com o perfurador, o corpo vira para o alvo
     if (g.mining.hitting) this.facing = g.mining.hitX >= this.x ? 0 : 2;
+    else if (g.mining.blowing) this.facing = g.input.worldX >= this.x ? 0 : 2;
     // energia recarrega no chão; muito rápido perto da base
     const nearPower = g.nearPowerSource(this.x, this.y);
     if (this.grounded || nearPower) this.energy = Math.min(this.maxEnergy, this.energy + dt * (nearPower ? 30 : 14));
@@ -104,7 +105,7 @@ export class Player {
       if (!this.hits(nx, this.y)) { this.x = nx; continue; }
       // degrau: sobe até 3 células (pilhas de areia, bordas)
       let climbed = false;
-      for (let up = CELL; up <= CELL * 3; up += CELL) {
+      for (let up = CELL; up <= 10; up += CELL) {
         if (!this.hits(nx, this.y - up) && !this.hits(this.x, this.y - up)) { this.x = nx; this.y -= up; climbed = true; break; }
       }
       if (!climbed) { this.vx = 0; return; }

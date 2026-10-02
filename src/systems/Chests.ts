@@ -20,8 +20,8 @@ export class Chests {
     const rng = new RNG((gen.seed ^ 0x5eed) >>> 0);
     const n = 18 + gen.layer * 3;
     for (let i = 0, tries = 0; this.list.length < n && tries < n * 80; tries++) {
-      const cx = 8 + Math.floor(rng.next() * (WORLD_W - 16)), cy = Math.floor(gen.surfaceAt(cx) + 20 + rng.next() * (WORLD_H - gen.surfaceAt(cx) - 40));
-      if (Math.abs(cx - gen.landing.x) < 60 && cy < gen.landing.y + 50) continue;
+      const cx = 16 + Math.floor(rng.next() * (WORLD_W - 32)), cy = Math.floor(gen.surfaceAt(cx) + 40 + rng.next() * (WORLD_H - gen.surfaceAt(cx) - 80));
+      if (Math.abs(cx - gen.landing.x) < 120 && cy < gen.landing.y + 100) continue;
       if (!gen.insidePlanet(cx, cy)) continue;
       // a maioria repousa no chão de cavernas; um terço fica enterrada
       const buried = rng.next() < 0.33;

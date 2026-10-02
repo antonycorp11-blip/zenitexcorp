@@ -304,7 +304,10 @@ export class Game {
     this.world.ensureAroundPx(p.x, p.y, 700);
     // no celular o joystick direito SEMPRE minera; a barra rápida só dispara ações
     const mining = !this.flags.intro && !this.ui.modalOpen() && !this.input.uiCapture && this.input.primary && (this.input.touch || this.hotbar[this.selected]?.key === 'drill') && !this.build.active;
-    this.mining.updatePlayer(dt, mining, this.input.worldX, this.input.worldY);
+    const blowing = !this.flags.intro && !this.ui.modalOpen() && !this.build.active && (this.input.touch ? !!this.flags.blowMode && this.input.primary : this.input.secondary && !this.input.uiCapture);
+    this.mining.updatePlayer(dt, mining && !blowing, this.input.worldX, this.input.worldY);
+    this.mining.blow(dt, blowing, this.input.worldX, this.input.worldY);
+    this.world.updateFlyers(dt);
     this.mining.update(dt);
     this.machines.update(dt);
     // areia: dois passos por tick (queda rápida)
@@ -371,7 +374,6 @@ export class Game {
     const slot = this.hotbar[this.selected];
     if (slot && !inp.uiCapture) {
       if (slot.key === 'scanner' && inp.clickPrimary()) this.scanner.pulse();
-      if (slot.key === 'drill' && inp.clickSecondary()) this.scanner.pulse();
       if (slot.type === 'item' && inp.clickPrimary()) this.useItem(slot.key);
     }
     this.updateHover();

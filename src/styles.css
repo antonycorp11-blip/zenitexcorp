@@ -615,3 +615,5 @@ body.touch .ly-warn { font-size: 9px; padding: 3px 5px; margin-top: 3px; }
 body.touch .geocard { bottom: 52px; font-size: 11px; transform: translateX(-50%) scale(.85); transform-origin: bottom center; }
 #mobile .stick span { position: fixed; bottom: 4px; font: 700 10px Rajdhani, sans-serif; letter-spacing: 1px; color: rgba(255,255,255,.5); pointer-events: none; }
 #mobile .stick.left span { left: 30px; } #mobile .stick.right span { right: 120px; }
+
+#mobile [data-b="blow"].on { background: rgba(232,150,42,.85) !important; color: #1a1006 !important; box-shadow: 0 0 14px rgba(255,180,60,.7); }

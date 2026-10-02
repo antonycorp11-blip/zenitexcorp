@@ -5,7 +5,7 @@ export type Behavior =
   | 'belt' | 'splitter' | 'storage' | 'link' | 'lift' | 'terminal' | 'launchpad'
   | 'drill' | 'pump' | 'complex' | 'tectonic' | 'mantle' | 'cannon' | 'cutter' | 'collector' | 'orbital'
   | 'crusher' | 'purifier' | 'refinery' | 'foundry' | 'synth'
-  | 'analyzer' | 'separator' | 'prep' | 'compactor' | 'riser'
+  | 'analyzer' | 'separator' | 'prep' | 'compactor' | 'riser' | 'launcher'
   | 'generator' | 'reactor'
   | 'command' | 'workshop' | 'lab' | 'robotics' | 'archaeo' | 'logcenter'
   | 'field' | 'lamp' | 'support' | 'platform' | 'surge' | 'dronepad';
@@ -51,6 +51,7 @@ m({ key: 'esteira', name: 'Esteira Mk I', cat: 'logistica', behavior: 'belt', lo
 m({ key: 'esteira2', name: 'Esteira Mk II', cat: 'logistica', behavior: 'belt', look: 'belt', w: 1, h: 1, rotatable: true, cost: { placa_ferronox: 1, ferronox: 1 }, power: 0, speed: 2.8, wear: 0.02, research: 'esteira2', desc: 'Dobro da velocidade. Dobro dos gargalos em outros lugares.' });
 m({ key: 'esteira3', name: 'Esteira Mk III', cat: 'logistica', behavior: 'belt', look: 'belt', w: 1, h: 1, rotatable: true, cost: { placa_ferronox: 1, polimero_solvex: 1 }, power: 0, speed: 5.5, wear: 0.02, research: 'esteira3', desc: 'Transporte de alta vazão.' });
 m({ key: 'elevador_grao', name: 'Elevador de Grãos', cat: 'logistica', behavior: 'riser', look: 'lift', w: 1, h: 1, rotatable: true, cost: { ferronox: 4, lumenita: 1 }, power: 0, desc: 'Empilhe na vertical: grãos que entram embaixo (por esteira ou caindo) saem no topo, para o lado da seta. Tire material do fundo do buraco.' });
+m({ key: 'lancador_grao', name: 'Lançador de Grãos', cat: 'logistica', behavior: 'launcher', look: 'lift', w: 1, h: 1, rotatable: true, cost: { ferronox: 8, lumenita: 4 }, power: 0, desc: 'Grão que entra (por esteira ou caindo em cima) é arremessado em arco para o lado da seta. Atravessa buracos e alimenta funis de longe.' });
 m({ key: 'separador', name: 'Desviador', cat: 'logistica', behavior: 'splitter', look: 'splitter', w: 1, h: 1, rotatable: true, cost: { ferronox: 6, lumenita: 4 }, power: -1, speed: 6, desc: 'Bifurca a esteira. Com filtro: o item escolhido segue em frente, o resto sai pelas laterais. Sem filtro: divide igualmente.' });
 m({ key: 'armazem', name: 'Armazém', cat: 'logistica', behavior: 'storage', look: 'crate', w: 2, h: 2, cost: { ferronox: 30, lumenita: 8 }, power: 0, capacity: 2500, desc: 'Só na base. Recebe material das esteiras e o envia ao Estoque Central. Cada armazém amplia o pátio de resíduo em 1.000 kg.' });
 m({ key: 'armazem_grande', name: 'Silo Industrial', cat: 'logistica', behavior: 'storage', look: 'silo', w: 3, h: 3, cost: { placa_ferronox: 30, componente: 8 }, power: 0, capacity: 30000, research: 'silos', desc: 'Buffer setorial de grande capacidade.' });

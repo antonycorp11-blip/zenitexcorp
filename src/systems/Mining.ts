@@ -49,7 +49,7 @@ export class Mining {
     this.hitX = hx; this.hitY = hy; this.hitting = true;
     p.energy = Math.max(0, p.energy - dr.energy * dt * (hit ? 0.25 : 0.05));
     // aspirador do traje: puxa os grãos soltos perto do ponto de impacto para a mochila
-    this.vacuum(dt, hx, hy, dr.radius + 3);
+    this.vacuum(dt, hx, hy, dr.radius * 1.8 + 6);
     if (!hit || loose) return;
     const cx = Math.floor(hx / CELL), cy = Math.floor(hy / CELL);
     const mat = w.get(cx, cy);
@@ -66,7 +66,7 @@ export class Mining {
       return;
     }
     const power = dr.power * 6 * (1 + g.research.eff('mineSpeed')) * dt;
-    const R = dr.radius;
+    const R = dr.radius * 1.6;   // em células (2 px)
     const r0 = Math.ceil(R);
     for (let j = -r0; j <= r0; j++) for (let i = -r0; i <= r0; i++) {
       const d2 = i * i + j * j;
@@ -89,9 +89,40 @@ export class Mining {
   }
 
   private vacAcc = 0;
+  private blowAcc = 0;
+  blowing = false;
+  /** SOPRAR: a arma do traje joga grãos da mochila na direção da mira (alimenta funis e esteiras à mão). */
+  blow(dt: number, active: boolean, ax: number, ay: number) {
+    const g = this.g, p = g.player;
+    this.blowing = false;
+    if (!active) return;
+    const raw = rawOf(g.planet.layer);
+    const order = [raw, 'residuo', 'fragmentado', ...Object.keys(g.pack.items).filter(k => GRAIN[k] !== undefined && ITEM[k]?.cat === 'bruto')];
+    const item = order.find(k => GRAIN[k] !== undefined && g.pack.count(k) >= GRAIN_KG - 1e-6);
+    if (!item) { if (this.hardWarnT <= 0) { g.toast('Mochila sem material para soprar: cave e aspire primeiro', '#ffd04a'); this.hardWarnT = 3; } return; }
+    this.blowing = true;
+    const sx = p.x, sy = p.y - 12;
+    const ang = Math.atan2(ay - sy, ax - sx);
+    this.blowAcc += dt * 45;
+    while (this.blowAcc >= 1) {
+      this.blowAcc -= 1;
+      if (g.pack.count(item) < GRAIN_KG - 1e-6) break;
+      // mira assistida: o arco cai perto do ponto mirado (com um leve espalhamento, como areia)
+      const ox = sx + Math.cos(ang) * 14, oy = sy + Math.sin(ang) * 14;
+      const dx = ax - ox + (Math.random() - 0.5) * 6, dy = ay - oy + (Math.random() - 0.5) * 6;
+      const dist = Math.hypot(dx, dy);
+      const t = Math.max(0.12, Math.min(0.9, dist / 230));
+      let vx = dx / t, vy = dy / t - 0.5 * 520 * t;
+      const sp = Math.hypot(vx, vy); if (sp > 340) { vx *= 340 / sp; vy *= 340 / sp; }
+      const aux = Math.min(255, Math.round(g.pack.grade(item) * 40));
+      if (!g.world.launch(ox, oy, vx, vy, GRAIN[item], aux, true)) break;
+      g.pack.take(item, GRAIN_KG);
+    }
+  }
+
   private vacuum(dt: number, hx: number, hy: number, R: number) {
     const g = this.g, w = g.world;
-    this.vacAcc += dt * (60 + g.player.drillLevel * 30);
+    this.vacAcc += dt * (140 + g.player.drillLevel * 60);
     if (this.vacAcc < 1) return;
     let budget = Math.floor(this.vacAcc); this.vacAcc -= budget;
     const cx = Math.floor(hx / CELL), cy = Math.floor(hy / CELL), r = Math.ceil(R);
@@ -269,7 +300,7 @@ export class Mining {
 
   detonate(x: number, y: number) {
     const g = this.g, w = g.world;
-    const R = 5 * (1 + g.research.eff('blastRadius'));
+    const R = 10 * (1 + g.research.eff('blastRadius'));
     const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
     for (let j = -Math.ceil(R); j <= R; j++) for (let i = -Math.ceil(R); i <= R; i++) {
       const d = Math.hypot(i, j) + hash2(cx + i, cy + j, 4) * 1.4;

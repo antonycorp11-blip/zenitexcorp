@@ -1,10 +1,10 @@
-import { CELL, CHUNK_PX, TILE, WORLD_CW, WORLD_PX_W } from '../core/constants';
+import { CELL, CHUNK_PX, TILE, TILE_CELLS, WORLD_CW, WORLD_PX_W } from '../core/constants';
 import { hash2 } from '../core/rng';
 import { DIRS } from '../core/math';
 import { MATERIALS } from '../data/materials';
 import { SECTORS } from '../data/sectors';
 import { ITEM } from '../data/items';
-import { MACHINE } from '../data/machines';
+import { MACHINE, type MachineDef } from '../data/machines';
 import type { Game } from '../Game';
 import { BASE_RADIUS, type Machine } from '../systems/Machines';
 
@@ -72,6 +72,14 @@ export class Renderer {
         if (!ch.baked) ch.baked = g.lighting.bake(ch.lights, cx * CHUNK_PX, cy * CHUNK_PX, CHUNK_PX);
         g.lighting.addBaked(ch.baked, cx * CHUNK_PX, cy * CHUNK_PX, CHUNK_PX, 0.88 + 0.12 * Math.sin(this.time * 1.7 + cx * 3 + cy * 7));
       }
+    }
+
+    // grãos em voo (soprados ou arremessados)
+    for (const f of g.world.flyers) {
+      if (f.x < L || f.x > R || f.y < T || f.y > B) continue;
+      const c = MATERIALS[f.m]?.top ?? [200, 200, 200];
+      ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+      ctx.fillRect(Math.floor(f.x), Math.floor(f.y), CELL, CELL);
     }
 
     this.mark('terrain');
@@ -191,6 +199,7 @@ export class Renderer {
       const sx = p.x + (left ? -1 : 1), sy = p.y - 12;
       let ang = left ? Math.PI : 0;
       if (g.mining.hitting) ang = Math.atan2(g.mining.hitY - sy, g.mining.hitX - sx);
+      else if (g.mining.blowing) ang = Math.atan2(g.input.worldY - sy, g.input.worldX - sx);
       ctx.save(); ctx.translate(Math.round(sx), Math.round(sy)); ctx.rotate(ang);
       if (Math.abs(ang) > Math.PI / 2) ctx.scale(1, -1);
       ctx.drawImage(g.sprites.arm(p.drillLevel), 0, -3);
@@ -496,19 +505,36 @@ export class Renderer {
       ctx.strokeStyle = 'rgba(120,220,255,0.35)'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.arc((ox + def.w / 2) * TILE, (oy + def.h / 2) * TILE, def.radius * TILE, 0, Math.PI * 2); ctx.stroke();
     }
-    if (def.rotatable) {
-      const [dx, dy] = DIRS[b.dir];
-      const cx = (ox + def.w / 2) * TILE, cy = (oy + def.h / 2) * TILE;
-      ctx.strokeStyle = '#ffd04a'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + dx * 14, cy + dy * 14); ctx.stroke();
-      if (def.behavior === 'drill') {
-        const rng = def.key === 'perfuradora' ? 28 : def.key === 'perfuradora2' ? 40 : 56;
-        ctx.strokeStyle = 'rgba(255,200,80,0.4)';
-        const w = 12 * CELL, d = rng * CELL;
-        const fx = dx > 0 ? (ox + def.w) * TILE : dx < 0 ? ox * TILE - d : ox * TILE - 2 * CELL;
-        const fy = dy > 0 ? (oy + def.h) * TILE : dy < 0 ? oy * TILE - d : oy * TILE - 2 * CELL;
-        ctx.strokeRect(fx, fy, dx ? d : w, dy ? d : w);
-      }
+    this.ioHints(def, ox, oy, b.dir);
+  }
+
+  /** setas de entrada (funil) e saída (calha) na prévia de construção */
+  private ioHints(def: MachineDef, ox: number, oy: number, dir: number) {
+    const ctx = this.ctx;
+    const bh = def.behavior;
+    const W = def.w * TILE, H = def.h * TILE, x0 = ox * TILE, y0 = oy * TILE;
+    const bob = Math.sin(this.time * 6) * 1.5;
+    const tri = (x: number, y: number, ddx: number, ddy: number, col: string) => {
+      ctx.fillStyle = '#000';
+      ctx.beginPath(); ctx.moveTo(x + ddx * 6, y + ddy * 6); ctx.lineTo(x - ddy * 5 - ddx * 2, y + ddx * 5 - ddy * 2); ctx.lineTo(x + ddy * 5 - ddx * 2, y - ddx * 5 - ddy * 2); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.moveTo(x + ddx * 5, y + ddy * 5); ctx.lineTo(x - ddy * 4 - ddx * 1.5, y + ddx * 4 - ddy * 1.5); ctx.lineTo(x + ddy * 4 - ddx * 1.5, y - ddx * 4 - ddy * 1.5); ctx.closePath(); ctx.fill();
+    };
+    const takesGrains = ['separator', 'prep', 'compactor', 'storage', 'link', 'command', 'riser', 'launcher', 'terminal'].includes(bh);
+    if (takesGrains) tri(x0 + W / 2, y0 - 10 + bob, 0, 1, '#7aff8a');                  // funil: entra por cima
+    const right = dir !== 2;
+    const outSide = (r: boolean, col: string) => tri(r ? x0 + W + 7 + bob : x0 - 7 - bob, y0 + H - 6, r ? 1 : -1, 0, col);
+    if (bh === 'drill' || bh === 'complex') outSide(!(dir === 0), '#ffb04a');
+    else if (bh === 'separator') { outSide(right, '#6ab4ff'); outSide(!right, '#b09a84'); }
+    else if (bh === 'prep' || bh === 'compactor' || bh === 'refinery' || bh === 'launcher') outSide(right, '#ffb04a');
+    if (bh === 'drill') {
+      const [dx, dy] = DIRS[dir];
+      const rng = (def.key === 'perfuradora' ? 56 : def.key === 'perfuradora2' ? 80 : 112) * CELL;
+      const w = (def.w * TILE_CELLS + 4) * CELL;
+      const fx = dx > 0 ? x0 + W : dx < 0 ? x0 - rng : x0 + W / 2 - w / 2;
+      const fy = dy > 0 ? y0 + H : dy < 0 ? y0 - rng : y0 + H / 2 - w / 2;
+      ctx.strokeStyle = 'rgba(255,200,80,0.55)'; ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
+      ctx.strokeRect(fx, fy, dx ? rng : w, dy ? rng : w); ctx.setLineDash([]);
     }
   }
 
