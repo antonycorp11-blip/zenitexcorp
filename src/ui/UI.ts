@@ -1,3 +1,5 @@
+import { siloHelp } from '../systems/SiloHelp';
+import { METAS } from '../data/metas';
 import { fmtInt, fmtShort, fmtMass, fmtTime } from '../core/math';
 import { TILE, WORLD_TW, WORLD_TH, WORLD_PX_W, WORLD_PX_H, WORLD_W, WORLD_H, CELL } from '../core/constants';
 import { SECTORS, HAZARD_NAMES, type HazardKey } from '../data/sectors';
@@ -392,6 +394,8 @@ export class UI {
       if (o) {
         title = `META ${st.phase + 1}/${list.length} · ${g.planet.def.name.toUpperCase()} · +${fmtShort(g.sectors.reward(L, st.phase))} ◆`;
         text = o.text + (o.max > 1 ? ` <b>(${fmtShort(o.cur)}/${fmtShort(o.max)})</b>` : '');
+        const md = METAS[L]?.[st.phase];
+        if (md?.kind === 'silo') text += `<div class="mhelp">${siloHelp(g, md.key)}</div>`;
         prog = o.cur / o.max;
       } else {
         title = 'META · REMOVER A CAMADA';

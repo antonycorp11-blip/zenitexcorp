@@ -20,8 +20,8 @@ export const METAS: Record<number, MetaDef[]> = {
   1: [
     { kind: 'counter', text: 'Processe 60 kg de Solo K-37 no Analisador de Matriz', key: 'analyzed', max: 60 },
     { kind: 'behavior', text: 'Tenha 2 Sopradores trabalhando (cave perto deles)', behavior: 'blower', count: 2 },
-    { kind: 'silo', text: 'Guarde 100 kg de Ferronox em silos (Ímã ▶ Silo)', key: 'ferronox', kg: 100 },
-    { kind: 'silo', text: 'Monte um Ressonador e guarde 60 kg de Lumenita em outro silo', key: 'lumenita', kg: 60 },
+    { kind: 'silo', text: 'Guarde 100 kg de Ferronox num Silo', key: 'ferronox', kg: 100 },
+    { kind: 'silo', text: 'Guarde 60 kg de Lumenita num Silo (Ressonador)', key: 'lumenita', kg: 60 },
     { kind: 'counter', text: 'Exporte 2.000 kg de resíduo em blocos (Terminal Orbital)', key: 'exported', max: 2000 },
     { kind: 'drill', text: 'Melhore o perfurador para P-02 (a Pedra exige)', level: 2 },
   ],

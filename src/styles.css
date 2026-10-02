@@ -769,3 +769,10 @@ body.touch .hud .hcard.meta.tut::after { background: #ffb84a; box-shadow: 0 0 8p
 .bd-card { background: linear-gradient(170deg, rgba(20,38,58,.95), rgba(6,12,22,.95)) !important; border: 1px solid rgba(90,210,255,.35) !important; border-radius: 0 !important; clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
 .bd-card:hover, .bd-card.on { border-color: #ffb84a !important; box-shadow: 0 0 14px rgba(255,170,60,.35) !important; }
 .tut-ring { border-radius: 0 !important; border-color: #ffb84a !important; box-shadow: 0 0 0 2px rgba(0,0,0,.4), 0 0 18px #ffb84a !important; clip-path: none; }
+/* gaveta de construção: rolagem lateral evidente (borda que esmaece + barra fina) */
+.bd-row { touch-action: pan-x; overscroll-behavior-x: contain; scrollbar-width: thin !important; scrollbar-color: #4ac8ff transparent; -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), transparent); padding-right: 30px !important; }
+.bd-row::-webkit-scrollbar { height: 3px; display: block; } .bd-row::-webkit-scrollbar-thumb { background: #4ac8ff; }
+.bd-top .tabs { touch-action: pan-x; }
+.hud .meta .mhelp { margin-top: 4px; padding: 3px 0 1px 7px; border-left: 2px solid #4ac8ff; font-size: .9em; line-height: 1.3; color: #cfe8f6; }
+.hud .meta .mhelp b { color: #8ae4ff !important; }
+body.touch .hud .hcard.meta .mx { max-height: 92px !important; }

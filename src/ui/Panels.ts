@@ -41,6 +41,8 @@ export class Panels {
   st: Record<string, any> = { invTab: 'todos', buildCat: 'extracao', upBr: 'fab', misTab: 'camada', resCat: 'mineracao', archCat: 'historia', craftSel: 'of_componente', mapTab: 'mapa', conTab: 'disp' };
   machine: Machine | null = null;
   private refreshT = 0;
+  private touchUntil = 0;
+  private keepScroll = true;   // enquanto o dedo está no painel (arrastando/rolando), não redesenha
   private mapRaf = 0;
   private mapView = { x: 0, y: 0, z: 1, drag: false, lx: 0, ly: 0 };
   private planetCache: { c: HTMLCanvasElement; t: number } | null = null;
@@ -70,6 +72,12 @@ export class Panels {
     layer.classList.toggle('sheet-layer', sheet);
     this.el = layer.querySelector('.pnl')!;
     this.el.addEventListener('click', e => this.onClick(e));
+    const hold = () => { this.touchUntil = Infinity; }, release = () => { this.touchUntil = performance.now() + 700; };
+    this.el.addEventListener('pointerdown', hold); this.el.addEventListener('touchstart', hold, { passive: true });
+    this.el.addEventListener('pointerup', release); this.el.addEventListener('touchend', release); this.el.addEventListener('touchcancel', release);
+    this.el.addEventListener('scroll', release, true);
+    // roda do mouse rola a gaveta de construção para o lado
+    this.el.addEventListener('wheel', e => { const r = (e.target as HTMLElement).closest?.('.bd-row, .bd-top .tabs') as HTMLElement | null; if (r && Math.abs(e.deltaY) > Math.abs(e.deltaX)) { r.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
     this.el.addEventListener('change', e => this.onChange(e));
     this.el.addEventListener('input', e => this.onChange(e));
     layer.onclick = e => { if (e.target === layer) this.close(); };
@@ -100,6 +108,7 @@ export class Panels {
     this.refreshT -= 0.15;
     if (this.refreshT > 0) return;
     this.refreshT = 0.6;
+    if (performance.now() < this.touchUntil) return;
     // não re-renderiza enquanto o usuário interage com um campo
     if (document.activeElement && this.el?.contains(document.activeElement) && (document.activeElement as HTMLElement).tagName === 'SELECT') return;
     this.render();
@@ -108,11 +117,13 @@ export class Panels {
   private render() {
     if (!this.el || !this.id) return;
     const body = this.el.querySelector('.pnl-b')!;
-    const scrolls = Array.from(body.querySelectorAll('.scroll')).map(s => s.scrollTop);
+    const SCR = '.scroll, .bd-row, .tabs, .chain, .ups';
+    const scrolls = Array.from(body.querySelectorAll(SCR)).map(s => [s.scrollTop, s.scrollLeft]);
     const t = this.el.querySelector('.pnl-t');
     if (t) t.textContent = this.id === 'machine' && this.machine ? this.machine.def.name.toUpperCase() : TITLES[this.id];
     body.innerHTML = (this as any)['r_' + this.id]?.() ?? '';
-    body.querySelectorAll('.scroll').forEach((s, i) => { if (scrolls[i]) s.scrollTop = scrolls[i]; });
+    const keep = this.keepScroll; this.keepScroll = true;
+    body.querySelectorAll(SCR).forEach((s, i) => { if (keep && scrolls[i]) { s.scrollTop = scrolls[i][0]; s.scrollLeft = scrolls[i][1]; } });
     if (this.id === 'map') this.bindMapCanvas();
   }
 
@@ -121,7 +132,7 @@ export class Panels {
     nav: (a) => { if (this.id !== a) this.open(a as PanelId); },
     pause: () => { this.close(); this.ui.toggleMenu(); },
     descend: () => { this.close(); this.ui.descendPrompt(); },
-    tab: (a) => { const [k, v] = a.split(':'); this.st[k] = v; this.render(); },
+    tab: (a) => { const [k, v] = a.split(':'); this.st[k] = v; this.keepScroll = false; this.render(); },
     sel: (a) => { const [k, v] = a.split(':'); this.st[k] = v; this.render(); },
     craftN: (a) => { const [k, n] = a.split(':'); const err = this.g.crafting.enqueue(k, Number(n)); if (err) this.g.toast(err, '#ff8a3a'); else this.g.audio.click(); this.render(); },
     craft: (a) => { const err = this.g.crafting.enqueue(a, Number(this.st.craftN ?? 1)); if (err) this.g.toast(err, '#ff8a3a'); else this.g.audio.click(); this.render(); },

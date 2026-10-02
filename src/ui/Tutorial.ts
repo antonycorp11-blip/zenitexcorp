@@ -1,3 +1,4 @@
+import { siloHelp } from '../systems/SiloHelp';
 import { TILE, CELL } from '../core/constants';
 import { IS_SOLID } from '../data/materials';
 import type { Game } from '../Game';
@@ -105,7 +106,7 @@ const STEPS: Step[] = [
   { title: 'Cave perto dele', text: (t, g) => { const r = g.blueprint.checkLine(); if (!r.ok) return '✖ <b>' + r.msg + '</b>'; return '<b>Cave ao lado do Soprador</b> (' + (t ? 'joystick direito' : 'clique') + ').<br>Ele aspira as pilhas e a torre separa. Separe <b>15 kg</b>.'; },
     target: g => () => { const m = g.machines.list.find(x => x.def.behavior === 'blower'); return m ? [(m.tx + 0.5) * TILE, (m.ty + 1.5) * TILE] : null; },
     done: g => g.blueprint.checkLine().ok && (g.sectors.s[g.planet.layer]?.counters.separated ?? 0) > 15 },
-  { title: 'Silo enchendo', text: (_t, g) => `O Ímã manda o Ferronox para o <b>Silo</b>: <b>${Math.floor(g.machines.siloCount('ferronox'))}/20 kg</b>.<br>Continue cavando perto do soprador.`,
+  { title: 'Silo enchendo', text: (_t, g) => `Ferronox no Silo: <b>${Math.floor(g.machines.siloCount('ferronox'))}/20 kg</b>.<br>${siloHelp(g, 'ferronox')}`,
     target: g => () => { const m = g.machines.list.find(x => x.def.behavior === 'silo'); return m ? [(m.tx + 1) * TILE, m.ty * TILE] : null; },
     done: g => g.machines.siloCount('ferronox') >= 20 },
   { title: 'Melhorias', text: () => '<b>MENU → MELHORIAS → Fábrica</b>: sopradores, tubos e silos.<br>Pagam com <b>Ferronox e Lumenita dos silos</b> (Lumenita: monte um <b>Ressonador</b> + Silo).<br><b>Toque aqui.</b>',
