@@ -13,7 +13,8 @@ const MILESTONES = [1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 0.05, 0.1, 0.25, 0.5, 0.
 export class PlanetProgress {
   total = PLANET_MASS_T;
   layer = 1;                                    // camada atual
-  units: number[] = new Array(LAYER_COUNT + 1).fill(0);
+  units: number[] = new Array(LAYER_COUNT + 1).fill(0);   // massa REMOVIDA do planeta (separada ou exportada)
+  dug: number[] = new Array(LAYER_COUNT + 1).fill(0);     // massa ESCAVADA (ainda pode estar na base como bruto/resíduo)
   milestone = 0;
   finalDone = false;
   private history: { t: number; v: number }[] = [];
@@ -22,7 +23,7 @@ export class PlanetProgress {
     this.total = PLANET_MASS_T * massMult;
     this.layer = layer;
     // camadas acima da atual já foram esgotadas
-    for (let i = 1; i < layer; i++) this.units[i] = SECTORS[i - 1].target;
+    for (let i = 1; i < layer; i++) { this.units[i] = SECTORS[i - 1].target; this.dug[i] = SECTORS[i - 1].target; }
   }
 
   get def() { return SECTORS[this.layer - 1]; }
@@ -40,6 +41,10 @@ export class PlanetProgress {
     return Math.min(FINAL_LOCK, f);
   }
   extracted() { return this.fraction() * this.total; }
+
+  /** Massa escavada (não move a barra: ela só conta quando sai do planeta). */
+  dig(n: number) { if (n > 0) this.dug[this.layer] += n; }
+  dugFraction(l = this.layer) { return Math.min(1, this.dug[l] / SECTORS[l - 1].target); }
 
   /** Adiciona unidades de extração à camada atual (respeita a meta e a trava final). */
   addUnits(n: number): number {
@@ -87,8 +92,8 @@ export class PlanetProgress {
   /** t/min recentes (para contratos e HUD) */
   rate(): number { return this.rateUnits() * this.tPerUnit(); }
 
-  serialize() { return { layer: this.layer, units: this.units, milestone: this.milestone, finalDone: this.finalDone, total: this.total }; }
+  serialize() { return { layer: this.layer, units: this.units, dug: this.dug, milestone: this.milestone, finalDone: this.finalDone, total: this.total }; }
   load(s: any) {
-    if (s.units) { this.units = s.units; this.milestone = s.milestone ?? 0; this.finalDone = !!s.finalDone; }
+    if (s.units) { this.units = s.units; this.dug = s.dug ?? s.units.slice(); this.milestone = s.milestone ?? 0; this.finalDone = !!s.finalDone; }
   }
 }

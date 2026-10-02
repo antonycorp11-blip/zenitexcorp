@@ -1,5 +1,6 @@
 import { ITEM } from '../data/items';
 import { PACKS, SPECIAL_SLOT_KG } from '../data/equipment';
+import { gradeMix, type Grades } from '../data/composition';
 
 export type Bag = Record<string, number>;
 
@@ -9,14 +10,17 @@ export function bagTotal(b: Bag) { let t = 0; for (const k in b) t += b[k]; retu
 /** Estoque Central (base) com medição de taxa por item. */
 export class Stock {
   items: Bag = {};
+  g: Grades = {};          // teor médio do material bruto guardado
   credits = 0;
   private window: { t: number; k: string; n: number }[] = [];
   private now = 0;
 
   tick(t: number) { this.now = t; if (this.window.length > 4000) this.window.splice(0, 1000); }
   count(k: string) { return this.items[k] ?? 0; }
-  add(k: string, n: number, track = true) {
+  grade(k: string) { return this.g[k] ?? 1; }
+  add(k: string, n: number, track = true, grade?: number) {
     if (n <= 0) return;
+    gradeMix(this.g, this.count(k), k, n, grade);
     bagAdd(this.items, k, n);
     if (track) this.window.push({ t: this.now, k, n });
   }
@@ -55,7 +59,9 @@ export class Stock {
 /** Mochila do jogador: limite de peso + slots especiais. */
 export class Backpack {
   items: Bag = {};
+  g: Grades = {};
   level = 0;
+  grade(k: string) { return this.g[k] ?? 1; }
   get def() { return PACKS[this.level]; }
   weight() { let w = 0; for (const k in this.items) w += (ITEM[k]?.weight ?? 1) * this.items[k]; return w; }
   maxWeight() { return this.def.weight; }
@@ -72,9 +78,9 @@ export class Backpack {
     if (d.contain) free = Math.min(free, (this.specialCap(d.contain) - this.specialUsed(d.contain)) / d.weight);
     return Math.max(0, free);
   }
-  add(k: string, n: number): number {
+  add(k: string, n: number, grade?: number): number {
     const r = Math.min(n, this.room(k));
-    if (r > 0) bagAdd(this.items, k, r);
+    if (r > 0) { gradeMix(this.g, this.count(k), k, r, grade); bagAdd(this.items, k, r); }
     return r;
   }
   count(k: string) { return this.items[k] ?? 0; }

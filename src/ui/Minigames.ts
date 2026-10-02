@@ -3,6 +3,11 @@ import type { UI } from './UI';
 import type { Machine } from '../systems/Machines';
 import { SECTORS } from '../data/sectors';
 import { esc, h } from './dom';
+import { ITEM } from '../data/items';
+import { gradeLabel, gradeColor, compOf, RAW_BY_LAYER } from '../data/composition';
+import { fmtInt } from '../core/math';
+
+const kg1 = (x: number) => (x >= 100 ? fmtInt(x) : x.toFixed(1).replace('.', ','));
 
 /**
  * Operações manuais que robôs não fazem: calibração, auditoria, decisões.
@@ -122,10 +127,10 @@ export class Minigames {
   /** Briefing do contrato: quem você é, o objetivo e o ciclo de jogo. */
   briefing(onDone: () => void) {
     const P: [string, string, string][] = [
-      ['zenitex', 'QUEM VOCÊ É', 'Você é um <b>minerador contratado pela ZENITEX Planetary Resources</b>, uma corporação que compra planetas "improdutivos" para desmontá-los e vender a matéria. Seu contrato é com o planeta <b>K-37</b>.'],
-      ['zena', 'O OBJETIVO', 'Extrair <b>100% da massa do planeta</b>. O número no canto superior esquerdo, <b>MASSA PLANETÁRIA EXTRAÍDA</b>, é o seu placar. Cada pedra que você remove conta. Quando chegar a 100%, o planeta deixa de existir e o contrato termina.'],
-      ['rocha', 'COMO SE AVANÇA', '<ul><li><b>Minere</b> com o perfurador: o minério vai para a mochila.</li><li><b>Entregue</b> no Centro de Comando (cápsula laranja): vira o seu Estoque Central.</li><li>Com o estoque você <b>constrói</b> máquinas e <b>pesquisa</b> tecnologias.</li><li><b>Automatize</b>: perfuradoras quebram a rocha sozinhas e esteiras levam o minério até o armazém da base.</li></ul>'],
-      ['br7', 'A ESCALA', 'O planeta tem <b>7 camadas</b>, da superfície ao núcleo. Cada camada passa por 9 fases até ser <b>certificado</b> e liberar os Complexos de Extração, que drenam milhões de toneladas. Setores mais fundos exigem perfuradores melhores e proteção contra calor, frio e toxinas.<br><br><b>Nenhuma automação é total:</b> máquinas quebram, perfuradoras precisam de outro lugar, robôs travam. Você sempre terá trabalho manual.'],
+      ['zenitex', 'QUEM VOCÊ É', 'Você é um <b>minerador contratado pela ZENITEX Planetary Resources</b>. A Zenitex procura <b>MUNDOS MORTOS</b>: núcleo resfriado, sem tectônica, sem magnetosfera, sem biosfera, sem valor de colonização. Juridicamente, <b>RECURSO PLANETÁRIO RECUPERÁVEL</b>. O seu é o <b>K-37</b>.'],
+      ['zena', 'O OBJETIVO', 'Remover <b>100% da massa do planeta</b>, camada por camada. A barra da <b>CAMADA</b> mede massa <b>REMOVIDA</b>: minerais separados e resíduo exportado. Escavar não basta — o planeta só fica menor quando a massa sai dele.'],
+      ['rocha', 'COMO SE AVANÇA', '<ul><li><b>Minere</b>: sai <b>material bruto</b> (Solo K-37). Ninguém sabe o que tem dentro até processar.</li><li><b>Processe</b> no <b>Analisador de Matriz</b> da base: viram minerais (Ferronox, Lumenita…) e <b>resíduo</b>.</li><li>Com os minerais você <b>constrói</b>. <b>Automatize</b>: perfuradora → esteira → processador → compactador → terminal orbital.</li><li>O resíduo é ~80% do planeta: <b>compacte em blocos e exporte</b>.</li></ul>'],
+      ['br7', 'A ESCALA', 'O planeta tem <b>7 camadas</b>, da superfície ao núcleo. Cada material exige um processamento diferente: terra se separa por ressonância, rocha precisa ser triturada, cristal precisa de cuidado, manto precisa ser descomprimido.<br><br><b>Nenhuma automação é total:</b> gargalos aparecem, máquinas quebram, regiões se esgotam. Você sempre terá trabalho.'],
       ['sera', 'O QUE NINGUÉM TE CONTOU', 'A Zenitex diz que o planeta é abandonado. Mas há <b>ruínas com brilho ciano</b> pelo caminho. Pare perto delas e segure <b>E</b> para catalogar os registros no Arquivo. Talvez você descubra quem morava aqui.'],
     ];
     let i = 0;
@@ -139,6 +144,107 @@ export class Minigames {
       el.querySelector('[data-b="next"]')!.addEventListener('click', () => { if (i < P.length - 1) { i++; render(); } else { this.close(); onDone(); } });
     };
     render();
+  }
+
+  /**
+   * ANALISADOR DE MATRIZ ZENITEX — processamento manual.
+   * Escolher material → sintonizar a frequência (um toque) → centrífuga → relatório do que existe dentro.
+   */
+  analyzer(pick?: string, amount?: number) {
+    const g = this.g;
+    const src = g.rawAvailable();
+    const cap = g.analyzerCap();
+    const yard = g.machines.yardRoom();
+    const yardCap = g.machines.yardCap();
+    if (!src.length) {
+      const el = this.mount(`<div class="mg-h">🔬 ANALISADOR DE MATRIZ <small>processamento manual</small></div>
+        <p>Sem material bruto. <b>Minere a terra</b> (o material vai para a mochila) e volte aqui — ou traga por esteira até o armazém.</p>
+        <p class="muted">Ninguém sabe o que existe dentro do ${esc(ITEM[RAW_BY_LAYER[g.planet.layer]]?.name ?? 'material')} até processar.</p>
+        <div class="row"><button class="btn orange" data-b="x">ENTENDIDO</button></div>`);
+      el.querySelector('[data-b="x"]')!.addEventListener('click', () => this.close());
+      return;
+    }
+    let sel = src.find(x => x.k === pick) ?? src[0];
+    let qty = Math.min(amount ?? cap, cap, sel.q);
+    const render = () => {
+      const opts = [25, 50, 100, cap].filter((v, i, a) => v <= cap && a.indexOf(v) === i);
+      const blocked = yard < Math.min(qty, sel.q) * 0.8;
+      const el = this.mount(`<div class="mg-h">🔬 ANALISADOR DE MATRIZ ZENITEX <small>processamento manual</small></div>
+        <div class="an-src">${src.map(x => `<button class="an-it ${x.k === sel.k ? 'on' : ''}" data-k="${x.k}"><img src="${g.sprites.itemUrl(x.k)}"><span><b>${esc(ITEM[x.k]?.name ?? x.k)}</b><small>${fmtInt(x.q)} kg · teor <i style="color:${gradeColor(x.grade)}">${gradeLabel(x.grade)}</i></small></span></button>`).join('')}</div>
+        <div class="an-q"><span>Carga:</span>${opts.map(v => `<button class="btn ${Math.min(v, sel.q) === qty ? 'orange' : 'ghost'}" data-q="${v}">${fmtInt(Math.min(v, sel.q))} kg</button>`).join('')}</div>
+        <p class="muted">Pátio de resíduo: ${fmtInt(yardCap - yard)} / ${fmtInt(yardCap)} kg${blocked ? ' — <b class="warn">CHEIO: construa um Compactador e exporte blocos</b>' : ''}</p>
+        <div class="row"><button class="btn ghost" data-b="x">FECHAR</button><button class="btn orange big" data-b="go" ${blocked ? 'disabled' : ''}>INICIAR ▸</button></div>`);
+      el.querySelectorAll<HTMLElement>('[data-k]').forEach(b => b.addEventListener('click', () => { sel = src.find(x => x.k === b.dataset.k)!; qty = Math.min(qty, sel.q) || Math.min(cap, sel.q); render(); }));
+      el.querySelectorAll<HTMLElement>('[data-q]').forEach(b => b.addEventListener('click', () => { qty = Math.min(Number(b.dataset.q), sel.q); render(); }));
+      el.querySelector('[data-b="x"]')!.addEventListener('click', () => this.close());
+      el.querySelector('[data-b="go"]')!.addEventListener('click', () => { if (blocked) { g.say('yard_full', 20); return; } this.tune(sel.k, qty); });
+    };
+    render();
+  }
+
+  /** Sintonia de frequência: um toque na faixa verde. Errar não perde nada: só rende menos. */
+  private tune(k: string, qty: number) {
+    const el = this.mount(`<div class="mg-h">🔬 SINTONIZE A FREQUÊNCIA <small>${esc(ITEM[k]?.name ?? k)} · ${fmtInt(qty)} kg</small></div>
+      <p class="muted">Toque em <b>PULSO</b> quando o ponteiro passar pela faixa verde. Quanto mais no centro, mais mineral sai do material.</p>
+      <div class="dials"><div class="dial active"><span>Frequência de ressonância</span><div class="track"><div class="zone"></div><div class="perfect"></div><div class="needle"></div></div><b class="res"></b></div></div>
+      <button class="btn big orange stopbtn">PULSO</button>`);
+    const w = 0.22, zs = 0.15 + Math.random() * 0.6;
+    const z = el.querySelector<HTMLElement>('.zone')!; z.style.left = zs * 100 + '%'; z.style.width = w * 100 + '%';
+    const p = el.querySelector<HTMLElement>('.perfect')!; p.style.left = (zs + w * 0.4) * 100 + '%'; p.style.width = w * 20 + '%';
+    const needle = el.querySelector<HTMLElement>('.needle')!;
+    let pos = Math.random(), dir = 1, last = performance.now(), done = false;
+    const stop = () => {
+      if (done) return;
+      done = true;
+      const inside = pos >= zs && pos <= zs + w;
+      const score = inside ? 1 - Math.abs(pos - (zs + w / 2)) / (w / 2) : 0;
+      const eff = inside ? 0.86 + 0.12 * score : 0.72;
+      const res = el.querySelector<HTMLElement>('.res')!;
+      res.textContent = !inside ? 'FORA DE FASE' : score > 0.75 ? 'RESSONÂNCIA PERFEITA' : 'EM FASE';
+      res.style.color = !inside ? '#ff8a3a' : score > 0.75 ? '#4af0e0' : '#9cff8a';
+      if (inside) this.g.audio.click(); else this.g.audio.error();
+      setTimeout(() => this.spin(k, qty, eff), 450);
+    };
+    el.querySelector('.stopbtn')!.addEventListener('click', stop);
+    el.querySelector('.track')!.addEventListener('click', stop);
+    this.keyHandler = (e: KeyboardEvent) => { if (e.key === ' ' || e.key === 'e' || e.key === 'Enter') { e.preventDefault(); stop(); } if (e.key === 'Escape') this.close(); };
+    window.addEventListener('keydown', this.keyHandler);
+    const loop = (t: number) => {
+      const dt = Math.min(0.05, (t - last) / 1000); last = t;
+      if (!done) { pos += dir * 0.9 * dt; if (pos > 1) { pos = 1; dir = -1; } if (pos < 0) { pos = 0; dir = 1; } needle.style.left = pos * 100 + '%'; }
+      this.raf = requestAnimationFrame(loop);
+    };
+    this.raf = requestAnimationFrame(loop);
+  }
+
+  /** Centrífuga curta (antecipação) e depois o relatório. */
+  private spin(k: string, qty: number, eff: number) {
+    const g = this.g;
+    const comp = compOf(Math.max(1, RAW_BY_LAYER.indexOf(k)) || g.planet.layer);
+    const el = this.mount(`<div class="an-spin"><div class="an-rotor"><i></i><i></i><i></i></div><div class="mg-h">CENTRIFUGANDO…</div>
+      <div class="an-bars">${[...comp.minerals.map(m => m.k), 'residuo'].map(x => `<div><span>${esc(ITEM[x]?.name ?? x)}</span><b><i></i></b></div>`).join('')}</div></div>`);
+    g.audio.scan();
+    el.querySelectorAll<HTMLElement>('.an-bars b i').forEach((b, i) => setTimeout(() => { b.style.width = '100%'; }, 80 + i * 180));
+    setTimeout(() => {
+      const r = g.analyze(k, qty, eff);
+      if (!r) { this.close(); g.toast('Pátio de resíduo cheio: compacte e exporte antes de analisar mais.', '#ff8a3a'); g.say('yard_full', 20); return; }
+      this.report(k, r, eff);
+    }, 1150);
+  }
+
+  private report(k: string, r: { kg: number; grade: number; out: Record<string, number>; residue: number; pay: number }, eff: number) {
+    const g = this.g;
+    const comp = compOf(Math.max(1, RAW_BY_LAYER.indexOf(k)) || g.planet.layer);
+    const rows = Object.keys(r.out).sort((a, b) => r.out[b] - r.out[a]);
+    const line = (key: string, q: number, cls = '') => `<div class="an-row ${cls}"><img src="${g.sprites.itemUrl(key)}"><span>${esc(ITEM[key]?.name ?? key)}${cls === 'rare' ? ' <em>★ RARO</em>' : ''}</span><b>${kg1(q)} kg</b><small>${(q / r.kg * 100).toFixed(1).replace('.', ',')}%</small><i style="width:${Math.max(2, q / r.kg * 100)}%"></i></div>`;
+    const el = this.mount(`<div class="an-res"><div class="ups-t">ANÁLISE CONCLUÍDA</div>
+      <h2>${fmtInt(r.kg)} kg ${esc((ITEM[k]?.name ?? k).toUpperCase())} PROCESSADO</h2>
+      <div class="an-rows">${rows.map(x => line(x, r.out[x], x === comp.rare.k ? 'rare' : '')).join('')}${line('residuo', r.residue, 'res')}</div>
+      <p class="muted">Teor <b style="color:${gradeColor(r.grade)}">${gradeLabel(r.grade)}</b> · Eficiência ${Math.round(eff * 100)}% · +${fmtInt(r.pay)} ◆ créditos · Minerais → Estoque · Resíduo → Pátio</p>
+      <div class="row"><button class="btn ghost" data-b="x">FECHAR</button><button class="btn orange big" data-b="again">PROCESSAR DE NOVO</button></div></div>`);
+    if (rows.includes(comp.rare.k)) { g.fx.flashScreen([255, 220, 120], 0.25); g.audio.discover(true); } else g.audio.success();
+    el.querySelector('[data-b="x"]')!.addEventListener('click', () => this.close());
+    el.querySelector('[data-b="again"]')!.addEventListener('click', () => this.analyzer(k, r.kg));
   }
 
   /** Momento de melhoria: antes → depois, grande e claro. */

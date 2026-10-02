@@ -3,11 +3,11 @@ import { hash2 } from '../core/rng';
 import { MAT, IS_SOLID, matById } from '../data/materials';
 import { DRILLS } from '../data/equipment';
 import { ITEM } from '../data/items';
-import { SECTORS } from '../data/sectors';
+import { rawOf, gradeAt, KG_PER_UNIT, VEIN_GRADE, MAX_GRADE } from '../data/composition';
 import type { Machine } from './Machines';
 import type { Game } from '../Game';
 
-export interface Drop { x: number; y: number; k: string; q: number; vx: number; vy: number; t: number; }
+export interface Drop { x: number; y: number; k: string; q: number; g?: number; vx: number; vy: number; t: number; }
 
 /** Mineração manual, explosivos e o ponto central de remoção de células. */
 export class Mining {
@@ -84,82 +84,103 @@ export class Mining {
     if (this.sfxT <= 0) { g.audio.tick(def.sound, 0.5); this.sfxT = 0.09; }
   }
 
-  /** Remove uma célula do terreno: massa, itens, descobertas e regeneração. */
-  removeCell(x: number, y: number, cause: 'player' | 'drill' | 'robot' | 'explosive' | 'event', mult: number, machine?: Machine): { item?: string; kg: number } {
+  /** Remove uma célula do terreno: material bruto da camada (com o teor da região), raros, regeneração. */
+  removeCell(x: number, y: number, cause: 'player' | 'drill' | 'robot' | 'explosive' | 'event', mult: number, machine?: Machine): { item?: string; kg: number; grade?: number } {
     const g = this.g, w = g.world;
     const mat = w.get(x, y);
     const def = matById(mat);
     if (!IS_SOLID[mat] || def.kind === 'edge') return { kg: 0 };
     w.set(x, y, MAT.AIR);
     this.cracks.delete(y * WORLD_CELLS + x);
-    // cada célula vale 1 unidade da meta da camada (máquinas valem `mult`)
-    g.planet.addUnits(mult);
-    if (cause === 'player') g.stats.manualKg += def.massT * 1000;
+    // escavar não remove massa do planeta: ela só conta quando é separada ou exportada
+    g.planet.dig(mult);
     g.stats.cells++;
     g.lore.onCellRemoved(x, y, cause);
     if (def.regrow) w.regrowQueue.push({ x, y, m: mat, t: g.time + 90 + Math.random() * 120 });
-    let kg = 0;
-    let item = def.item;
-    // perfuradoras atravessam uma coluna inteira: rocha estéril ainda rende traços do minério do setor
-    if (!item && cause === 'drill' && def.kind === 'rock') {
-      const sd = SECTORS[(w.sectorAtPx(x * CELL, y * CELL) || 1) - 1];
-      const common = sd.ores.filter(o => !matById(o.mat).rare);
-      let tw = 0; for (const o of common) tw += o.weight;
-      let r = Math.random() * tw;
-      for (const o of common) { r -= o.weight; if (r <= 0) { item = matById(o.mat).item; break; } }
-      if (item) { g.machines.drillYield(machine!, item, 1.5 * mult); }
-      return { item, kg: 1.5 * mult };
-    }
-    if (item) {
-      kg = (def.yieldKg ?? 1) * mult;
-      if (cause === 'player') {
-        kg *= 1 + g.research.eff('oreBonus');
-        const got = g.pack.add(item, kg);
-        g.stats.mined[item] = (g.stats.mined[item] ?? 0) + kg;
-        if (def.rare) {
-          // veio raro: recompensa imediata e visível
-          const bonus = Math.round(kg * (ITEM[item]?.value ?? 10) * 2);
-          g.stock.credits += bonus;
-          g.fx.text(x * CELL + 2, y * CELL - 10, `+${bonus} ◆ RARO`, [255, 220, 90]);
-        }
-        g.contracts.onMine(item, kg);
-        if (got < kg - 0.01) {
-          this.spawnDrop(x * CELL + 2, y * CELL + 2, item, kg - got);
-          if (ITEM[item].contain && g.pack.specialCap(ITEM[item].contain!) <= 0) g.say('need_containment', 60);
-          else g.say('pack_full', 90);
-        } else g.fx.pickup(x * CELL + 2, y * CELL + 2, item, kg);
-        if (!g.flags.firstOre) { g.flags.firstOre = true; g.say('first_ore'); }
-      } else if (cause === 'drill' && machine) {
-        g.machines.drillYield(machine, item, kg);
-      } else if (cause === 'explosive' || cause === 'event') {
-        this.spawnDrop(x * CELL + 2, y * CELL + 2, item, kg * 0.7);
-      }
-    }
-    // revelação de variantes raras ao redor
+    if (def.rare && def.item) return this.rareCell(x, y, def.item, (def.yieldKg ?? 1) * mult, mult, cause, machine);
+    // material bruto da camada: veios visíveis têm teor muito maior
+    const item = rawOf(g.planet.layer);
+    const kg = KG_PER_UNIT * mult;
+    let grade = gradeAt(w.gen.seed, g.planet.layer, x, y) * (def.kind === 'ore' ? VEIN_GRADE : 1);
     if (cause === 'player') {
-      for (const [i, j] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const nm = w.get(x + i, y + j);
-        const nd = matById(nm);
-        if (nd.rare || nd.regrow) {
-          const key = `${nm}_${(x + i) >> 4}_${(y + j) >> 4}`;
-          if (!this.announced.has(key)) {
-            this.announced.add(key);
-            g.ui.flashName(nd.name, nd.glow ?? nd.top);
-            g.audio.discover();
-            if (nd.rare) g.say('rare_found', 30);
-            g.stats.rares++;
-          }
-        }
-      }
+      grade *= 1 + g.research.eff('oreBonus');
+      g.stats.manualKg += kg;
+      g.stats.mined[item] = (g.stats.mined[item] ?? 0) + kg;
     }
+    grade = Math.min(MAX_GRADE, grade);
+    if (cause === 'player') {
+      const got = g.pack.add(item, kg, grade);
+      g.contracts.onMine(item, got);
+      if (got < kg - 0.01) {
+        this.spawnDrop(x * CELL + 2, y * CELL + 2, item, kg - got, grade);
+        g.say('pack_full', 90);
+      } else if (Math.random() < 0.15) g.fx.pickup(x * CELL + 2, y * CELL + 2, item, kg);
+      if (!g.flags.firstOre) { g.flags.firstOre = true; g.say('first_ore'); }
+      if (def.kind === 'ore') this.announce(x, y, mat);
+    } else if (cause === 'drill' && machine) {
+      g.machines.drillYield(machine, item, kg, grade);
+    } else if (cause === 'explosive' || cause === 'event') {
+      this.spawnDrop(x * CELL + 2, y * CELL + 2, item, kg, grade);
+    }
+    if (cause === 'player') this.revealRares(x, y);
+    return { item, kg, grade };
+  }
+
+  /** Variantes raras: mineral puro, sem resíduo — recompensa imediata da mineração de precisão. */
+  private rareCell(x: number, y: number, item: string, kg: number, mult: number, cause: string, machine?: Machine): { item?: string; kg: number } {
+    const g = this.g;
+    g.planet.addUnits(mult);
+    if (cause === 'player') {
+      kg *= 1 + g.research.eff('oreBonus');
+      const got = g.pack.add(item, kg);
+      g.stats.mined[item] = (g.stats.mined[item] ?? 0) + kg;
+      const bonus = Math.round(kg * (ITEM[item]?.value ?? 10) * 2);
+      g.stock.credits += bonus;
+      g.fx.text(x * CELL + 2, y * CELL - 10, `+${bonus} ◆ RARO`, [255, 220, 90]);
+      g.contracts.onMine(item, kg);
+      if (got < kg - 0.01) {
+        this.spawnDrop(x * CELL + 2, y * CELL + 2, item, kg - got);
+        if (ITEM[item].contain && g.pack.specialCap(ITEM[item].contain!) <= 0) g.say('need_containment', 60);
+        else g.say('pack_full', 90);
+      } else g.fx.pickup(x * CELL + 2, y * CELL + 2, item, kg);
+      this.revealRares(x, y);
+    } else if (cause === 'drill' && machine) g.machines.drillYield(machine, item, kg);
+    else if (cause === 'explosive' || cause === 'event') this.spawnDrop(x * CELL + 2, y * CELL + 2, item, kg);
     return { item, kg };
   }
 
-  spawnDrop(px: number, py: number, k: string, q: number) {
+  private announce(x: number, y: number, mat: number) {
+    const key = `${mat}_${x >> 4}_${y >> 4}`;
+    if (this.announced.has(key)) return;
+    this.announced.add(key);
+    const g = this.g;
+    g.fx.text(x * CELL + 2, y * CELL - 10, 'VEIO: teor alto', [255, 220, 120]);
+  }
+
+  /** revelação de variantes raras ao redor */
+  private revealRares(x: number, y: number) {
+    const g = this.g, w = g.world;
+    for (const [i, j] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nm = w.get(x + i, y + j);
+      const nd = matById(nm);
+      if (nd.rare || nd.regrow) {
+        const key = `${nm}_${(x + i) >> 4}_${(y + j) >> 4}`;
+        if (!this.announced.has(key)) {
+          this.announced.add(key);
+          g.ui.flashName(nd.name, nd.glow ?? nd.top);
+          g.audio.discover();
+          if (nd.rare) g.say('rare_found', 30);
+          g.stats.rares++;
+        }
+      }
+    }
+  }
+
+  spawnDrop(px: number, py: number, k: string, q: number, grade?: number) {
     if (q <= 0.01) return;
     // agrupa com drop próximo do mesmo item
-    for (const d of this.drops) if (d.k === k && Math.abs(d.x - px) < 10 && Math.abs(d.y - py) < 10) { d.q += q; return; }
-    this.drops.push({ x: px, y: py, k, q, vx: (Math.random() - 0.5) * 30, vy: (Math.random() - 0.5) * 30, t: 0 });
+    for (const d of this.drops) if (d.k === k && Math.abs(d.x - px) < 10 && Math.abs(d.y - py) < 10) { d.g = ((d.g ?? 1) * d.q + (grade ?? 1) * q) / (d.q + q); d.q += q; return; }
+    this.drops.push({ x: px, y: py, k, q, g: grade, vx: (Math.random() - 0.5) * 30, vy: (Math.random() - 0.5) * 30, t: 0 });
   }
 
   throwExplosive(tx: number, ty: number) {
@@ -188,7 +209,7 @@ export class Mining {
       const dx = p.x - d.x, dy = p.y - d.y, dist = Math.hypot(dx, dy);
       if (dist < 40 && d.t > 0.4 && g.pack.room(d.k) > 0.5) { d.vx += (dx / dist) * 300 * dt; d.vy += (dy / dist) * 300 * dt; }
       if (dist < 8) {
-        const got = g.pack.add(d.k, d.q);
+        const got = g.pack.add(d.k, d.q, d.g);
         if (got > 0) { g.fx.pickup(d.x, d.y, d.k, got); d.q -= got; }
         if (d.q <= 0.01) this.drops.splice(i, 1);
       }

@@ -40,7 +40,7 @@ export class Events {
     const opts: [string, number][] = [['memo', 1.2], ['contract', 1.2], ['deposit', 2], ['choice', 2.2]];
     if (M.length > 6) opts.push(['cavein', 2.5], ['failure', 2], ['surge', 1.5]);
     if (g.robots.list.length) opts.push(['robot', 1.2]);
-    if (g.sectors.s[6].discovered || g.sectors.s[9].discovered) opts.push(['anomaly', 1.6], ['alien', 1]);
+    if (g.planet.layer >= 5) opts.push(['anomaly', 1.6], ['alien', 1]);   // Manto para baixo
     if (g.sectors.current === 1) opts.push(['storm', 0.8]);
     if (g.world.gen.ruins.length) opts.push(['ruin', 1.2]);
     let total = 0; for (const o of opts) total += o[1];

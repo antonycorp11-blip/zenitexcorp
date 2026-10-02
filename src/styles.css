@@ -581,3 +581,35 @@ body.touch .ly-warn { font-size: 9px; padding: 3px 5px; margin-top: 3px; }
 .sumgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin: 6px 0 10px; }
 .sumgrid div { background: #0b1722; border: 1px solid #24465c; border-radius: 8px; padding: 5px 9px; } .sumgrid small { display: block; font-size: 11px; color: #7e97a8; } .sumgrid b { font-size: 16px; }
 @media (max-height: 520px) { .sumgrid { grid-template-columns: repeat(4, 1fr); } .sumgrid b { font-size: 12px; } .sumgrid small { font-size: 9px; } }
+
+/* Analisador de Matriz */
+.an-src { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; margin: 6px 0; }
+.an-it { display: flex; gap: 8px; align-items: center; text-align: left; background: #0b1722; border: 1px solid #24465c; border-radius: 8px; padding: 6px 8px; color: #dfe; cursor: pointer; }
+.an-it.on { border-color: var(--or); box-shadow: 0 0 10px rgba(232,150,42,.35); }
+.an-it img { width: 28px; height: 28px; image-rendering: pixelated; } .an-it small { display: block; color: #8aa; font-size: 12px; } .an-it i { font-style: normal; font-weight: 700; }
+.an-q { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 8px 0; } .an-q span { color: #8aa; font-size: 13px; }
+.an-spin { text-align: center; }
+.an-rotor { width: 70px; height: 70px; margin: 4px auto 8px; border-radius: 50%; border: 3px solid #3ae6ff; position: relative; animation: anrot .35s linear infinite; box-shadow: 0 0 18px rgba(58,230,255,.4); }
+.an-rotor i { position: absolute; left: 50%; top: 50%; width: 30px; height: 4px; background: #ffb84a; transform-origin: 0 50%; }
+.an-rotor i:nth-child(2) { transform: rotate(120deg); } .an-rotor i:nth-child(3) { transform: rotate(240deg); }
+@keyframes anrot { to { transform: rotate(360deg); } }
+.an-bars div { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 13px; } .an-bars span { width: 140px; text-align: right; color: #9bc; }
+.an-bars b { flex: 1; height: 8px; background: #0b1722; border-radius: 4px; overflow: hidden; } .an-bars b i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #3ae6ff, #ffb84a); transition: width .8s; }
+.an-res { text-align: center; } .an-res h2 { margin: 2px 0 8px; font-size: 20px; letter-spacing: 1px; }
+.an-rows { text-align: left; margin: 6px 0; }
+.an-row { position: relative; display: flex; align-items: center; gap: 8px; padding: 5px 8px; margin: 3px 0; background: #0b1722; border-radius: 6px; overflow: hidden; animation: pin .3s both; }
+.an-row:nth-child(2) { animation-delay: .1s; } .an-row:nth-child(3) { animation-delay: .2s; } .an-row:nth-child(4) { animation-delay: .3s; }
+.an-row img { width: 24px; height: 24px; image-rendering: pixelated; z-index: 1; } .an-row span { flex: 1; z-index: 1; } .an-row b { font-size: 17px; z-index: 1; } .an-row small { width: 52px; text-align: right; color: #8aa; z-index: 1; }
+.an-row > i { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(58,230,255,.12); }
+.an-row.rare { border: 1px solid #ffd04a; } .an-row.rare em { color: #ffd04a; font-style: normal; font-weight: 800; font-size: 12px; } .an-row.rare > i { background: rgba(255,208,74,.2); }
+.an-row.res > i { background: rgba(140,120,100,.18); } .an-row.res b { color: #b9a; }
+@media (max-height: 520px) { .an-row { padding: 3px 6px; margin: 2px 0; } .an-res h2 { font-size: 16px; } .an-src { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); } }
+
+.ly-bar u { position: absolute; left: 0; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, rgba(255,255,255,.13) 0 4px, rgba(255,255,255,.05) 4px 8px); border-radius: inherit; }
+.res .ri.yard.bad b { color: #ff7a4a; }
+
+.geocard { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%) translateY(-8px); min-width: 230px; max-width: min(380px, 80vw); background: rgba(6,14,22,.92); border: 1px solid #3ae6ff; border-radius: 8px; padding: 7px 12px; font-size: 13px; opacity: 0; pointer-events: none; transition: all .25s; box-shadow: 0 0 16px rgba(58,230,255,.25); z-index: 6; }
+.geocard.show { opacity: 1; transform: translateX(-50%); }
+.geocard .gh { color: #3ae6ff; font-weight: 800; letter-spacing: 2px; font-size: 11px; } .geocard .gm { font-size: 16px; font-weight: 700; margin: 1px 0 3px; }
+.geocard .gr { display: flex; justify-content: space-between; gap: 12px; } .geocard .gr span { color: #9bc; } .geocard .gt { color: #ffd04a; margin-top: 3px; font-size: 12px; }
+body.touch .geocard { bottom: 52px; font-size: 11px; transform: translateX(-50%) scale(.85); transform-origin: bottom center; }

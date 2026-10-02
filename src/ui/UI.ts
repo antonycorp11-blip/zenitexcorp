@@ -4,7 +4,8 @@ import { SECTORS, HAZARD_NAMES, type HazardKey } from '../data/sectors';
 import { SPEAKERS } from '../data/dialogue';
 import { ITEM, TOP_BAR_ITEMS, itemName } from '../data/items';
 import { SLOGANS } from '../data/slogans';
-import { MACHINE } from '../data/machines';
+import { MACHINE, MACHINES } from '../data/machines';
+import { rawOf, compOf } from '../data/composition';
 import type { LoreDef } from '../data/lore';
 import type { Game } from '../Game';
 import type { Machine } from '../systems/Machines';
@@ -98,7 +99,7 @@ export class UI {
     <div class="hud" data-id="hud">
       <div class="ui-block hcard layer" data-id="layerCard">
         <div class="ly-top"><span class="ly-code" data-id="lyCode"></span><b data-id="lyName"></b></div>
-        <div class="ly-bar"><i data-id="lyBar"></i><span data-id="lyPct"></span></div>
+        <div class="ly-bar"><u data-id="lyDug"></u><i data-id="lyBar"></i><span data-id="lyPct"></span></div>
         <div class="ly-sub"><span data-id="lyPlanet"></span><span data-id="lyRate" class="rate"></span></div>
         <div class="ly-warn" data-id="lyWarn"></div>
         <button class="descend" data-id="descendBtn">▼ DESCER PARA A PRÓXIMA CAMADA</button>
@@ -119,6 +120,7 @@ export class UI {
       <div class="toasts" data-id="toasts"></div>
       <div class="banner" data-id="banner"></div>
       <div class="flashname" data-id="flashname"></div>
+      <div class="geocard" data-id="geocard"></div>
       <div class="sectortitle" data-id="sectortitle"></div>
       <div class="build-hint" data-id="buildHint"></div>
       <div class="build-controls ui-block" data-id="buildControls"><button data-build-action="cancel">✕ CANCELAR</button><button data-build-action="rotate">↻ GIRAR</button><button class="confirm" data-build-action="confirm">✔ CONFIRMAR</button></div>
@@ -160,6 +162,16 @@ export class UI {
     b.innerHTML = `<div class="t">${esc(title)}</div><div class="s">${esc(sub)}</div>`;
     b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
   }
+  /** Cartão de ANÁLISE GEOLÓGICA do scanner (some sozinho). */
+  private geoT = 0;
+  geoCard(html: string) {
+    const c = this.el.geocard;
+    c.innerHTML = html;
+    c.classList.add('show');
+    clearTimeout(this.geoT);
+    this.geoT = window.setTimeout(() => c.classList.remove('show'), 7000);
+  }
+
   flashName(name: string, c: readonly number[]) {
     const f = this.el.flashname;
     f.textContent = name.toUpperCase();
@@ -221,7 +233,8 @@ export class UI {
     this.el.layerCard.style.setProperty('--acc', L.accent);
     (this.el.lyBar as HTMLElement).style.width = Math.max(0.6, lf * 100) + '%';
     this.el.lyPct.textContent = (lf * 100).toFixed(lf < 0.01 ? 2 : 1).replace('.', ',') + '%';
-    this.el.lyPlanet.textContent = `Planeta: ${PCT(g.planet.fraction())} extraído`;
+    (this.el.lyDug as HTMLElement).style.width = Math.max(0.6, g.planet.dugFraction() * 100) + '%';
+    this.el.lyPlanet.textContent = `Escavado ${Math.floor(g.planet.dugFraction() * 100)}% · removido ${(lf * 100).toFixed(1).replace('.', ',')}% · planeta ${PCT(g.planet.fraction())}`;
     const ru = g.planet.rateUnits();
     this.el.lyRate.textContent = ru > 0.05 ? `+${(ru / L.target * 100).toFixed(ru / L.target < 0.001 ? 3 : 2).replace('.', ',')}%/min` : '';
     this.el.descendBtn.style.display = g.canDescend() && !g.descendBlocked() ? 'block' : 'none';
@@ -229,12 +242,16 @@ export class UI {
     this.el.lyWarn.innerHTML = warn ? esc(warn) : '';
     this.el.lyWarn.style.display = warn ? 'block' : 'none';
     // recursos: os 4 mais abundantes + créditos
-    const tops = TOP_BAR_ITEMS.filter(k => g.stock.count(k) >= 1).sort((a, b) => g.stock.count(b) - g.stock.count(a)).slice(0, 4);
+    const tops = TOP_BAR_ITEMS.filter(k => g.stock.count(k) >= 1).sort((a, b) => g.stock.count(b) - g.stock.count(a)).slice(0, 3);
     if (!tops.length) tops.push('ferronox', 'lumenita');
+    const raw = rawOf(g.planet.layer);
+    if (g.stock.count(raw) >= 1) tops.unshift(raw);
+    const yu = g.machines.yardUsed(), yc = g.machines.yardCap();
     this.el.res.innerHTML = tops.map(k => {
       const rt = g.stock.rate(k);
       return `<div class="ri" title="${ITEM[k].name}"><img src="${g.sprites.itemUrl(k)}"><b>${fmtShort(g.stock.count(k))}</b>${rt > 1 ? `<em>+${fmtShort(rt)}</em>` : ''}</div>`;
-    }).join('') + `<div class="ri cr" title="Créditos"><span class="cico">◆</span><b>${fmtShort(g.stock.credits)}</b></div>`;
+    }).join('') + (yu >= 1 ? `<div class="ri yard ${yu >= yc * 0.9 ? 'bad' : ''}" title="Pátio de resíduo"><img src="${g.sprites.itemUrl('residuo')}"><b>${Math.round(yu / yc * 100)}%</b></div>` : '')
+      + `<div class="ri cr" title="Créditos"><span class="cico">◆</span><b>${fmtShort(g.stock.credits)}</b></div>`;
     // vitais
     (this.el.hpBar as HTMLElement).style.width = (p.hp / p.maxHp) * 100 + '%';
     this.el.hpTxt.textContent = `${Math.ceil(p.hp)}`;
@@ -308,7 +325,23 @@ export class UI {
     const buried = M.list.filter(m => m.buried > 0).length;
     if (buried) return `⚠ ${buried} máquina(s) soterrada(s): mine o entulho em cima delas.`;
     const drills = M.list.filter(m => m.def.behavior === 'drill');
-    const full = drills.filter(m => m.state === 'Saída cheia').length;
+    // cadeia da massa: o gargalo mais adiante na linha aparece primeiro
+    const yu = M.yardUsed(), yc = M.yardCap();
+    if (yu >= yc * 0.95) return M.count('compactador') ? '⚠ Pátio de resíduo cheio: mais Compactadores ou Terminais Orbitais.' : '⚠ Pátio de resíduo CHEIO: construa um Compactador Planetário na base. Tudo para em cascata.';
+    if (g.stock.count('bloco_massa') >= 20 && M.blockCap <= 0) return '⚠ Blocos parados: sem Terminal Orbital para exportar.';
+    if (g.stock.count('bloco_massa') >= 60) return `Exportação no limite (${fmtShort(M.blockCap)} kg/min): outro Terminal Orbital acelera a remoção.`;
+    const procs = M.list.filter(m => m.def.behavior === 'separator' || m.def.behavior === 'prep' || m.def.behavior === 'compactor');
+    const clog = procs.filter(m => m.state.startsWith('Travada') || m.state.startsWith('Saída cheia'));
+    if (clog.length) return `⚠ ${clog[0].def.name}: ${clog[0].state.replace(/^Travada: /, '')}`;
+    const dmg = procs.find(m => m.working && m.state.startsWith('Danificando'));
+    if (dmg) return `⚠ ${dmg.def.name} ${dmg.state.toLowerCase()}: use o processamento certo da camada.`;
+    const raw = rawOf(L), rawQ = g.stock.count(raw);
+    const canProc = procs.some(m => M.atBase(m) && M.inputs(m).includes(raw));
+    if (rawQ >= 300 && !canProc) {
+      const fit = MACHINES.find(d => d.takes?.[raw] === 1 && (d.minLayer ?? 1) <= L);
+      return `${fmtInt(rawQ)} kg de ${itemName(raw)} parados no estoque: ${L === 1 ? 'processe no Analisador ou construa um Processador de Solo na base.' : `construa um ${fit?.name ?? 'processador'} na base (${compOf(L).chain}).`}`;
+    }
+    const full = drills.filter(m => m.state.startsWith('Saída cheia')).length;
     if (full) return `⚠ ${full} perfuradora(s) PARADA(S) com a saída cheia: ligue uma esteira saindo dela até o armazém da base.`;
     const jam = M.list.filter(m => m.belt && m.state.startsWith('Travada')).length;
     if (jam) return `⚠ Esteira travada: a ponta dela aponta para algo que não aceita minério. Aponte para um armazém.`;
@@ -349,8 +382,8 @@ export class UI {
         text = o.text + (o.max > 1 ? ` <b>(${fmtShort(o.cur)}/${fmtShort(o.max)})</b>` : '');
         prog = o.cur / o.max;
       } else {
-        title = 'META · ESGOTAR A CAMADA';
-        text = `Esgote a ${g.planet.def.name}: perfuradoras, drones e Complexos enchem a barra da camada.`;
+        title = 'META · REMOVER A CAMADA';
+        text = `Remova o resto da ${g.planet.def.name}: escave, processe o bruto, compacte o resíduo e exporte os blocos.`;
         prog = g.planet.layerFraction();
       }
     }

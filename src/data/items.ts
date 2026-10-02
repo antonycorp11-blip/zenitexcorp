@@ -1,7 +1,7 @@
 // Itens: tudo que pode estar em inventário, estoque, esteira ou receita.
-export type ItemCat = 'minerio' | 'britado' | 'refinado' | 'liga' | 'componente' | 'consumivel' | 'modulo' | 'especial';
+export type ItemCat = 'bruto' | 'residuo' | 'minerio' | 'britado' | 'refinado' | 'liga' | 'componente' | 'consumivel' | 'modulo' | 'especial';
 export type Containment = 'contencao' | 'frio' | 'magnetico';
-export type IconShape = 'crystal' | 'cluster' | 'gravel' | 'ingot' | 'plate' | 'cell' | 'orb' | 'chip' | 'gear' | 'canister' | 'core' | 'charge' | 'kit' | 'module' | 'lamp' | 'fiber';
+export type IconShape = 'crystal' | 'cluster' | 'gravel' | 'ingot' | 'plate' | 'cell' | 'orb' | 'chip' | 'gear' | 'canister' | 'core' | 'charge' | 'kit' | 'module' | 'lamp' | 'fiber' | 'block';
 
 export interface ItemDef {
   key: string;
@@ -18,6 +18,18 @@ export interface ItemDef {
 
 const items: ItemDef[] = [];
 function it(d: ItemDef) { items.push(d); }
+
+// --- Massa planetária bruta (o que a mineração produz) — composição varia por região ---
+it({ key: 'solo_k37', name: 'Solo K-37', cat: 'bruto', color: [150, 98, 62], color2: [96, 62, 40], icon: 'gravel', weight: 1, value: 0.2, desc: 'Terra ferruginosa da Crosta. ~80% resíduo, o resto é Ferronox, Lumenita e, às vezes, algo melhor. Processe para descobrir.' });
+it({ key: 'rocha_bruta', name: 'Rocha Bruta', cat: 'bruto', color: [118, 122, 128], color2: [70, 74, 80], icon: 'gravel', weight: 1, value: 0.2, desc: 'Rocha compacta da Camada de Pedra. Precisa ser triturada antes da separação.' });
+it({ key: 'basalto_bruto', name: 'Basalto Bruto', cat: 'bruto', color: [120, 50, 44], color2: [60, 24, 24], icon: 'gravel', weight: 1, value: 0.25, desc: 'Basalto vulcânico. Exige Triturador Pesado e separação térmica.' });
+it({ key: 'matriz_cristalina', name: 'Matriz Cristalina', cat: 'bruto', color: [130, 170, 220], color2: [70, 96, 140], icon: 'gravel', weight: 1, value: 0.3, desc: 'Cristais presos em gelo mineral. Trituração comum destrói os raros: use o Fragmentador Controlado.' });
+it({ key: 'rocha_manto', name: 'Rocha de Manto', cat: 'bruto', color: [110, 90, 140], color2: [60, 46, 84], icon: 'gravel', weight: 1, value: 0.3, desc: 'Rocha sob pressão absurda. Precisa ser descomprimida antes de abrir.' });
+it({ key: 'matriz_profunda', name: 'Matriz Profunda', cat: 'bruto', color: [70, 120, 126], color2: [36, 66, 72], icon: 'gravel', weight: 1, value: 0.35, desc: 'Mármore e metal líquido solidificado da Cidade Profunda.' });
+it({ key: 'materia_nucleo', name: 'Matéria de Núcleo', cat: 'bruto', color: [200, 100, 40], color2: [110, 40, 16], icon: 'gravel', weight: 1, value: 0.5, desc: 'O coração do planeta, em pedaços. Só um Desintegrador consegue abrir.' });
+it({ key: 'fragmentado', name: 'Material Fragmentado', cat: 'bruto', color: [150, 140, 128], color2: [90, 84, 76], icon: 'gravel', weight: 1, value: 0.3, desc: 'Rocha já triturada, pronta para o Separador Mineral.' });
+it({ key: 'residuo', name: 'Resíduo Planetário', cat: 'residuo', color: [104, 92, 84], color2: [64, 56, 52], icon: 'gravel', weight: 1, value: 0, desc: 'Massa geologicamente inútil. É literalmente 80% do planeta. Compacte e exporte: a Zenitex também vende isso.' });
+it({ key: 'bloco_massa', name: 'Bloco de Massa Planetária', cat: 'residuo', color: [140, 120, 100], color2: [255, 170, 60], icon: 'block', weight: 100, value: 6, desc: '100 kg de resíduo compactado. Exportado pelo Terminal Orbital — e o planeta fica menor.' });
 
 // --- Minérios brutos (1 unidade = 1 kg) ---
 it({ key: 'lumenita', name: 'Lumenita', cat: 'minerio', color: [60, 140, 255], icon: 'crystal', weight: 1, value: 2, desc: 'Cristal energético azul. Base de baterias, reatores e infraestrutura elétrica.' });
@@ -93,3 +105,4 @@ export const itemName = (k: string) => ITEM[k]?.name ?? k;
 
 // Minérios exibidos na barra superior (como nas referências)
 export const TOP_BAR_ITEMS = ['lumenita', 'ferronox', 'pyroxis', 'nexolita', 'verdanio', 'crysalis', 'solvex', 'umbrium'];
+export const isRaw = (k: string) => ITEM[k]?.cat === 'bruto';

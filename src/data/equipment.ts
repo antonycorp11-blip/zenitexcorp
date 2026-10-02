@@ -21,11 +21,11 @@ export const SCANNERS: ScannerLevel[] = [
 
 export interface PackLevel { name: string; weight: number; contencao: number; frio: number; magnetico: number; cost: Record<string, number>; }
 export const PACKS: PackLevel[] = [
-  { name: 'Mochila Padrão', weight: 120, contencao: 0, frio: 0, magnetico: 0, cost: {} },
-  { name: 'Mochila Reforçada', weight: 250, contencao: 1, frio: 1, magnetico: 0, cost: { ferronox: 100, verdanio: 30 } },
-  { name: 'Mochila Industrial', weight: 500, contencao: 2, frio: 2, magnetico: 1, cost: { placa_ferronox: 30, fibra_verdanio: 10, gel_crysalis: 4 } },
-  { name: 'Mochila de Campo Magnético', weight: 1000, contencao: 3, frio: 3, magnetico: 3, cost: { polimero_solvex: 12, matriz_umbrium: 4, motor: 2 } },
-  { name: 'Mochila Dimensional "Contrato Vitalício"', weight: 2500, contencao: 6, frio: 6, magnetico: 6, cost: { liga_ancestral: 4, celula_negra: 2 } },
+  { name: 'Mochila Padrão', weight: 240, contencao: 0, frio: 0, magnetico: 0, cost: {} },
+  { name: 'Mochila Reforçada', weight: 500, contencao: 1, frio: 1, magnetico: 0, cost: { ferronox: 100, verdanio: 30 } },
+  { name: 'Mochila Industrial', weight: 1000, contencao: 2, frio: 2, magnetico: 1, cost: { placa_ferronox: 30, fibra_verdanio: 10, gel_crysalis: 4 } },
+  { name: 'Mochila de Campo Magnético', weight: 2000, contencao: 3, frio: 3, magnetico: 3, cost: { polimero_solvex: 12, matriz_umbrium: 4, motor: 2 } },
+  { name: 'Mochila Dimensional "Contrato Vitalício"', weight: 5000, contencao: 6, frio: 6, magnetico: 6, cost: { liga_ancestral: 4, celula_negra: 2 } },
 ];
 export const SPECIAL_SLOT_KG = 60; // kg por slot especial
 

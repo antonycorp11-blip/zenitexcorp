@@ -1,4 +1,5 @@
 import { CONTRACT_TEMPLATES, type ContractKind } from '../data/contracts';
+import { rawOf } from '../data/composition';
 import { ITEM, itemName } from '../data/items';
 import { RNG } from '../core/rng';
 import type { Game } from '../Game';
@@ -47,7 +48,7 @@ export class Contracts {
       let item: string | undefined, target = 0;
       switch (t.kind) {
         case 'ship': item = this.rng.pick(known); target = Math.round((ITEM[item].cat === 'minerio' ? 400 : 60) * Math.pow(2, g.planet.layer - 1)); break;
-        case 'mine': item = this.rng.pick(known.filter(k => ITEM[k].cat === 'minerio' && !ITEM[k].contain)); if (!item) continue; target = Math.round(60 * Math.sqrt(sc)); break;
+        case 'mine': item = rawOf(g.planet.layer); target = Math.round(300 * Math.sqrt(sc)); break;
         case 'craft': { const opts = CRAFTABLE.filter(k => g.crafting.recipes().some(r => r.out[k])); if (!opts.length) continue; item = this.rng.pick(opts); target = Math.max(2, Math.round(3 * Math.sqrt(sc))); break; }
         case 'rare': { const opts = RARES.filter(k => (g.stats.mined[k] ?? 0) > 0 || g.stats.rares > 0); if (!opts.length) continue; item = this.rng.pick(opts); target = Math.round(10 + 5 * Math.sqrt(sc)); break; }
         case 'ruin': if (g.lore.unlocked.size < 1) continue; target = 1 + Math.floor(this.rng.next() * 2); break;

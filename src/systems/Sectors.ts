@@ -27,7 +27,7 @@ export class SectorSystem {
 
   constructor(private g: Game) {
     for (let i = 0; i <= LAYER_COUNT; i++) {
-      this.rt.push({ gen: 0, use: 0, ratio: 1, demand: 0, heat: 0, cooling: 20, stress: 0, buffer: {}, bufCap: 0, linkCap: 0, linkFlow: 0, linkedTotal: 0, drillOut: 0, deepRate: 0, fields: {} });
+      this.rt.push({ gen: 0, use: 0, ratio: 1, demand: 0, heat: 0, cooling: 20, stress: 0, buffer: {}, bufG: {}, bufCap: 0, linkCap: 0, linkFlow: 0, linkedTotal: 0, drillOut: 0, deepRate: 0, fields: {} });
       this.s.push({ discovered: i === 1, phase: 0, counters: {}, base: {}, shipBase: {}, auditPassed: false, visitedT: 0 });
     }
   }
@@ -48,6 +48,7 @@ export class SectorSystem {
       case 'build': return [M.count(m.key), m.count];
       case 'behavior': return [M.countBehavior(m.behavior), m.count];
       case 'deliver': return [this.s[layer].counters.delivered ?? 0, m.kg];
+      case 'counter': return [this.s[layer].counters[m.key] ?? 0, m.max];
       case 'drill': return [g.player.drillLevel + 1, m.level];
       case 'layer': return [g.planet.layerFraction(layer) * 100, m.frac * 100];
     }
@@ -87,7 +88,7 @@ export class SectorSystem {
         g.ui.banner('META CUMPRIDA', `${list[st.phase].text} · +${fmtInt(reward)} créditos`);
         g.audio.success();
         st.phase++;
-        if (st.phase >= list.length) g.dialogue.line('zena', `Metas da ${SECTORS[L - 1].name} cumpridas. Agora é só esgotar a camada.`);
+        if (st.phase >= list.length) g.dialogue.line('zena', `Metas da ${SECTORS[L - 1].name} cumpridas. Agora é só remover o resto da camada: processe, compacte, exporte.`);
       }
     }
   }
@@ -104,7 +105,7 @@ export class SectorSystem {
 
   serialize() { return { s: this.s, buffers: this.rt.map(r => r.buffer), linked: this.rt.map(r => r.linkedTotal) }; }
   load(d: any) {
-    if (d.s) this.s = d.s.map((x: SectorSave) => ({ ...x, phase: Math.min(x.phase ?? 0, 3) }));
+    if (d.s) this.s = d.s.map((x: SectorSave) => ({ ...x, phase: x.phase ?? 0 }));
     d.buffers?.forEach((b: Bag, i: number) => { if (this.rt[i]) this.rt[i].buffer = b ?? {}; });
     d.linked?.forEach((v: number, i: number) => { if (this.rt[i]) this.rt[i].linkedTotal = v ?? 0; });
   }

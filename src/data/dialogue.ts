@@ -16,13 +16,27 @@ export type Line = [SpeakerId, string];
 export type Pool = Line[];
 
 export const INTRO: Line[] = [
-  ['zena', 'Contrato 7-K37 confirmado. Corpo planetário classificado como improdutivo.'],
+  ['zena', 'Contrato 7-K37 confirmado. Classificação do corpo planetário: MUNDO MORTO.'],
+  ['zena', 'Núcleo resfriado. Sem atividade tectônica. Magnetosfera ausente. Biosfera: nenhuma registrada. Valor de colonização: zero.'],
+  ['zenitex', 'Status legal: RECURSO PLANETÁRIO RECUPERÁVEL.'],
   ['zena', 'Massa recuperável estimada: 2,86 bilhões de toneladas.'],
   ['zena', 'Objetivo: recuperar tudo.'],
   ['varren', 'Bem-vindo à Zenitex Planetary Resources. Transformando mundos em oportunidades. Boa sorte, e lembre-se: sorte não é métrica.'],
 ];
 
 export const POOLS: Record<string, Pool> = {
+  // Massa planetária bruta
+  first_analysis: [
+    ['zena', 'Detectamos 83% de material geologicamente inútil.'],
+    ['zena', 'Felizmente, a Zenitex também pretende vender isso.'],
+    ['rocha', 'Chamaram de resíduo.'],
+    ['rocha', 'É literalmente 80% do planeta.'],
+    ['zena', 'Lembrete corporativo: não existe lixo quando o objetivo é remover o planeta inteiro.'],
+  ],
+  yard_full: [['br7', 'Pátio de resíduo cheio. A linha inteira vai parar em cascata. Compactador e Terminal Orbital, nessa ordem.'], ['rocha', 'Resíduo até o teto. Ou compacta e manda pra órbita, ou a fábrica vira um monte de terra cara.'], ['zena', 'Lembrete corporativo: não existe lixo quando o objetivo é remover o planeta inteiro. Existe estoque não exportado.']],
+  first_block: [['zena', 'Primeiro Bloco de Massa Planetária exportado. O planeta está oficialmente menor. Os acionistas foram notificados.']],
+  rich_vein: [['rocha', 'Teor alto aqui. Bota as perfuradoras nessa região que o processador agradece.'], ['br7', 'Concentração mineral acima da média. Segundo o manual, isso se chama "sorte geológica". Eu chamo de estatística.']],
+  crystal_damage: [['br7', 'O Triturador está quebrando a Matriz Cristalina junto com os raros. Eficiência perdida vira resíduo. Fragmentador Controlado resolve.'], ['sera', 'Esses cristais demoraram milhões de anos para crescer. Pelo menos esmague com cuidado.']],
   // Início / tutorial
   t_start: [['zena', 'Você possui: perfurador básico, scanner e uma pequena mochila. É mais do que a maioria dos planetas tem contra você.']],
   t_first_deliver: [['zena', 'Excelente começo. Nesse ritmo, terminaremos em aproximadamente 438 anos. Recomendo melhorias.']],
@@ -118,6 +132,9 @@ export const POOLS: Record<string, Pool> = {
 
   // Banter ambiente geral
   ambient: [
+    ['zena', 'Critérios de aquisição Zenitex: núcleo frio, sem tectônica, sem magnetosfera, sem biosfera. K-37 gabaritou.'],
+    ['br7', 'Mundos mortos não reclamam. Segundo o manual, é o tipo de cliente preferido da Zenitex.'],
+    ['rocha', 'Oitenta por cento do que a gente cava é resíduo. Os outros vinte pagam o salário. Quase.'],
     ['rocha', 'Vinte anos de mina. Três planetas. Nenhum deles me agradeceu. Esse também não vai.'],
     ['rocha', 'Sabe qual a diferença entre a gente e as máquinas? As máquinas ganham manutenção.'],
     ['br7', 'Lembrete de segurança: o capacete protege a cabeça. Recomendo manter a cabeça dentro do capacete.'],

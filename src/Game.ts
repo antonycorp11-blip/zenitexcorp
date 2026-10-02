@@ -31,6 +31,7 @@ import { saveSlot, packBytes, unpackBytes } from './systems/Save';
 import { MACHINE } from './data/machines';
 import { SECTORS, LAYER_COUNT } from './data/sectors';
 import { ITEM } from './data/items';
+import { RAW_BY_LAYER, separate, KG_PER_UNIT } from './data/composition';
 import type { UI } from './ui/UI';
 import type { LoreDef } from './data/lore';
 
@@ -122,15 +123,68 @@ export class Game {
     this.world.ensureAroundPx(L.x * CELL, L.y * CELL, 400);
     this.machines.place('comando', tx - 1, ty - 1, 0);
     this.machines.place('terminal_orbital', tx - 5, ty - 2, 0);
+    this.placeAnalyzer();
     this.player.x = (tx + 0.5) * TILE; this.player.y = (ty + 3) * TILE;
     this.camera.x = this.player.x; this.camera.y = this.player.y;
     this.world.reveal(this.player.x, this.player.y, 14);
   }
 
+  /** Analisador de Matriz: a primeira "máquina" de processamento, manual, ao lado da cápsula. */
+  placeAnalyzer() {
+    if (this.machines.count('analisador')) return;
+    const c = this.machines.list.find(m => m.def.behavior === 'command'); if (!c) return;
+    for (const [dx, dy] of [[4, 0], [4, 2], [-2, 4], [1, 4], [4, -2], [-3, -3], [1, -3], [6, 0]]) {
+      if (this.machines.place('analisador', c.tx + dx, c.ty + dy, 0)) return;
+    }
+  }
+
+  /** Material bruto disponível para o Analisador (mochila + estoque). */
+  rawAvailable(): { k: string; q: number; grade: number }[] {
+    const out: { k: string; q: number; grade: number }[] = [];
+    for (const k of [...RAW_BY_LAYER.filter(Boolean), 'fragmentado']) {
+      const a = this.pack.count(k), b = this.stock.count(k);
+      if (a + b < 1) continue;
+      out.push({ k, q: a + b, grade: (this.pack.grade(k) * a + this.stock.grade(k) * b) / (a + b) });
+    }
+    return out;
+  }
+  analyzerCap() { return 100 * this.planet.layer; }
+
+  /** Processamento manual: separa o material e devolve o relatório. */
+  analyze(k: string, want: number, eff: number): { kg: number; grade: number; out: Record<string, number>; residue: number; pay: number } | null {
+    const room = this.machines.yardRoom();
+    want = Math.min(want, this.analyzerCap(), room / 0.8);
+    if (want < 1) return null;
+    const ga = this.pack.grade(k), gb = this.stock.grade(k);
+    const a = this.pack.take(k, want);
+    const b = this.stock.take(k, want - a);
+    const kg = a + b;
+    if (kg <= 0) return null;
+    const grade = (ga * a + gb * b) / kg;
+    const layer = k === 'fragmentado' ? this.planet.layer : Math.max(1, RAW_BY_LAYER.indexOf(k));
+    const res = separate(layer, kg, grade, eff);
+    let pay = 0, minerals = 0;
+    for (const o in res.out) {
+      this.stock.add(o, res.out[o]);
+      pay += res.out[o] * (ITEM[o]?.value ?? 1) * DELIVERY_PAY;
+      minerals += res.out[o];
+      this.contracts.onShip(o, res.out[o]);
+    }
+    this.stock.add('residuo', res.residue);
+    this.stock.credits += pay;
+    this.planet.addUnits(minerals / KG_PER_UNIT);
+    const L = this.planet.layer;
+    this.sectors.counter(L, 'analyzed', kg);
+    this.sectors.counter(L, 'separated', minerals);
+    this.stats.processed += minerals;
+    if (!this.flags.firstAnalysis) { this.flags.firstAnalysis = true; setTimeout(() => this.dialogue.sayAll('first_analysis'), 600); }
+    return { kg, grade, out: res.out, residue: res.residue, pay };
+  }
+
   setupNew() {
     this.setupBase();
     this.markLayerStart();
-    this.stock.add('ferronox', 20, false); this.stock.add('lumenita', 10, false);
+    this.stock.add('ferronox', 120, false); this.stock.add('lumenita', 60, false);   // kit inicial: 1 perfuradora, armazém e esteiras
     this.stock.credits = 300;
     this.pack.add('sinalizador', 3); this.pack.add('kit_reparo', 1);
     this.world.reveal(this.player.x, this.player.y, 14);
@@ -438,7 +492,7 @@ export class Game {
       if (!inp.clickPrimary()) return;
       const m = this.machines.at(tx, ty) ?? this.machines.list.find(x => x.def.behavior === 'platform' && x.tx === tx && x.ty === ty);
       if (!m) return;
-      if (m.def.behavior === 'command') { this.toast('O Centro de Comando é propriedade da Zenitex.', '#ff8a3a'); return; }
+      if (m.def.behavior === 'command' || m.def.behavior === 'analyzer') { this.toast(`${m.def.name}: propriedade da Zenitex.`, '#ff8a3a'); return; }
       for (const k in m.def.cost) this.stock.add(k, Math.floor(m.def.cost[k] * 0.75), false);
       this.machines.remove(m);
       this.audio.click();
@@ -539,6 +593,7 @@ export class Game {
         if (m.broken) { this.hold = { t: 0, dur: 2.2, label: 'Reparando…', key: 'rep', done: () => { if (g.machines.repair(m)) g.toast(`${m.def.name} reparada`, '#9cff8a'); else g.toast('Precisa de Peças de Reposição, Kit de Reparo ou 20 Ferronox', '#ff8a3a'); } }; return; }
         if (m.overheat) { this.ui.calibrate(m, 'normal'); return; }
         if (m.def.behavior === 'command' || m.def.behavior === 'storage' || m.def.behavior === 'link') this.depositPack();
+        if (m.def.behavior === 'analyzer') { this.ui.mini.analyzer(); break; }
         this.ui.openMachine(m);
       }
     }
@@ -550,8 +605,9 @@ export class Game {
     for (const k of Object.keys(this.pack.items)) {
       const c = ITEM[k]?.cat;
       if (c === 'consumivel') continue;
+      const gr = this.pack.grade(k);
       const q = this.pack.take(k, this.pack.count(k));
-      this.stock.add(k, q); n += q;
+      this.stock.add(k, q, true, gr); n += q;
       pay += q * (ITEM[k]?.value ?? 1) * DELIVERY_PAY;
       this.contracts.onShip(k, q);
     }
@@ -567,7 +623,7 @@ export class Game {
   private tutorial() {
     const t = this.flags.tutorial;
     if (this.flags.intro) return;
-    if (t === 0 && this.stats.manualKg >= 50) { this.flags.tutorial = 1; this.toast('50 kg removidos! Volte ao Centro de Comando e entregue a carga [E].', '#ffd04a'); }
+    if (t === 0 && this.stats.manualKg >= 50) { this.flags.tutorial = 1; }
     if (t === 2 && this.machines.count('oficina')) { this.flags.tutorial = 3; this.audio.success(); }
     if (t === 3 && this.machines.count('laboratorio')) { this.flags.tutorial = 4; this.audio.success(); this.dialogue.line('zena', 'Infraestrutura mínima concluída. A partir de agora, siga a saga de automação do setor (G) e os contratos (J).'); }
     if (t === 2 && !this.flags.saidWorkshop && this.time - (this.flags.firstDeliver ?? 0) > 8) { this.flags.saidWorkshop = true; this.say('t_build_workshop'); }
@@ -651,8 +707,8 @@ export class Game {
       v: 2, opts: this.opts, time: this.time, flags: this.flags, selected: this.selected, hotbar: this.hotbar,
       chunks: this.world.serializeChunks(), explored: packBytes(this.world.explored),
       regrow: this.world.regrowQueue,
-      player: this.player.serialize(), pack: { items: this.pack.items, level: this.pack.level },
-      stock: { items: this.stock.items, credits: this.stock.credits },
+      player: this.player.serialize(), pack: { items: this.pack.items, level: this.pack.level, g: this.pack.g },
+      stock: { items: this.stock.items, credits: this.stock.credits, g: this.stock.g },
       machines: this.machines.serialize(), robots: this.robots.serialize(), sectors: this.sectors.serialize(),
       planet: this.planet.serialize(), research: this.research.serialize(), crafting: this.crafting.serialize(),
       contracts: this.contracts.serialize(), lore: this.lore.serialize(), chests: this.chests.serialize(), events: this.events.serialize(), stats: this.stats.serialize(),
@@ -666,8 +722,8 @@ export class Game {
     if (s.explored) unpackBytes(s.explored, this.world.explored);
     for (let i = 0; i < this.world.explored.length; i++) if (this.world.explored[i]) this.world.sectorTileExplored[this.world.sectorTiles[i]]++;
     this.world.regrowQueue = s.regrow ?? [];
-    this.player.load(s.player); this.pack.items = s.pack.items; this.pack.level = s.pack.level;
-    this.stock.items = s.stock.items; this.stock.credits = s.stock.credits;
+    this.player.load(s.player); this.pack.items = s.pack.items; this.pack.level = s.pack.level; this.pack.g = s.pack.g ?? {};
+    this.stock.items = s.stock.items; this.stock.credits = s.stock.credits; this.stock.g = s.stock.g ?? {};
     this.machines.load(s.machines); this.robots.load(s.robots); this.sectors.load(s.sectors);
     this.planet.load(s.planet); this.research.load(s.research); this.crafting.load(s.crafting);
     this.contracts.load(s.contracts); this.lore.load(s.lore); this.chests.load(s.chests); this.events.load(s.events); this.stats.load(s.stats);
@@ -675,6 +731,7 @@ export class Game {
     this.flags.intro = false; this.flags.ending = false;
     // camada nova (acabou de descer): monta a cápsula no poço central
     if (!this.machines.list.some(m => m.def.behavior === 'command')) this.setupBase();
+    else this.placeAnalyzer();
     this.camera.x = this.player.x; this.camera.y = this.player.y;
   }
 
@@ -693,15 +750,16 @@ export class Game {
     const next = this.planet.layer + 1;
     // reembolso integral de todas as construções e do conteúdo delas
     for (const m of this.machines.list) {
-      if (m.def.behavior !== 'command' && m.def.behavior !== 'terminal' || this.machines.list.filter(x => x.def.behavior === 'terminal').indexOf(m) > 0) for (const k in m.def.cost) this.stock.add(k, m.def.cost[k], false);
-      for (const k in m.out) this.stock.add(k, m.out[k], false);
-      for (const k in m.inb) this.stock.add(k, m.inb[k], false);
-      if (m.belt) for (const l of m.belt) this.stock.add(l.k, l.q, false);
+      if (m.def.behavior !== 'command' && m.def.behavior !== 'analyzer' && m.def.behavior !== 'terminal' || this.machines.list.filter(x => x.def.behavior === 'terminal').indexOf(m) > 0) for (const k in m.def.cost) this.stock.add(k, m.def.cost[k], false);
+      for (const k in m.out) this.stock.add(k, m.out[k], false, m.g[k]);
+      for (const k in m.inb) this.stock.add(k, m.inb[k], false, m.g[k]);
+      if (m.belt) for (const l of m.belt) this.stock.add(l.k, l.q, false, l.g);
+      if (m.def.behavior === 'compactor' && m.prog > 0) this.stock.add('residuo', m.prog, false);
     }
     for (const r of this.sectors.rt) for (const k in r.buffer) this.stock.add(k, r.buffer[k], false);
     for (const r of this.robots.list) for (const k in r.cargo) this.stock.add(k, r.cargo[k], false);
     const packed = this.machines.list.length - 1;
-    s.stock = { items: this.stock.items, credits: this.stock.credits };
+    s.stock = { items: this.stock.items, credits: this.stock.credits, g: this.stock.g };
     s.opts = { ...this.opts, layer: next };
     s.planet = { ...this.planet.serialize(), layer: next };
     s.chunks = {}; s.explored = ''; s.regrow = [];

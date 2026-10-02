@@ -17,6 +17,8 @@ import { costStr, hazIcon, hexRgb } from './UI';
 import { renderPlanet } from './Orbital';
 import { esc } from './dom';
 import { HIDDEN_RESEARCH } from '../data/economy';
+import { gradeLabel, gradeColor, compOf, RAW_BY_LAYER } from '../data/composition';
+import { SEP_EFF } from '../systems/Machines';
 
 export type PanelId = 'inventory' | 'build' | 'upgrades' | 'research' | 'sectors' | 'robots' | 'contracts' | 'archive' | 'map' | 'help' | 'menu' | 'machine' | 'ops' | 'lifts' | 'settings' | 'missions';
 
@@ -141,7 +143,8 @@ export class Panels {
     cupgrade: () => { const m = this.machine; if (!m) return; const e = this.g.machines.upgradeComplex(m); if (e) this.g.toast(e, '#ff8a3a'); else this.g.audio.success(); this.render(); },
     filter: (a) => { if (this.machine) this.machine.filter = a || undefined; this.render(); },
     recipe: (a) => { if (this.machine) { this.machine.recipe = a || undefined; this.machine.inb = {}; } this.render(); },
-    collect: () => { const m = this.machine; if (!m) return; for (const k of Object.keys(m.out)) { const got = this.g.pack.add(k, m.out[k]); m.out[k] -= got; if (m.out[k] <= 0.01) delete m.out[k]; } this.render(); },
+    collect: () => { const m = this.machine; if (!m) return; for (const k of Object.keys(m.out)) { const got = this.g.pack.add(k, m.out[k], m.g[k]); m.out[k] -= got; if (m.out[k] <= 0.01) delete m.out[k]; } this.render(); },
+    analyzer: () => { this.close(); this.ui.mini.analyzer(); },
     dismantle: () => { const m = this.machine; if (!m || m.def.behavior === 'command') return; for (const k in m.def.cost) this.g.stock.add(k, Math.floor(m.def.cost[k] * 0.75), false); this.g.machines.remove(m); this.close(); },
     rotate: () => { const m = this.machine; if (m && m.def.rotatable) { m.dir = (m.dir + 1) % 4; m.depth = 0; m.exhausted = false; } this.render(); },
     reset: () => { const m = this.machine; if (m) { m.depth = 0; m.exhausted = false; m.t = 0; } this.render(); },
@@ -201,8 +204,10 @@ export class Panels {
     let h = this.tabs('invTab', [{ key: 'todos', name: '▣ Estoque e mochila' }, { key: 'fab', name: '⚒ Refinar e fabricar' }]);
     if (tab === 'todos') {
       const w = P.weight(), mw = P.maxWeight();
-      const cell = (k: string, n: number, pin = false) => `<div class="cell" title="${esc(ITEM[k]?.desc ?? '')}">${this.icon(k, 30)}<span>${esc(itemName(k))}</span><b>${fmtShort(n)}</b>${pin ? `<button class="mini" data-act="pinItem" data-arg="${k}">📌</button>` : ''}</div>`;
+      const cell = (k: string, n: number, pin = false, gr?: number) => `<div class="cell" title="${esc(ITEM[k]?.desc ?? '')}">${this.icon(k, 30)}<span>${esc(itemName(k))}${gr !== undefined && ITEM[k]?.cat === 'bruto' ? `<small style="color:${gradeColor(gr)}">teor ${gradeLabel(gr)}</small>` : ''}</span><b>${fmtShort(n)}</b>${pin ? `<button class="mini" data-act="pinItem" data-arg="${k}">📌</button>` : ''}</div>`;
       const groups: [string, (k: string) => boolean][] = [
+        ['Material bruto (processe para descobrir o que tem dentro)', k => ITEM[k]?.cat === 'bruto'],
+        [`Resíduo e blocos · pátio ${fmtInt(g.machines.yardUsed())} / ${fmtInt(g.machines.yardCap())} kg`, k => ITEM[k]?.cat === 'residuo'],
         ['Minérios', k => ITEM[k]?.cat === 'minerio' && !ITEM[k].contain && !['lumenita_pura', 'lumenita_instavel', 'pyroxis_volatil', 'nexolita_condensada', 'verdanio_vivo', 'fragmento_nucleo'].includes(k)],
         ['Raros (valem muitos créditos)', k => ['lumenita_pura', 'lumenita_instavel', 'pyroxis_volatil', 'nexolita_condensada', 'verdanio_vivo', 'fragmento_nucleo', 'umbrium', 'crysalis'].includes(k)],
         ['Barras refinadas', k => ITEM[k]?.cat === 'refinado'],
@@ -212,9 +217,10 @@ export class Panels {
       const stockKeys = Object.keys(g.stock.items).filter(k => g.stock.count(k) >= 0.5);
       h += `<div class="cols"><div class="col"><h3>MOCHILA</h3>
         <div class="kv"><span>${esc(P.def.name)}</span><b>${fmtInt(w)} / ${fmtInt(mw)} kg</b></div>${this.bar(w, mw, w > mw * 0.9 ? '#ff6a3a' : '#e8962a')}
-        <div class="grid">${Object.keys(P.items).sort().map(k => cell(k, P.items[k], ITEM[k]?.cat === 'consumivel')).join('') || '<p class="muted">Vazia.</p>'}</div>
-        <p class="muted">Entregue a mochila na cápsula laranja [E]: vira estoque e paga créditos (◆ ${fmtInt(g.stock.credits)}).</p></div>
-        <div class="col wide"><h3>ESTOQUE CENTRAL</h3>${groups.map(([name, f]) => { const ks = stockKeys.filter(f); return ks.length ? `<h4>${name}</h4><div class="grid">${ks.map(k => cell(k, g.stock.count(k))).join('')}</div>` : ''; }).join('') || '<p class="muted">Estoque vazio. Entregue minério na base.</p>'}</div></div>`;
+        <div class="grid">${Object.keys(P.items).sort().map(k => cell(k, P.items[k], ITEM[k]?.cat === 'consumivel', P.grade(k))).join('') || '<p class="muted">Vazia.</p>'}</div>
+        <p class="muted">Entregue a mochila na cápsula laranja [E]: vira estoque e paga créditos (◆ ${fmtInt(g.stock.credits)}).</p>
+        <button class="btn orange" data-act="analyzer">🔬 ANALISADOR DE MATRIZ</button></div>
+        <div class="col wide"><h3>ESTOQUE CENTRAL</h3>${groups.map(([name, f]) => { const ks = stockKeys.filter(f); return ks.length ? `<h4>${name}</h4><div class="grid">${ks.map(k => cell(k, g.stock.count(k), false, g.stock.grade(k))).join('')}</div>` : ''; }).join('') || '<p class="muted">Estoque vazio. Minere e processe na base.</p>'}</div></div>`;
       return h;
     }
     // fabricação: só refino à mão e consumíveis
@@ -238,13 +244,14 @@ export class Panels {
     const g = this.g;
     const cat = this.st.buildCat as MachineCat;
     let h = this.tabs('buildCat', MACHINE_CATS) + `<p class="muted">Toque em <b>POSICIONAR</b>, coloque a peça no mapa e aperte <b>CONFIRMAR</b>. Custos saem do Estoque Central + mochila. 📌 fixa no slot ${(g.selected + 1) % 10} da barra.</p>`;
-    h += `<div class="cards scroll tall">${MACHINES.filter(m => m.cat === cat && m.behavior !== 'command' && !m.hidden).map(d => {
+    if (cat === 'processamento') h += `<p class="hint">Esta camada: <b>${esc(itemName(RAW_BY_LAYER[g.planet.layer]))}</b> → ${esc(compOf(g.planet.layer).chain)} → Compactador → Terminal Orbital. Máquinas na base puxam e devolvem direto ao estoque.</p>`;
+    h += `<div class="cards scroll tall">${MACHINES.filter(m => m.cat === cat && m.behavior !== 'command' && m.behavior !== 'analyzer' && !m.hidden && (m.minLayer ?? 1) <= g.planet.layer).map(d => {
       const locked = d.research && !g.research.has(d.research);
       const req = locked ? `🔒 Desbloqueie em Melhorias: ${esc(RESEARCH.find(r => r.key === d.research)?.name ?? d.research!)}` : d.sector12 ? '◈ Apenas no Núcleo' : '';
       const afford = g.stock.has(d.cost, g.pack.items);
       return `<div class="card ${locked ? 'locked' : afford ? '' : 'poor'}">
         <div class="ch"><img src="${g.sprites.machineUrl(d)}"><div><b>${esc(d.name)}</b><small>${d.w}×${d.h} tiles${d.capacity ? ` · ${fmtShort(d.capacity)} ${d.behavior === 'storage' ? 'kg' : 'kg/min'}` : ''}</small></div></div>
-        <p>${esc(d.desc)}</p><div class="cost">${costStr(g, d.cost)}</div>${req ? `<div class="req">${req}</div>` : ''}
+        <p>${esc(d.desc)}</p>${d.takes ? `<p class="muted">Processa: ${Object.entries(d.takes).map(([k, f]) => `${esc(itemName(k))}${f < 1 ? ` <span class="warn">(−${Math.round((1 - f) * 100)}%)</span>` : ''}`).join(', ')}</p>` : ''}<div class="cost">${costStr(g, d.cost)}</div>${req ? `<div class="req">${req}</div>` : ''}
         <div class="row">${locked ? '' : `<button class="btn" data-act="build" data-arg="${d.key}">POSICIONAR</button><button class="btn ghost" data-act="pin" data-arg="${d.key}">📌</button>`}<span class="count">${g.machines.count(d.key) ? `Ativas: ${g.machines.count(d.key)}` : ''}</span></div></div>`;
     }).join('')}</div>`;
     return h;
@@ -474,6 +481,31 @@ export class Panels {
   }
 
   // =============== MÁQUINA ===============
+  /** Painel de processamento: ENTRADA, PROCESSANDO, SAÍDA, CAPACIDADE, EFICIÊNCIA, GARGALO. */
+  private procInfo(m: Machine): string {
+    const g = this.g, d = m.def;
+    if (d.behavior !== 'separator' && d.behavior !== 'prep' && d.behavior !== 'compactor') return '';
+    const cap = d.capacity ?? 0;
+    const inKey = Object.keys(m.inb).sort((a, b) => m.inb[b] - m.inb[a])[0] ?? g.machines.inputs(m).find(k => g.stock.count(k) > 0) ?? g.machines.inputs(m)[0];
+    const f = d.behavior === 'compactor' ? 1 : d.takes?.[inKey] ?? 1;
+    const eff = d.behavior === 'separator' ? SEP_EFF * f : f;
+    const gargalo = !m.working ? m.state
+      : m.fin < cap * 0.6 ? 'Falta material: a entrada está abaixo da capacidade'
+      : 'Nenhum: operando no limite. Mais máquinas = mais vazão';
+    const total = bagTotal(m.mix);
+    const mix = Object.entries(m.mix).filter(([k]) => d.behavior === 'separator').sort((a, b) => b[1] - a[1]);
+    const row = (k: string, v: string, col = '') => `<div class="kv"><span>${k}</span><b${col ? ` style="color:${col}"` : ''}>${v}</b></div>`;
+    return `<h4>PROCESSAMENTO</h4>
+      ${row('ENTRADA', `${fmtShort(m.fin)} kg/min${inKey ? ` · ${esc(itemName(inKey))}` : ''}`)}
+      ${row('PROCESSANDO', `${fmtShort(bagTotal(m.inb))} kg${m.g[inKey] ? ` · teor <i style="color:${gradeColor(m.g[inKey])}">${gradeLabel(m.g[inKey])}</i>` : ''}`)}
+      ${row('SAÍDA', d.behavior === 'separator' ? `${fmtShort(m.fout)} kg/min minerais · ${fmtShort(m.fres)} kg/min resíduo` : d.behavior === 'compactor' ? `${fmtShort(m.fin / 100)} blocos/min` : `${fmtShort(m.fout)} kg/min fragmentado`)}
+      ${row('CAPACIDADE/MIN', `${fmtShort(cap)} kg`)}${this.bar(m.fin, cap, '#3ae6ff')}
+      ${row('EFICIÊNCIA', `${Math.round(eff * 100)}%${f < 1 ? ' — máquina errada para este material' : ''}`, eff < 0.8 ? '#ff8a5a' : '#9cff8a')}
+      ${row('GARGALO', esc(gargalo), m.working && m.fin >= cap * 0.6 ? '#9cff8a' : '#ffd04a')}
+      ${mix.length && total > 0 ? `<h4>JÁ SEPARADO · ${fmtShort(total)} kg</h4><div class="grid">${mix.map(([k, v]) => `<div class="cell">${this.icon(k, 22)}<span>${esc(itemName(k))}</span><b>${(v / total * 100).toFixed(1).replace('.', ',')}%</b></div>`).join('')}</div>` : ''}
+      ${g.machines.atBase(m) ? '<p class="muted">Na base: puxa o material do estoque e entrega a saída direto nele.</p>' : '<p class="muted">Fora da base: alimente por esteira e ligue a saída numa esteira até o armazém.</p>'}`;
+  }
+
   r_machine() {
     const g = this.g, m = this.machine;
     if (!m || !g.machines.byId.has(m.id)) return '<p>Máquina removida.</p>';
@@ -484,10 +516,12 @@ export class Panels {
       <div class="kv"><span>Condição</span><b>${Math.round(m.cond)}%</b></div>${this.bar(m.cond, 100, m.cond < 30 ? '#ff6a3a' : '#e8962a')}
       ${['complex', 'tectonic', 'mantle', 'collector'].includes(d.behavior) ? `<div class="kv"><span>Calibração / eficiência</span><b style="color:${m.eff < 0.6 ? '#ff7a5a' : '#9cff8a'}">${Math.round(m.eff * 100)}%</b></div>${this.bar(m.eff, 1.1, m.eff < 0.6 ? '#ff6a3a' : '#3aff8a')}<div class="kv"><span>Extração</span><b>${fmtShort(m.produced)} t no total</b></div>` : ''}
       ${m.boost > 1.001 ? `<div class="kv"><span>Bônus de calibração</span><b>+${Math.round((m.boost - 1) * 100)}%</b></div>` : ''}
-      ${d.behavior === 'drill' ? `<div class="kv"><span>Avanço no veio</span><b>${m.depth} células</b></div><div class="kv"><span>Produção total</span><b>${fmtShort(m.produced)} kg</b></div>` : ''}
+      ${d.behavior === 'drill' || d.behavior === 'complex' ? `<div class="kv"><span>Material</span><b>${esc(itemName(RAW_BY_LAYER[g.planet.layer]))}</b></div><div class="kv"><span>Teor da região</span><b style="color:${gradeColor(m.lg ?? 1)}">${gradeLabel(m.lg ?? 1)}</b></div>` : ''}
+      ${d.behavior === 'drill' ? `<div class="kv"><span>Avanço no veio</span><b>${m.depth} células</b></div><div class="kv"><span>Produção total</span><b>${fmtShort(m.produced)} kg de bruto</b></div>` : ''}
+      ${this.procInfo(m)}
       ${d.capacity && (d.behavior === 'link' || d.behavior === 'terminal') ? `<div class="kv"><span>Capacidade</span><b>${fmtShort(d.capacity)} kg/min ${m.loaders ? `(+${Math.min(3, m.loaders) * 20}% loaders)` : ''}</b></div>` : ''}
       ${d.fuel ? `<div class="kv"><span>Combustível</span><b>${esc(itemName(d.fuel.item))} · ${d.fuel.perMin}/min</b></div>` : ''}
-      ${inb.length ? `<h4>ENTRADA</h4><div class="grid">${inb.map(([k, v]) => `<div class="cell">${this.icon(k, 22)}<span>${esc(itemName(k))}</span><b>${fmtShort(v)}</b></div>`).join('')}</div>` : ''}
+      ${inb.length && !d.takes && d.behavior !== 'compactor' ? `<h4>ENTRADA</h4><div class="grid">${inb.map(([k, v]) => `<div class="cell">${this.icon(k, 22)}<span>${esc(itemName(k))}</span><b>${fmtShort(v)}</b></div>`).join('')}</div>` : ''}
       ${out.length ? `<h4>SAÍDA</h4><div class="grid">${out.map(([k, v]) => `<div class="cell">${this.icon(k, 22)}<span>${esc(itemName(k))}</span><b>${fmtShort(v)}</b></div>`).join('')}</div><button class="btn ghost" data-act="collect">Coletar saída na mochila</button>` : ''}
       </div><div class="col"><h4>AÇÕES</h4><div class="actions">`;
     h += `<button class="btn" data-act="calib">🎛 CALIBRAR (minigame)</button>`;

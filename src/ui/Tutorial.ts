@@ -43,29 +43,35 @@ function nearestWall(g: Game): [number, number] | null {
   return null;
 }
 
+function machinePos(g: Game, key: string): [number, number] | null {
+  const m = g.machines.list.find(x => x.key === key);
+  return m ? g.machines.centerPx(m) : null;
+}
+const analyzed = (g: Game) => (g.sectors.s[1]?.counters.analyzed ?? 0) > 0 || g.planet.layer > 1;
+
+// MINERAR → PROCESSAR MANUALMENTE → VER O QUE EXISTE DENTRO DA TERRA → AUTOMATIZAR
 const STEPS: Step[] = [
   { title: 'Andar', text: t => t ? 'Arraste o <b>joystick esquerdo</b> para andar.' : 'Ande com <b>W A S D</b>.',
     target: (_g, t) => t ? '#mobile .stick.left .base' : null, done: g => !!g.flags.tutMoved },
-  { title: 'Minerar', text: t => t ? 'Arraste o <b>joystick direito</b> na direção da rocha (seta) e segure. Junte <b>50 kg</b>.' : 'Mire na rocha (seta) e <b>segure o botão esquerdo</b>. Junte <b>50 kg</b>.',
-    target: g => () => nearestWall(g), done: g => g.flags.tutorial >= 1 },
-  { title: 'Entregar', text: t => `Volte à cápsula laranja (seta) e ${t ? 'toque em <b>E</b>' : 'aperte <b>E</b>'}: a mochila vira estoque para construir.`,
-    target: (g, t) => t && g.hover?.kind === 'machine' ? '#mobile [data-b="interact"]' : () => commandPos(g), done: g => g.flags.tutorial >= 2 },
-  { title: 'Perfuradora', text: () => '<b>MENU → CONSTRUIR → Perfuradora → POSICIONAR</b>. Encoste na rocha, use <b>GIRAR</b> até o cone apontar para ela e <b>CONFIRMAR</b>. Ela minera sozinha.',
+  { title: 'Minerar', text: t => (t ? 'Arraste o <b>joystick direito</b> na direção da terra (seta) e segure.' : 'Mire na terra (seta) e <b>segure o botão esquerdo</b>.') + ' Junte <b>40 kg de Solo K-37</b>: material bruto, ninguém sabe o que tem dentro.',
+    target: g => () => nearestWall(g), done: g => g.stats.manualKg >= 40 || analyzed(g) },
+  { title: 'Processar à mão', text: t => `Vá ao <b>Analisador de Matriz</b> (seta) e ${t ? 'toque em <b>E</b>' : 'aperte <b>E</b>'}. Escolha o Solo K-37, <b>INICIAR</b> e dê o <b>PULSO</b> na faixa verde.`,
+    target: (g, t) => t && (g.hover?.ref as any)?.key === 'analisador' ? '#mobile [data-b="interact"]' : g.ui.mini.isOpen() ? null : () => machinePos(g, 'analisador'), done: analyzed },
+  { title: 'O que existe dentro', text: () => 'Viu o relatório? <b>~80% é resíduo</b>. Os minerais (Ferronox, Lumenita) foram para o <b>estoque</b>: é com eles que você constrói. O resíduo foi para o <b>pátio</b> da base. <b>Toque aqui</b> para automatizar.',
+    target: () => '.hcard.meta', done: () => false, manual: true },
+  { title: 'Perfuradora', text: () => '<b>MENU → CONSTRUIR → Perfuradora → POSICIONAR</b>. Encoste na terra, use <b>GIRAR</b> até o cone apontar para ela e <b>CONFIRMAR</b>. Ela escava sozinha.',
     target: g => buildFlow(g, 'extracao', 'perfuradora'), done: g => g.machines.countBehavior('drill') > 0 },
   { title: 'Armazém', text: () => '<b>MENU → CONSTRUIR → Logística → Armazém</b>. Ele só pode ficar perto da cápsula (círculo tracejado).',
     target: g => buildFlow(g, 'logistica', 'armazem'), done: g => g.machines.countBehavior('storage') > 0 },
   { title: 'Esteira', text: t => `<b>Logística → Esteira</b>. ${t ? 'Toque' : 'Clique'} ao lado da perfuradora e <b>arraste até o armazém</b>; as setas devem apontar para ele. Depois <b>CONFIRMAR</b>.`,
     target: g => buildFlow(g, 'logistica', 'esteira'), done: g => g.machines.countBehavior('belt') >= 3 },
-  { title: 'Melhoria', text: () => '<b>MENU → MELHORIAS → Processamento → Refino Mineral → DESBLOQUEAR</b>. Melhorias liberam máquinas e deixam você mais forte.',
-    target: g => {
-      if (g.ui.panels.id !== 'upgrades') return openTab(g, 'upgrades');
-      if (g.ui.panels.st.upBr !== 'processamento') return '.branches [data-arg="upBr:processamento"]';
-      if (g.ui.panels.st.resSel !== 'refino') return '[data-arg="resSel:refino"]';
-      return '[data-act="research"][data-arg="refino"]';
-    }, done: g => g.research.has('refino') },
-  { title: 'Scanner', text: t => `${t ? 'Toque em <b>SCANNER</b>' : 'Aperte <b>F</b>'}: os minérios próximos acendem. Aponte perfuradoras para eles.`,
+  { title: 'Processador', text: () => '<b>Processamento → Processador de Solo</b>, perto da base. Ele puxa o Solo K-37 do estoque e separa sozinho: o Analisador, só que automático.',
+    target: g => buildFlow(g, 'processamento', 'processador_solo'), done: g => g.machines.count('processador_solo') > 0 },
+  { title: 'Compactador', text: () => '<b>Processamento → Compactador Planetário</b>, perto da base. O resíduo vira <b>blocos</b> e o Terminal Orbital exporta. Sem isso o pátio enche e <b>tudo para</b>.',
+    target: g => buildFlow(g, 'processamento', 'compactador'), done: g => g.machines.count('compactador') > 0 },
+  { title: 'Scanner', text: t => `${t ? 'Toque em <b>SCANNER</b>' : 'Aperte <b>F</b>'}: ele mostra o <b>teor</b> da região. Perfuradoras em teor ALTO rendem muito mais minerais.`,
     target: (_g, t) => t ? '#mobile [data-b="scan"]' : '.hotbar [data-slot="1"]', done: g => (g.sectors.s[g.planet.layer]?.counters.scans ?? 0) > 0 },
-  { title: 'Sua meta', text: () => 'A barra da <b>CAMADA</b> (canto superior) é sua meta: tudo que você e as máquinas mineram enche ela. Em 100% você <b>desce</b> para a camada de baixo. <b>Toque aqui</b> para terminar o tutorial.',
+  { title: 'Sua meta', text: () => 'A barra da <b>CAMADA</b> só sobe com massa <b>REMOVIDA</b>: minerais separados + resíduo exportado em blocos. A parte listrada é o que já foi escavado. Em 100% você <b>desce</b>. <b>Toque aqui</b> para terminar.',
     target: () => '.hcard.layer', done: () => false, manual: true },
 ];
 

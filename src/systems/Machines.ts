@@ -3,20 +3,25 @@ import { CELL, TILE, TILE_CELLS, WORLD_TILES } from '../core/constants';
 import { DIRS } from '../core/math';
 import { MACHINE, COMPLEX_LEVELS, TECTONIC_RATE, MANTLE_RATE, COLLECTOR_RATE, type MachineDef } from '../data/machines';
 import { MAT, IS_SOLID, IS_LIQUID, matById } from '../data/materials';
-import { BRITAVEL_KEYS, ITEM } from '../data/items';
+import { ITEM } from '../data/items';
+import { RAW_BY_LAYER, rawOf, gradeAt, gradeLabel, gradeMix, separate, KG_PER_UNIT, BLOCK_KG, type Grades } from '../data/composition';
 import { REFINE_MAP, RECIPES, RECIPE, type Recipe } from '../data/recipes';
 import { SECTORS } from '../data/sectors';
 import { type Bag, bagAdd, bagTotal } from './Inventory';
 import type { Game } from '../Game';
 
 export const DELIVERY_PAY = 0.5;  // créditos por kg entregue = valor do item × isto
-export const LOT = 5;            // kg por lote em esteira
+export const LOT = 10;           // kg por lote em esteira
 export const BASE_RADIUS = 40;   // tiles: área da base onde armazéns podem ser construídos
 const BELT_GAP = 0.5;            // espaçamento mínimo entre lotes
 const OUT_CAP = 200;             // kg de saída acumulada antes de travar
+const IN_CAP = 80;               // kg de entrada das máquinas de processamento
+export const SEP_EFF = 0.92;     // eficiência base da separação (o resto vira resíduo, nunca some)
+const PROC = new Set(['separator', 'prep', 'compactor']);
+const OUTLETS = new Set(['storage', 'link', 'command', 'terminal', 'launchpad', 'separator', 'prep', 'compactor', 'refinery']);
 const DRILL_DEPTH_MULT = 4;      // cada célula perfurada representa uma pequena coluna de material
 
-export interface BeltLot { k: string; q: number; p: number; }
+export interface BeltLot { k: string; q: number; p: number; g?: number; }
 export interface Machine {
   id: number;
   key: string;
@@ -44,12 +49,17 @@ export interface Machine {
   produced: number;
   rr: number;            // round robin
   t: number;
+  g: Grades;             // teor médio do material bruto/fragmentado dentro da máquina
+  fin: number; fout: number; fres: number;   // processamento: kg/min de entrada, minerais e resíduo (média móvel)
+  mix: Bag;              // tudo o que a máquina já separou (para a composição na interface)
+  lg?: number;           // perfuradoras: teor do último material
+  kr?: number;           // rodízio de itens na saída
 }
 
 export interface SectorRT {
   gen: number; use: number; ratio: number; demand: number;
   heat: number; cooling: number; stress: number;
-  buffer: Bag; bufCap: number;
+  buffer: Bag; bufG: Grades; bufCap: number;
   linkCap: number; linkFlow: number; linkedTotal: number;
   drillOut: number;
   deepRate: number;  // t/min atual
@@ -63,6 +73,8 @@ export class Machines {
   shipCap = 0; shipFlow = 0;
   shipList: string[] = [];
   shipped: Bag = {};           // total enviado por item (contratos/quotas)
+  blockCap = 0; blockFlow = 0; // exportação de blocos de massa (kg/min)
+  private cmd: Machine | undefined;
   private belts: Machine[] = [];
   private acc = 0;
 
@@ -99,6 +111,7 @@ export class Machines {
       id: this.nextId++, key, def, tx, ty, dir: def.rotatable ? dir : 0, sector: this.g.world.sectorAtTile(tx, ty),
       cond: 100, broken: false, overheat: false, buried: 0, state: 'ok', inb: {}, out: {}, prog: 0, level: 0, eff: 1, boost: 1,
       depth: 0, exhausted: false, working: false, loaders: 0, charged: true, produced: 0, rr: 0, t: 0,
+      g: {}, fin: 0, fout: 0, fres: 0, mix: {},
     };
     if (def.behavior === 'belt') m.belt = [];
     this.add(m);
@@ -131,9 +144,28 @@ export class Machines {
     if (m.def.behavior === 'dronepad') this.g.robots.removeForPad(m);
     if (m.belt) this.belts.splice(this.belts.indexOf(m), 1);
     // devolve conteúdo ao estoque
-    for (const k in m.out) this.g.stock.add(k, m.out[k], false);
-    for (const k in m.inb) this.g.stock.add(k, m.inb[k], false);
-    if (m.belt) for (const l of m.belt) this.g.stock.add(l.k, l.q, false);
+    for (const k in m.out) this.g.stock.add(k, m.out[k], false, m.g[k]);
+    for (const k in m.inb) this.g.stock.add(k, m.inb[k], false, m.g[k]);
+    if (m.belt) for (const l of m.belt) this.g.stock.add(l.k, l.q, false, l.g);
+    if (m.def.behavior === 'compactor' && m.prog > 0) this.g.stock.add('residuo', m.prog, false);
+  }
+
+  // ---------------- pátio de resíduo e base ----------------
+  /** kg de resíduo que a base aguenta antes de travar a linha. */
+  yardCap() { return 2000 + 1000 * this.countBehavior('storage'); }
+  yardUsed() { let u = this.g.stock.count('residuo'); for (const r of this.g.sectors.rt) u += r.buffer.residuo ?? 0; return u; }
+  yardRoom() { return Math.max(0, this.yardCap() - this.yardUsed()); }
+  /** A Zenitex não compra material sem processar: só blocos e minerais saem pelo terminal. */
+  shippable(k: string) { const c = ITEM[k]?.cat; return k === 'bloco_massa' || (c !== 'bruto' && c !== 'residuo'); }
+  atBase(m: Machine) {
+    const c = this.cmd; if (!c) return false;
+    return Math.hypot(m.tx + m.def.w / 2 - (c.tx + 1.5), m.ty + m.def.h / 2 - (c.ty + 1.5)) <= BASE_RADIUS;
+  }
+  /** material que esta máquina processa, do mais aproveitado para o menos */
+  inputs(m: Machine): string[] {
+    if (m.def.behavior === 'compactor') return ['residuo'];
+    const t = m.def.takes ?? {};
+    return Object.keys(t).sort((a, b) => t[b] - t[a]);
   }
 
   at(tx: number, ty: number): Machine | undefined {
@@ -163,7 +195,8 @@ export class Machines {
       r.gen = 0; r.heat = 0; r.cooling = 20; r.bufCap = 0; r.linkCap = 0; r.deepRate = 0; r.fields = {};
       r.use = r.demand; r.demand = 0;
     }
-    let shipCap = 0;
+    let shipCap = 0, blockCap = 0;
+    this.cmd = this.list.find(m => m.def.behavior === 'command');
     const logBonus = this.count('central_logistica') ? 1.25 : 1;
     // passada 1: geração, capacidade, campos
     for (const m of this.list) {
@@ -173,13 +206,18 @@ export class Machines {
       if (d.behavior === 'storage') r.bufCap += d.capacity ?? 0;
       if (d.behavior === 'command') { r.bufCap += 3000; if (ok) r.linkCap += (d.capacity ?? 0) * logBonus; }
       if (d.behavior === 'link') { r.bufCap += 500; if (ok) r.linkCap += (d.capacity ?? 0) * (1 + 0.2 * Math.min(3, m.loaders)) * logBonus * this.condFactor(m); }
-      if ((d.behavior === 'terminal' || d.behavior === 'launchpad') && ok) shipCap += (d.capacity ?? 0) * (1 + 0.2 * Math.min(3, m.loaders)) * this.condFactor(m);
+      if ((d.behavior === 'terminal' || d.behavior === 'launchpad') && ok) {
+        const f = (1 + 0.2 * Math.min(3, m.loaders)) * this.condFactor(m);
+        shipCap += (d.capacity ?? 0) * f;
+        blockCap += (d.behavior === 'terminal' ? 3000 : 30000) * f;
+      }
       if (d.behavior === 'field' && ok) {
         const f = d.field!;
         r.fields[f.hazard] = Math.min(60, (r.fields[f.hazard] ?? 0) + (f.sectorWide ?? 0));
       }
     }
     this.shipCap = shipCap * (1 + g.research.eff('shipMult'));
+    this.blockCap = blockCap * (1 + g.research.eff('shipMult'));
     // sem rede de energia: tudo que está construído e inteiro funciona
     for (let s = 1; s <= LAYER_COUNT; s++) { const r = rts[s]; r.ratio = 1; r.gen = 0; r.use = 0; }
 
@@ -199,7 +237,7 @@ export class Machines {
         for (const k of Object.keys(r.buffer)) {
           const n = r.buffer[k] * frac;
           bagAdd(r.buffer, k, -n);
-          g.stock.add(k, n);
+          g.stock.add(k, n, true, r.bufG[k]);
           // a Zenitex paga pelo minério que chega à base
           g.stock.credits += n * (ITEM[k]?.value ?? 1) * DELIVERY_PAY;
           g.contracts.onShip(k, n);
@@ -211,18 +249,30 @@ export class Machines {
       if (moved > 0) { g.sectors.counter(s, 'linked', moved); g.sectors.counter(s, 'delivered', moved); }
     }
 
+    // exportação de blocos de massa planetária: é assim que o resíduo deixa o planeta
+    const blocks = g.stock.take('bloco_massa', (this.blockCap / 60) * dt / BLOCK_KG);
+    if (blocks > 0) this.ship('bloco_massa', blocks);
+    this.blockFlow = this.blockFlow * 0.95 + (blocks * BLOCK_KG / dt) * 60 * 0.05;
+
     // envio orbital
     let budget = (this.shipCap / 60) * dt, sent = 0;
     for (const k of this.shipList) {
       if (budget <= 0) break;
+      if (!this.shippable(k)) continue;
       const n = g.stock.take(k, budget);
       if (n > 0) { this.ship(k, n); budget -= n; sent += n; }
     }
     this.shipFlow = this.shipFlow * 0.9 + (sent / dt) * 60 * 0.1;
+    if (this.yardUsed() >= this.yardCap() * 0.98) g.say('yard_full', 150);
   }
 
   ship(k: string, n: number) {
     bagAdd(this.shipped, k, n);
+    if (k === 'bloco_massa') {
+      this.g.planet.addUnits(n * BLOCK_KG / KG_PER_UNIT);
+      this.g.sectors.counter(this.g.planet.layer, 'exported', n * BLOCK_KG);
+      if (!this.g.flags.firstBlock) { this.g.flags.firstBlock = true; this.g.say('first_block'); }
+    }
     this.g.stock.credits += (ITEM[k]?.value ?? 1) * n;
     this.g.stats.shipped += n;
     this.g.sectors.onShip(k, n);
@@ -256,6 +306,13 @@ export class Machines {
     if (m.broken) { m.state = 'QUEBRADA — reparo manual'; m.working = false; return; }
     if (m.buried > 0) { m.state = 'Soterrada — remova o entulho'; m.working = false; return; }
     m.overheat = false;
+    const proc = PROC.has(d.behavior);
+    if (proc) {
+      m.fin *= 0.97; m.fout *= 0.97; m.fres *= 0.97;
+      this.fromBase(m);
+    }
+    // a saída anda mesmo com a máquina parada (senão ela nunca destrava)
+    if (bagTotal(m.out) > 0) { this.pushOut(m); if (proc) this.toBase(m); }
     const want = this.wantsWork(m);
     if (!want) { m.working = false; if (m.state === 'ok' || m.state === 'Trabalhando') m.state = 'Ocioso'; return; }
     const k = this.condFactor(m) * m.boost;
@@ -267,19 +324,17 @@ export class Machines {
     switch (d.behavior) {
       case 'drill': this.drill(m, dt * k); break;
       case 'pump': this.pump(m, dt * k); break;
-      case 'crusher': this.process(m, dt * k, (key) => BRITAVEL_KEYS.includes(key) ? { in: { [key]: 1 }, out: { ['britado_' + key]: 1 } } : null); break;
-      case 'refinery': this.process(m, dt * k, (key) => {
-        if (REFINE_MAP[key]) return { in: { [key]: 2 }, out: { [REFINE_MAP[key]]: 1 } };
-        if (key.startsWith('britado_')) return { in: { [key]: 1 }, out: { [REFINE_MAP[key.slice(8)]]: 1 } };
-        return null;
-      }); break;
+      case 'separator': this.separateRun(m, dt * k); break;
+      case 'prep': this.prepRun(m, dt * k); break;
+      case 'compactor': this.compactRun(m, dt * k); break;
+      case 'refinery': this.process(m, dt * k, (key) => REFINE_MAP[key] ? { in: { [key]: 2 }, out: { [REFINE_MAP[key]]: 1 } } : null); break;
       case 'purifier': this.process(m, dt * k, (key) => { const rc = RECIPES.find(x => x.station === 'purificador' && x.in[key]); return rc ? { in: rc.in, out: rc.out } : null; }); break;
       case 'foundry': this.foundry(m, dt * k); break;
       case 'synth': this.synth(m, dt * k); break;
       case 'complex': case 'tectonic': case 'mantle': case 'collector': this.deep(m, dt, k); break;
       case 'orbital': break;
     }
-    if (bagTotal(m.out) > 0) this.pushOut(m);
+    if (bagTotal(m.out) > 0) { this.pushOut(m); if (proc) this.toBase(m); }
   }
 
   levelPower(m: Machine) { return m.def.behavior === 'complex' ? COMPLEX_LEVELS[m.level].power / 60 : 1; }
@@ -287,13 +342,20 @@ export class Machines {
   private wantsWork(m: Machine): boolean {
     const d = m.def;
     switch (d.behavior) {
-      case 'drill': if (bagTotal(m.out) >= OUT_CAP) { m.state = 'Saída cheia'; return false; } return true;
+      case 'drill': if (bagTotal(m.out) >= OUT_CAP) { m.state = 'Saída cheia: sem esteira livre'; return false; } return true;
       case 'pump': return !m.exhausted;
       case 'crusher': case 'refinery': case 'purifier': case 'foundry': case 'synth':
         if (bagTotal(m.out) >= OUT_CAP) { m.state = 'Saída cheia'; return false; }
         if (bagTotal(m.inb) <= 0) { m.state = 'Sem insumo'; return false; }
         return true;
-      case 'complex': case 'tectonic': case 'mantle': case 'collector':
+      case 'separator': case 'prep': case 'compactor':
+        if (bagTotal(m.out) >= OUT_CAP) { m.state = this.clogMsg(m); return false; }
+        if (bagTotal(m.inb) <= 0) { m.state = 'Sem material: ' + this.inputs(m).slice(0, 2).map(k => ITEM[k]?.name ?? k).join(' ou '); return false; }
+        return true;
+      case 'complex':
+        if (bagTotal(m.out) >= OUT_CAP * 20) { m.state = 'Saída cheia: ligue esteiras ao complexo'; return false; }
+        return true;
+      case 'tectonic': case 'mantle': case 'collector':
         return true;
       case 'link': case 'terminal': case 'launchpad': case 'lamp': case 'field': case 'lift': case 'workshop': case 'lab': case 'robotics':
       case 'archaeo': case 'logcenter': case 'orbital': case 'splitter': case 'cannon': case 'cutter':
@@ -312,14 +374,11 @@ export class Machines {
       m.prog += dt * sp * 0.35;
       while (m.prog >= 1) {
         m.prog -= 1;
-        const sd = SECTORS[m.sector - 1];
-        const common = sd.ores.filter(o => !matById(o.mat).rare);
-        let tw = 0; for (const o of common) tw += o.weight;
-        let r = Math.random() * tw;
-        for (const o of common) { r -= o.weight; if (r <= 0) { this.drillYield(m, matById(o.mat).item!, 3 * DRILL_DEPTH_MULT / 4); break; } }
-        this.g.planet.addUnits(DRILL_DEPTH_MULT * 0.5);
+        const u = DRILL_DEPTH_MULT * 0.5;
+        this.g.planet.dig(u);
+        this.drillYield(m, rawOf(this.g.planet.layer), u * KG_PER_UNIT, this.gradeHere(m));
       }
-      m.state = 'Perfurando em profundidade';
+      m.state = `Perfurando em profundidade · teor ${gradeLabel(m.lg ?? 1)}`;
       return;
     }
     const [dx, dy] = DIRS[m.dir];
@@ -342,7 +401,7 @@ export class Machines {
         hits++; name = md.name;
         if (w.damage(x, y, power)) this.g.mining.removeCell(x, y, 'drill', DRILL_DEPTH_MULT, m);
       }
-      if (hits) { m.state = 'Perfurando ' + name; return; }
+      if (hits) { m.state = `Perfurando ${name} · teor ${gradeLabel(m.lg ?? 1)}`; return; }
       m.depth++;
     }
     m.exhausted = true;
@@ -350,8 +409,112 @@ export class Machines {
   }
 
   /** chamada pela mineração quando uma perfuradora remove uma célula */
-  drillYield(m: Machine, item: string | undefined, kg: number) {
-    if (item) { bagAdd(m.out, item, kg); m.produced += kg; this.g.sectors.counter(m.sector, 'drillOut', kg); }
+  drillYield(m: Machine, item: string | undefined, kg: number, grade?: number) {
+    if (!item) return;
+    if (grade !== undefined) { gradeMix(m.g, m.out[item] ?? 0, item, kg, grade); m.lg = (m.lg ?? grade) * 0.9 + grade * 0.1; }
+    bagAdd(m.out, item, kg); m.produced += kg; this.g.sectors.counter(m.sector, 'drillOut', kg);
+  }
+  gradeHere(m: Machine) {
+    const [px, py] = this.centerPx(m);
+    return gradeAt(this.g.world.gen.seed, this.g.planet.layer, Math.floor(px / CELL), Math.floor(py / CELL));
+  }
+
+  // ---- cadeia da massa planetária ----
+  private rate(m: Machine) { return (m.def.capacity ?? 600) / 60; }   // kg/s
+  private flow(m: Machine, field: 'fin' | 'fout' | 'fres', kg: number, dt: number) { m[field] += (kg / Math.max(dt, 1e-3)) * 60 * 0.03; }
+
+  /** separação: bruto/fragmentado → minerais + resíduo (minerais saem do planeta aqui) */
+  private separateRun(m: Machine, dt: number) {
+    const g = this.g;
+    let budget = this.rate(m) * dt;
+    for (const key of Object.keys(m.inb)) {
+      if (budget <= 0) break;
+      const f = m.def.takes?.[key];
+      if (f === undefined) { g.stock.add(key, m.inb[key], false, m.g[key]); delete m.inb[key]; continue; }
+      const q = Math.min(budget, m.inb[key]);
+      const layer = key === 'fragmentado' ? g.planet.layer : Math.max(1, RAW_BY_LAYER.indexOf(key));
+      const res = separate(layer, q, m.g[key] ?? 1, SEP_EFF * f);
+      bagAdd(m.inb, key, -q); budget -= q;
+      let minerals = 0;
+      for (const k in res.out) { bagAdd(m.out, k, res.out[k]); bagAdd(m.mix, k, res.out[k]); minerals += res.out[k]; }
+      bagAdd(m.out, 'residuo', res.residue); bagAdd(m.mix, 'residuo', res.residue);
+      this.flow(m, 'fin', q, dt); this.flow(m, 'fout', minerals, dt); this.flow(m, 'fres', res.residue, dt);
+      m.produced += minerals;
+      g.stats.processed += minerals;
+      g.planet.addUnits(minerals / KG_PER_UNIT);
+      g.sectors.counter(g.planet.layer, 'processed', q);
+      g.sectors.counter(g.planet.layer, 'separated', minerals);
+    }
+    m.state = `Separando · ${Math.round(m.fin)} kg/min`;
+  }
+
+  /** preparo: bruto → fragmentado (a máquina errada danifica o conteúdo, e isso aparece como eficiência) */
+  private prepRun(m: Machine, dt: number) {
+    let budget = this.rate(m) * dt;
+    for (const key of Object.keys(m.inb)) {
+      if (budget <= 0) break;
+      const f = m.def.takes?.[key];
+      if (f === undefined) { this.g.stock.add(key, m.inb[key], false, m.g[key]); delete m.inb[key]; continue; }
+      const q = Math.min(budget, m.inb[key]);
+      gradeMix(m.g, m.out.fragmentado ?? 0, 'fragmentado', q, (m.g[key] ?? 1) * f);
+      bagAdd(m.inb, key, -q); bagAdd(m.out, 'fragmentado', q); bagAdd(m.mix, key, q);
+      budget -= q;
+      this.flow(m, 'fin', q, dt); this.flow(m, 'fout', q, dt);
+      m.produced += q;
+      if (f < 1) this.g.say('crystal_damage', 240);
+      m.state = f < 1 ? `Danificando ${ITEM[key]?.name ?? key} (−${Math.round((1 - f) * 100)}%)` : 'Fragmentando';
+    }
+  }
+
+  /** compactação: resíduo → blocos de 100 kg */
+  private compactRun(m: Machine, dt: number) {
+    const q = Math.min(this.rate(m) * dt, m.inb.residuo ?? 0);
+    if (q <= 0) return;
+    bagAdd(m.inb, 'residuo', -q);
+    m.prog += q;
+    while (m.prog >= BLOCK_KG) { m.prog -= BLOCK_KG; bagAdd(m.out, 'bloco_massa', 1); m.produced += 1; }
+    this.flow(m, 'fin', q, dt); this.flow(m, 'fres', q, dt);
+    m.state = `Compactando · ${Math.round(m.fin)} kg/min`;
+  }
+
+  /** máquinas de processamento na base puxam o próprio insumo do estoque */
+  private fromBase(m: Machine) {
+    if (!this.atBase(m)) return;
+    const room = IN_CAP - bagTotal(m.inb);
+    if (room < LOT) return;
+    const st = this.g.stock;
+    for (const k of this.inputs(m)) {
+      if (st.count(k) < 0.5) continue;
+      const gr = st.grade(k);
+      const n = st.take(k, room);
+      gradeMix(m.g, m.inb[k] ?? 0, k, n, gr);
+      bagAdd(m.inb, k, n);
+      return;
+    }
+  }
+
+  /** ...e entregam a saída direto no estoque (o resíduo só cabe se houver pátio) */
+  private toBase(m: Machine) {
+    if (!this.atBase(m)) return;
+    const g = this.g;
+    for (const k of Object.keys(m.out)) {
+      let q = m.out[k];
+      if (k === 'residuo') q = Math.min(q, this.yardRoom());
+      if (q <= 0) continue;
+      bagAdd(m.out, k, -q);
+      g.stock.add(k, q, true, m.g[k]);
+      if (k !== 'residuo' && k !== 'bloco_massa') {
+        g.stock.credits += q * (ITEM[k]?.value ?? 1) * DELIVERY_PAY;
+        g.contracts.onShip(k, q);
+        g.sectors.counter(g.planet.layer, 'delivered', q);
+      }
+    }
+  }
+
+  private clogMsg(m: Machine): string {
+    const k = Object.keys(m.out).sort((a, b) => m.out[b] - m.out[a])[0];
+    if (k === 'residuo') return this.atBase(m) ? 'Travada: pátio de resíduo cheio — compacte e exporte' : 'Travada: resíduo sem destino';
+    return `Saída cheia: ${ITEM[k]?.name ?? k} sem destino`;
   }
 
   private pump(m: Machine, dt: number) {
@@ -433,7 +596,16 @@ export class Machines {
     m.eff = Math.max(0.25, m.eff - drift * dt / 60);
     if (m.eff < 0.6 && m.t % 60 < dt) g.bus.emit('complex_drift', m);
     let rate = 0, layer: 'crust' | 'mantle' = 'crust';
-    if (d.behavior === 'complex') rate = COMPLEX_LEVELS[m.level].rate;
+    if (d.behavior === 'complex') {
+      // o complexo escava em escala industrial: o material bruto ainda precisa ser processado
+      if (g.planet.layerDone()) { m.state = 'Camada esgotada'; return; }
+      const u = COMPLEX_LEVELS[m.level].rate * Math.min(1.1, m.eff) * k * dt / 60;
+      g.planet.dig(u);
+      this.drillYield(m, rawOf(g.planet.layer), u * KG_PER_UNIT, this.gradeHere(m));
+      g.sectors.rt[m.sector].deepRate += (u / dt) * 60;
+      m.state = `Escavando · ${Math.round(COMPLEX_LEVELS[m.level].rate * KG_PER_UNIT * Math.min(1.1, m.eff))} kg/min de bruto`;
+      return;
+    }
     else if (d.behavior === 'tectonic') { rate = TECTONIC_RATE; layer = 'mantle'; }
     else if (d.behavior === 'mantle') { rate = MANTLE_RATE; layer = 'mantle'; }
     else if (d.behavior === 'collector') { if (g.planet.fraction() < 0.5) { m.state = 'Aguardando fragmentação (50%)'; return; } rate = COLLECTOR_RATE; layer = 'mantle'; }
@@ -460,20 +632,28 @@ export class Machines {
 
   // ---- entrada/saída ----
   /** Uma máquina aceita um lote? Retorna true se consumiu. */
-  accept(m: Machine, k: string, q: number): boolean {
+  accept(m: Machine, k: string, q: number, grade?: number): boolean {
     if (m.broken || m.buried > 0) return false;
     const d = m.def;
     const r = this.g.sectors.rt[m.sector];
     switch (d.behavior) {
       case 'storage': case 'link': case 'command': {
+        if (k === 'residuo' && this.yardRoom() < q) return false;
         if (bagTotal(r.buffer) + q > r.bufCap) return false;
+        gradeMix(r.bufG, r.buffer[k] ?? 0, k, q, grade);
         bagAdd(r.buffer, k, q); return true;
       }
       case 'terminal': case 'launchpad': {
+        if (!this.shippable(k)) return false;
         this.ship(k, q); return true;
       }
-      case 'crusher': if (!BRITAVEL_KEYS.includes(k)) return false; break;
-      case 'refinery': if (!REFINE_MAP[k] && !k.startsWith('britado_')) return false; break;
+      case 'separator': case 'prep': case 'compactor': {
+        if (d.behavior === 'compactor' ? k !== 'residuo' : d.takes?.[k] === undefined) return false;
+        if (bagTotal(m.inb) + q > IN_CAP) return false;
+        gradeMix(m.g, m.inb[k] ?? 0, k, q, grade);
+        bagAdd(m.inb, k, q); return true;
+      }
+      case 'refinery': if (!REFINE_MAP[k]) return false; break;
       case 'purifier': if (!RECIPES.some(x => x.station === 'purificador' && x.in[k])) return false; break;
       case 'foundry': if (!RECIPES.some(x => x.station === 'fundidor' && x.in[k])) return false; break;
       case 'synth': { const rc = m.recipe ? RECIPE[m.recipe] : undefined; if (!rc || !rc.in[k] || (m.inb[k] ?? 0) > rc.in[k] * 6) return false; break; }
@@ -486,34 +666,39 @@ export class Machines {
     return true;
   }
 
-  /** Empurra saída para esteiras adjacentes que saem da máquina, ou direto para armazéns encostados. */
+  /** Empurra a saída para esteiras que saem da máquina, ou direto para armazéns/máquinas encostadas que aceitem. */
   private pushOut(m: Machine) {
     const d = m.def;
     const per: [number, number][] = [];
     for (let x = 0; x < d.w; x++) { per.push([m.tx + x, m.ty - 1]); per.push([m.tx + x, m.ty + d.h]); }
     for (let y = 0; y < d.h; y++) { per.push([m.tx - 1, m.ty + y]); per.push([m.tx + d.w, m.ty + y]); }
     const n = per.length;
-    for (let i = 0; i < n; i++) {
+    let pushes = Math.max(1, Math.ceil((d.w * d.h) / 2));
+    for (let i = 0; i < n && pushes > 0; i++) {
+      const keys = Object.keys(m.out);
+      if (!keys.length) return;
       const [tx, ty] = per[(m.rr + i) % n];
       const o = this.at(tx, ty);
       if (!o || o === m) continue;
-      const key = Object.keys(m.out)[0];
-      if (!key) return;
-      const q = Math.min(LOT, m.out[key]);
       if (o.belt) {
         const [bx, by] = DIRS[o.dir];
         if (this.at(tx + bx, ty + by) === m) continue; // esteira apontando para dentro
         if (o.belt.length && o.belt[0].p < BELT_GAP) continue;
-        o.belt.unshift({ k: key, q, p: 0 });
+        // várias saídas: minerais e resíduo se revezam na esteira
+        const key = keys[(m.kr = (m.kr ?? 0) + 1) % keys.length];
+        const q = Math.min(LOT, m.out[key]);
+        o.belt.unshift({ k: key, q, p: 0, g: m.g[key] });
         bagAdd(m.out, key, -q);
-        m.rr = (m.rr + i + 1) % n;
-        return;
+        pushes--;
+        continue;
       }
-      if ((o.def.behavior === 'storage' || o.def.behavior === 'link' || o.def.behavior === 'command') && this.accept(o, key, q)) {
-        bagAdd(m.out, key, -q);
-        return;
+      if (!OUTLETS.has(o.def.behavior)) continue;
+      for (const key of keys) {
+        const q = Math.min(LOT, m.out[key]);
+        if (this.accept(o, key, q, m.g[key])) { bagAdd(m.out, key, -q); pushes--; break; }
       }
     }
+    m.rr = (m.rr + 1) % n;
   }
 
   private updateBelts(dt: number) {
@@ -536,8 +721,8 @@ export class Machines {
           if (!nt.belt.length || nt.belt[0].p >= BELT_GAP) { lots.pop(); last.p = 0; nt.belt.unshift(last); b.state = 'ok'; }
           else b.state = 'Fila';
         } else if (nt.def.behavior === 'splitter') {
-          if (this.accept(nt, last.k, last.q)) { lots.pop(); this.splitOut(nt); }
-        } else if (this.accept(nt, last.k, last.q)) { lots.pop(); b.state = 'ok'; }
+          if (this.accept(nt, last.k, last.q, last.g)) { lots.pop(); nt.g[last.k] = last.g ?? 1; this.splitOut(nt); }
+        } else if (this.accept(nt, last.k, last.q, last.g)) { lots.pop(); b.state = 'ok'; }
         else b.state = 'Travada: destino recusa ' + (ITEM[last.k]?.name ?? last.k);
       }
     }
@@ -555,9 +740,9 @@ export class Machines {
       if (!o) continue;
       if (o.belt) {
         if (o.belt.length && o.belt[0].p < BELT_GAP) continue;
-        o.belt.unshift({ k: key, q, p: 0 }); delete m.inb[key]; return;
+        o.belt.unshift({ k: key, q, p: 0, g: m.g[key] }); delete m.inb[key]; return;
       }
-      if (this.accept(o, key, q)) { delete m.inb[key]; return; }
+      if (this.accept(o, key, q, m.g[key])) { delete m.inb[key]; return; }
     }
   }
 
@@ -606,14 +791,14 @@ export class Machines {
   serialize() {
     return {
       nextId: this.nextId, shipList: this.shipList, shipped: this.shipped,
-      list: this.list.map(m => ({ id: m.id, key: m.key, tx: m.tx, ty: m.ty, dir: m.dir, cond: m.cond, broken: m.broken, overheat: m.overheat, buried: m.buried, inb: m.inb, out: m.out, level: m.level, eff: m.eff, filter: m.filter, recipe: m.recipe, belt: m.belt, depth: m.depth, exhausted: m.exhausted, charged: m.charged, produced: m.produced })),
+      list: this.list.map(m => ({ id: m.id, key: m.key, tx: m.tx, ty: m.ty, dir: m.dir, cond: m.cond, broken: m.broken, overheat: m.overheat, buried: m.buried, inb: m.inb, out: m.out, level: m.level, eff: m.eff, filter: m.filter, recipe: m.recipe, belt: m.belt, depth: m.depth, exhausted: m.exhausted, charged: m.charged, produced: m.produced, g: m.g, mix: m.mix, lg: m.lg, prog: m.def.behavior === 'compactor' ? m.prog : 0 })),
     };
   }
   load(s: any) {
     this.nextId = s.nextId; this.shipList = s.shipList; this.shipped = s.shipped ?? {};
     for (const o of s.list) {
       const def = MACHINE[o.key]; if (!def) continue;
-      const m: Machine = { ...o, def, sector: this.g.world.sectorAtTile(o.tx, o.ty), state: 'ok', prog: 0, boost: 1, working: false, loaders: 0, rr: 0, t: 0 } as Machine;
+      const m: Machine = { ...o, def, sector: this.g.world.sectorAtTile(o.tx, o.ty), state: 'ok', prog: o.prog ?? 0, boost: 1, working: false, loaders: 0, rr: 0, t: 0, g: o.g ?? {}, mix: o.mix ?? {}, fin: 0, fout: 0, fres: 0 } as Machine;
       if (def.behavior === 'belt' && !m.belt) m.belt = [];
       this.add(m);
     }

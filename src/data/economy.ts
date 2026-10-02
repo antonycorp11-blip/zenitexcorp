@@ -52,7 +52,7 @@ function rewrite(obj: { [k: string]: any }, field: string) {
   if (obj[field]) { const e = expand(obj[field]); for (const k of Object.keys(obj[field])) delete obj[field][k]; Object.assign(obj[field], e); }
 }
 
-/** Processamento que saiu do jogo (só a Refinaria fica). */
+/** Pesquisas de processamento antigo (o processamento agora é a cadeia da massa planetária). */
 export const HIDDEN_RESEARCH = new Set(['triturador', 'purificador', 'fundidor', 'sintetizador', 'liga_ancestral']);
 
 let applied = false;
@@ -71,7 +71,7 @@ export function applyEconomy() {
   for (const rb of ROBOTS) rewrite(rb, 'cost');
   for (const rc of RECIPES) if (rc.station === 'oficina') rewrite(rc, 'in');
   // máquinas de processamento intermediário fora do jogo
-  for (const k of ['triturador', 'purificador', 'fundidor', 'sintetizador']) { const d = MACHINES.find(x => x.key === k); if (d) d.hidden = true; }
+  for (const k of ['purificador', 'fundidor', 'sintetizador']) { const d = MACHINES.find(x => x.key === k); if (d) d.hidden = true; }
   // P-03 é meta da Pedra: só pode pedir o que existe até a Pedra
   DRILLS[2].cost = { placa_ferronox: 40, celula_lumenita: 20, chip_nexolita: 10 };
   // explosivos precisam existir desde a primeira camada
