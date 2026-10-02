@@ -73,12 +73,12 @@ const lineOk = (g: Game) => g.blueprint.checkLine().ok;
 
 // CAVAR → PROCESSAR À MÃO → VER O QUE EXISTE → MONTAR A PRIMEIRA INDÚSTRIA PEÇA POR PEÇA (projeto guiado)
 const STEPS: Step[] = [
-  { title: 'Andar e voar', text: t => t ? '<b>Joystick esquerdo</b>: andar. Empurre para <b>cima</b> para voar com o jetpack.' : '<b>A / D</b> anda. <b>W</b> ou <b>Espaço</b> liga o jetpack.',
-    target: (_g, t) => t ? '#mobile .stick.left .base' : null, done: g => !!g.flags.tutMoved },
+  { title: 'Andar e voar', text: t => t ? '<b>Joystick esquerdo</b>: andar. Segure o botão <b>JATO</b> para voar.' : '<b>A / D</b> anda. <b>W</b> ou <b>Espaço</b> liga o jetpack.',
+    target: (g, t) => t ? (g.flags.tutMoved0 ? '#mobile [data-b="jet"]' : '#mobile .stick.left .base') : null, done: g => !!g.flags.tutMoved },
   { title: 'Cavar e aspirar', text: t => (t ? '<b>Joystick direito</b> apontado para o chão, segure.' : 'Mire no chão e <b>segure o botão esquerdo</b>.') + ' O feixe solta a terra em grãos e o aspirador puxa para a mochila. Junte <b>40 kg de Solo K-37</b>.',
     target: g => () => nearestWall(g), done: g => g.stats.manualKg >= 40 || analyzed(g) },
-  { title: 'Processar à mão', text: t => `Vá ao <b>Analisador de Matriz</b> (seta) e ${t ? 'toque em <b>E</b>' : 'aperte <b>E</b>'}. Escolha o Solo K-37, <b>INICIAR</b> e dê o <b>PULSO</b> na faixa verde.`,
-    target: (g, t) => t && (g.hover?.ref as any)?.key === 'analisador' ? '#mobile [data-b="interact"]' : g.ui.mini.isOpen() ? null : () => machinePos(g, 'analisador'), done: analyzed },
+  { title: 'Processar à mão', text: t => `Vá até o <b>Analisador de Matriz</b> (seta) e ${t ? '<b>toque rápido no lado direito</b> da tela (USAR)' : 'aperte <b>E</b>'}. Escolha o Solo K-37, <b>INICIAR</b> e dê o <b>PULSO</b> na faixa verde.`,
+    target: (g, t) => t && (g.hover?.ref as any)?.key === 'analisador' ? '#mobile .stick.right .base' : g.ui.mini.isOpen() ? null : () => machinePos(g, 'analisador'), done: analyzed },
   { title: 'O que existe dentro', text: () => 'Viu? <b>~80% é resíduo</b>. Os minerais (Ferronox, Lumenita) foram para o <b>estoque</b>: é com eles que você constrói. Agora vamos montar a <b>primeira indústria</b>, peça por peça, no lugar marcado no chão. <b>Toque aqui.</b>',
     target: () => '.hcard.meta', done: () => false, manual: true },
   { title: 'Projeto 1/5 · Armazém', bp: 'armazem', text: (_t, g) => '<b>CONSTRUIR → Logística → Armazém</b>. Ele vai no <b>quadrado verde</b> do chão, perto da base. O <b>funil</b> em cima engole tudo o que cair dentro e manda para o estoque.' + rotHint(g, 'armazem'),
@@ -166,7 +166,7 @@ export class Tutorial {
     const st = STEPS[i]; if (!st) return;
     this.lockBuild();
     if (i !== this.last) { this.last = i; this.sx = g.player.x; this.sy = g.player.y; }
-    if (i === 0 && Math.hypot(g.player.x - this.sx, g.player.y - this.sy) > 40) g.flags.tutMoved = true;
+    if (i === 0) { const dx = Math.abs(g.player.x - this.sx), dy = this.sy - g.player.y; if (dx > 40) g.flags.tutMoved0 = true; if (dx > 40 && (dy > 24 || !g.input.touch)) g.flags.tutMoved = true; }
     const tg = st.target(g, touch);
     if (typeof tg === 'string') {
       const el = Array.from(document.querySelectorAll<HTMLElement>(tg)).find(e => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden');

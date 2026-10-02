@@ -726,11 +726,11 @@ export class Renderer {
       }
     }
     // etiqueta
-    const lx = (it.key === 'esteira' ? (it.tx + it.tx2!) / 2 + 0.5 : it.tx + d.w / 2) * TILE, ly = it.ty * TILE - (it.key === 'esteira' ? 16 : 10);
+    const lx = (it.key === 'esteira' ? (it.tx + it.tx2!) / 2 + 0.5 : it.tx + d.w / 2) * TILE, ly = it.key === 'esteira' ? it.ty * TILE - 16 : (it.ty + d.h / 2) * TILE + 2;   // dentro do quadrado: não briga com o rótulo de toque
     ctx.font = 'bold 6px sans-serif'; ctx.textAlign = 'center';
-    const tw = ctx.measureText('CONSTRUA AQUI: ' + it.label).width + 8;
+    const tw = ctx.measureText(it.label).width + 8;
     ctx.fillStyle = 'rgba(10,30,16,0.88)'; ctx.fillRect(lx - tw / 2, ly - 7, tw, 9);
-    ctx.fillStyle = '#9cffb0'; ctx.fillText('CONSTRUA AQUI: ' + it.label, lx, ly);
+    ctx.fillStyle = '#9cffb0'; ctx.fillText(it.label, lx, ly);
     ctx.restore();
   }
 
@@ -808,11 +808,12 @@ export class Renderer {
     const h = g.hover;
     if (h && !g.build.active) {
       const [x, y] = toS(h.x, h.y - 18);
+      const label = g.input.touch ? h.label.replace(/^\[E\]\s*/, 'TOQUE ▸ ') : h.label;
       ctx.font = `700 ${Math.round(12 * dpr)}px Rajdhani, system-ui, sans-serif`;
-      const w = ctx.measureText(h.label).width + 16 * dpr;
+      const w = ctx.measureText(label).width + 16 * dpr;
       ctx.fillStyle = 'rgba(8,14,22,0.85)'; ctx.fillRect(x - w / 2, y - 14 * dpr, w, 19 * dpr);
       ctx.strokeStyle = 'rgba(232,150,42,0.9)'; ctx.strokeRect(x - w / 2 + 0.5, y - 14 * dpr + 0.5, w - 1, 19 * dpr - 1);
-      ctx.fillStyle = '#ffd08a'; ctx.fillText(h.label, x, y);
+      ctx.fillStyle = '#ffd08a'; ctx.fillText(label, x, y);
     }
     ctx.textAlign = 'left';
   }

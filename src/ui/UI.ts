@@ -223,6 +223,16 @@ export class UI {
     this.updateHold();
     this.tutorial.update();
     this.el.hud.classList.toggle('hidden', !!(g.flags.intro || g.flags.ending));
+    document.body.classList.toggle('building', g.build.active);
+    // o joystick direito diz o que ele faz agora: usar o que está perto, cavar ou soprar
+    if (g.input.touch) {
+      const span = document.querySelector<HTMLElement>('#mobile .stick.right span');
+      if (span) {
+        const h = g.hover;
+        const txt = h ? 'TOQUE: ' + h.label.replace(/^\[E\]\s*/, '').replace(' (segure)', '') : g.flags.blowMode ? 'ARRASTE: SOPRAR' : 'ARRASTE: CAVAR / ASPIRAR';
+        if (span.textContent !== txt) { span.textContent = txt; span.classList.toggle('act', !!h); }
+      }
+    }
     if (this.hudT > 0) return;
     this.hudT = 0.15;
     const p = g.player;

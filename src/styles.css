@@ -631,3 +631,51 @@ body.touch .geocard { bottom: 52px; font-size: 11px; transform: translateX(-50%)
 .hw-outs { display: flex; flex-direction: column; gap: 3px; }
 .hw-txt { font-size: 13px; line-height: 1.3; margin: 6px 0 0; color: #dfe9f2; }
 .howto.c .hw-in div, .howto.c .hw-out div { font-size: 11px; }
+
+/* =====================================================================
+   HUD CELULAR v4 — uma zona para cada coisa, nada sobreposto
+   topo: [camada][MENU][vitais] ............ [recursos]
+   abaixo do topo: [aviso]   [ TUTORIAL / META ]   [notificações]
+   meio-direita: botões de ação · embaixo: fala dos personagens + barra de itens
+   ===================================================================== */
+body.touch .hud .hcard.layer { left: max(6px, env(safe-area-inset-left)) !important; top: 4px !important; width: 196px !important; padding: 3px 8px 4px !important; transform: none !important; border-radius: 10px !important; }
+body.touch .hud .hcard.layer .ly-top { display: flex; gap: 6px; align-items: baseline; white-space: nowrap; overflow: hidden; }
+body.touch .hud .hcard.layer .ly-top .ly-code { font-size: 9px !important; letter-spacing: 1px; }
+body.touch .hud .hcard.layer .ly-top b { font-size: 12px !important; overflow: hidden; text-overflow: ellipsis; }
+body.touch .hud .hcard.layer .ly-bar { height: 8px !important; margin: 3px 0 0 !important; }
+body.touch .hud .hcard.layer .ly-bar span { font-size: 8px !important; line-height: 8px !important; }
+body.touch .hud .hcard.layer .ly-sub { display: none !important; }
+body.touch .hud .hcard.layer .descend { font-size: 11px !important; padding: 4px !important; margin-top: 4px !important; }
+body.touch .hud .ly-warn { position: fixed !important; left: max(6px, env(safe-area-inset-left)) !important; top: 46px !important; width: min(230px, 28vw) !important; max-height: 56px; overflow: hidden; font-size: 10px !important; line-height: 1.25 !important; padding: 4px 7px !important; border-radius: 8px !important; background: rgba(40,14,6,0.88) !important; border: 1px solid rgba(255,120,60,0.6) !important; margin: 0 !important; }
+body.touch .hud .menu-btn { left: calc(max(6px, env(safe-area-inset-left)) + 202px) !important; top: 4px !important; height: 34px !important; width: 58px !important; padding: 0 6px !important; border-radius: 10px !important; transform: none !important; }
+body.touch .hud .menu-btn b { font-size: 10px !important; }
+body.touch .hud .hcard.vitals { left: calc(max(6px, env(safe-area-inset-left)) + 266px) !important; top: 4px !important; width: 104px !important; padding: 3px 6px !important; transform: none !important; border-radius: 10px !important; }
+body.touch .hud .hcard.vitals .vb { margin: 1px 0 !important; }
+body.touch .hud .hcard.vitals .vb .bar { height: 7px !important; }
+body.touch .hud .hcard.vitals .vb em { font-size: 7px !important; line-height: 7px !important; }
+body.touch .hud .hcard.vitals .vb span { font-size: 8px !important; width: 10px !important; }
+body.touch .hud .hcard.vitals .hzchip { font-size: 9px !important; }
+body.touch .hud .res { right: max(6px, env(safe-area-inset-right)) !important; top: 6px !important; left: auto !important; transform: none !important; }
+body.touch .hud .hcard.mm { display: none !important; }
+body.touch .hud .hcard.meta { top: 44px !important; left: 50% !important; right: auto !important; transform: translateX(-50%) !important; width: min(380px, 44vw) !important; padding: 5px 9px !important; border-radius: 10px !important; }
+body.touch .hud .hcard.meta .mt { font-size: 9px !important; }
+body.touch .hud .hcard.meta .mx { font-size: 11px !important; line-height: 1.28 !important; max-height: 58px; overflow-y: auto; }
+body.touch .hud .toasts { right: max(6px, env(safe-area-inset-right)) !important; top: 46px !important; left: auto !important; width: min(200px, 24vw) !important; max-height: 94px !important; overflow: hidden !important; }
+body.touch .hud .toasts > * { font-size: 10px !important; padding: 3px 7px !important; }
+body.touch .hud .dialog { top: auto !important; bottom: 46px !important; left: 50% !important; transform: translateX(-50%) !important; width: min(420px, 50vw) !important; padding: 4px 6px !important; gap: 6px !important; opacity: 0; }
+body.touch .hud .dialog.show { opacity: 0.95 !important; transform: translateX(-50%) !important; }
+body.touch .hud .dialog img { width: 30px !important; height: 30px !important; }
+body.touch .hud .dialog .sn { font-size: 10px !important; } body.touch .hud .dialog .st { font-size: 11px !important; min-height: 0 !important; line-height: 1.25 !important; }
+body.touch .hud .hotbar { bottom: 4px !important; }
+body.touch.building .hud .hotbar, body.touch.building .hud .dialog { display: none !important; }
+body.touch .hud .build-controls { bottom: 6px !important; top: auto !important; }
+body.touch .hud .build-hint { bottom: 52px !important; top: auto !important; font-size: 11px !important; }
+body.touch .hud .geocard { top: 46px !important; bottom: auto !important; left: max(6px, env(safe-area-inset-left)) !important; transform: none !important; width: min(230px, 28vw) !important; }
+body.touch #mobile .mobile-actions { right: max(6px, env(safe-area-inset-right)) !important; top: 148px !important; bottom: auto !important; left: auto !important; display: flex !important; flex-direction: column !important; gap: 6px !important; }
+body.touch #mobile .mobile-actions button { width: 50px !important; height: 44px !important; }
+body.touch .hud .sectortitle { top: 30% !important; }
+
+body.touch #mobile .stick.right span { display: block !important; right: 18px !important; bottom: 6px !important; max-width: 230px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+body.touch #mobile .stick.right span.act { color: #7aff8a; text-shadow: 0 0 6px rgba(80,255,120,0.6); font-size: 12px; }
+#mobile [data-b="jet"].on { background: rgba(255,170,60,.9) !important; color: #2a1404 !important; box-shadow: 0 0 16px rgba(255,170,60,.8); }
+body.touch #mobile div.mobile-actions { top: 148px !important; bottom: auto !important; transform: none !important; right: max(6px, env(safe-area-inset-right)) !important; }

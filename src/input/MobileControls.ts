@@ -8,6 +8,7 @@ export class MobileControls {
   root: HTMLDivElement;
   private leftId: number | null = null; private rightId: number | null = null;
   private lc = { x: 0, y: 0 }; private rc = { x: 0, y: 0 };
+  private rMax = 0; private rT = 0;
   private lk: HTMLDivElement; private rk: HTMLDivElement;
   private lb: HTMLDivElement; private rb: HTMLDivElement;
 
@@ -15,20 +16,27 @@ export class MobileControls {
     this.root = document.createElement('div');
     this.root.id = 'mobile';
     this.root.innerHTML = `
-      <div class="stick left"><div class="base"></div><div class="knob"></div><span>ANDAR · ↑ VOAR</span></div>
+      <div class="stick left"><div class="base"></div><div class="knob"></div><span>ANDAR</span></div>
       <div class="stick right"><div class="base"></div><div class="knob"></div><span>CAVAR / ASPIRAR</span></div>
       <div class="mobile-actions">
-        <button data-b="interact" aria-label="Interagir">E<small>USAR</small></button>
+        <button data-b="jet" aria-label="Jetpack">▲<small>JATO</small></button>
         <button data-b="scan" aria-label="Scanner">◎<small>SCANNER</small></button>
         <button data-b="blow" aria-label="Soprar">⇶<small>SOPRAR</small></button>
       </div>`;
     document.body.appendChild(this.root);
     this.lb = this.root.querySelector('.left .base')!; this.lk = this.root.querySelector('.left .knob')!;
     this.rb = this.root.querySelector('.right .base')!; this.rk = this.root.querySelector('.right .knob')!;
-    this.root.querySelectorAll<HTMLButtonElement>('[data-b]').forEach(b => b.addEventListener('click', e => {
-      e.preventDefault(); e.stopPropagation();
-      onButton(b.dataset.b!);
-    }));
+    this.root.querySelectorAll<HTMLButtonElement>('[data-b]').forEach(b => {
+      if (b.dataset.b === 'jet') {
+        // segurar = voar
+        const on = (e: Event) => { e.preventDefault(); e.stopPropagation(); input.jetHeld = true; b.classList.add('on'); onButton('jet'); };
+        const off = (e: Event) => { e.preventDefault(); input.jetHeld = false; b.classList.remove('on'); };
+        b.addEventListener('touchstart', on, { passive: false }); b.addEventListener('touchend', off); b.addEventListener('touchcancel', off);
+        b.addEventListener('mousedown', on); b.addEventListener('mouseup', off); b.addEventListener('mouseleave', off);
+        return;
+      }
+      b.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); onButton(b.dataset.b!); });
+    });
     const canvas = document.getElementById('game')!;
     const movePlacement = (t: Touch) => { input.placeX = t.clientX; input.placeY = t.clientY; input.placeDirty = true; };
     // no modo construção o joystick esquerdo continua andando; o resto da tela posiciona a peça
@@ -38,7 +46,7 @@ export class MobileControls {
         if (input.placeMode && !isStick(t)) { movePlacement(t); input.placeStart = true; continue; }
         const left = t.clientX < window.innerWidth * 0.45;
         if (left && this.leftId === null) { this.leftId = t.identifier; this.lc = { x: t.clientX, y: t.clientY }; this.show(this.lb, this.lk, t.clientX, t.clientY); }
-        else if (!left && this.rightId === null) { this.rightId = t.identifier; this.rc = { x: t.clientX, y: t.clientY }; this.show(this.rb, this.rk, t.clientX, t.clientY); input.aimActive = true; input.primary = false; }
+        else if (!left && this.rightId === null) { this.rightId = t.identifier; this.rc = { x: t.clientX, y: t.clientY }; this.rMax = 0; this.rT = performance.now(); this.show(this.rb, this.rk, t.clientX, t.clientY); input.aimActive = true; input.primary = false; }
       }
       e.preventDefault();
     };
@@ -53,6 +61,7 @@ export class MobileControls {
         if (t.identifier === this.rightId) {
           const [x, y] = this.clamp(t.clientX - this.rc.x, t.clientY - this.rc.y);
           input.aimX = x; input.aimY = y;
+          this.rMax = Math.max(this.rMax, Math.hypot(x, y));
           input.primary = Math.hypot(x, y) > 14;
           this.rk.style.transform = `translate(${x}px,${y}px)`;
         }
@@ -62,7 +71,11 @@ export class MobileControls {
     const end = (e: TouchEvent) => {
       for (const t of Array.from(e.changedTouches)) {
         if (t.identifier === this.leftId) { this.leftId = null; input.moveX = input.moveY = 0; this.hide(this.lb, this.lk); }
-        if (t.identifier === this.rightId) { this.rightId = null; input.primary = false; input.aimActive = false; this.hide(this.rb, this.rk); }
+        if (t.identifier === this.rightId) {
+          this.rightId = null; input.primary = false; input.aimActive = false; this.hide(this.rb, this.rk);
+          // toque rápido sem arrastar = AÇÃO (usar o que estiver perto)
+          if (this.rMax < 12 && performance.now() - this.rT < 350) onButton('tapAction');
+        }
       }
     };
     canvas.addEventListener('touchstart', start, { passive: false });

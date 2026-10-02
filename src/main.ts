@@ -49,7 +49,7 @@ function start(opts: GameOptions, save: any) {
     document.body.classList.add('touch');
     new MobileControls(g.input, b => {
       g.audio.init();
-      if (b === 'interact') { if (g.hover) { g.input.press('e'); g.input.keys.add('e'); setTimeout(() => g.input.keys.delete('e'), (g.hover.kind === 'machine' && (g.hover.ref as any).broken) || g.hover.kind === 'artifact' || g.hover.kind === 'anomaly' ? 2800 : 100); } }
+      if (b === 'interact' || (b === 'tapAction' && g.hover)) { if (g.hover) { g.input.press('e'); g.input.keys.add('e'); setTimeout(() => g.input.keys.delete('e'), (g.hover.kind === 'machine' && (g.hover.ref as any).broken) || g.hover.kind === 'artifact' || g.hover.kind === 'anomaly' ? 2800 : 100); } }
       if (b === 'scan') g.scanner.pulse();
       if (b === 'blow') { g.flags.blowMode = !g.flags.blowMode; document.querySelector('#mobile [data-b="blow"]')?.classList.toggle('on', !!g.flags.blowMode); g.toast(g.flags.blowMode ? 'SOPRAR: o joystick direito joga material da mochila' : 'CAVAR: o joystick direito cava e aspira', '#ffd04a'); }
       if (b === 'tool2') g.selectSlot(g.selected === 0 ? 1 : 0);

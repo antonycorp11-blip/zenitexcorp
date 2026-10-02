@@ -12,6 +12,7 @@ export class Input {
   touch = false;
   moveX = 0; moveY = 0;
   aimActive = false; aimX = 0; aimY = 0;
+  jetHeld = false;                 // botão JATO (celular)
   uiCapture = false;               // mouse sobre UI
   placeMode = false;
   placeX = 0; placeY = 0; placeDirty = false; placeStart = false;

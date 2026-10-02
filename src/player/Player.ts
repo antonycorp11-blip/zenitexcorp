@@ -43,7 +43,8 @@ export class Player {
     const want = ax * speed + g.hazards.drift[0];
     this.vx += (want - this.vx) * Math.min(1, dt * (this.grounded ? 14 : 6));
     // jetpack: para cima no joystick / W / espaço
-    const jetting = (my < -0.35 || g.input.down(' ')) && this.energy > 0.5;
+    // celular: botão JATO; teclado: W/↑/Espaço
+    const jetting = (g.input.touch ? g.input.jetHeld : (my < -0.35 || g.input.down(' '))) && this.energy > 0.5;
     this.vy += (inLiquid ? 260 : 620) * dt;
     if (jetting) {
       this.vy -= 1450 * dt;
