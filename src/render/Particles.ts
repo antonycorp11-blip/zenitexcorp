@@ -77,10 +77,23 @@ export class Particles {
 
   draw(ctx: CanvasRenderingContext2D) {
     for (const p of this.ps) {
-      const a = 1 - p.life / p.max;
-      ctx.globalAlpha = p.glow ? a : a * 0.85;
-      ctx.fillStyle = `rgb(${p.c[0] | 0},${p.c[1] | 0},${p.c[2] | 0})`;
-      ctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
+      const t = p.life / p.max, a = 1 - t;
+      const col = `rgb(${p.c[0] | 0},${p.c[1] | 0},${p.c[2] | 0})`;
+      if (p.size >= 3 && !p.glow) {
+        // poeira/fumaça: nuvem macia que cresce e some
+        ctx.globalAlpha = a * 0.35;
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (0.6 + t * 1.6), 0, 7); ctx.fill();
+      } else if (p.glow) {
+        // faísca: risco na direção do movimento
+        ctx.globalAlpha = a;
+        ctx.strokeStyle = col; ctx.lineWidth = 0.8;
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.025, p.y - p.vy * 0.025); ctx.stroke();
+      } else {
+        ctx.globalAlpha = a * 0.9;
+        ctx.fillStyle = col;
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+      }
     }
     ctx.globalAlpha = 1;
   }

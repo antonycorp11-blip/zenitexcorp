@@ -82,6 +82,7 @@ export class Mining {
     // efeitos
     const col = def.top;
     g.fx.debris(hx, hy, col, -ux, -uy, 3);
+    if (Math.random() < 0.25) g.fx.smoke(hx, hy, [col[0] * 0.6 + 70, col[1] * 0.6 + 60, col[2] * 0.6 + 50]);
     g.fx.sparks(hx, hy, [255, 200, 120], 2);
     g.shake(0.6);
     this.sfxT -= dt;

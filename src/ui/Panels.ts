@@ -1,7 +1,7 @@
 import { fmtInt, fmtShort, fmtTime, fmtMass } from '../core/math';
 import { TILE, WORLD_TW, WORLD_TH, WORLD_PX_W, WORLD_PX_H, CELL } from '../core/constants';
 import { ITEM, ITEMS, itemName, type ItemCat } from '../data/items';
-import { MACHINES, MACHINE, MACHINE_CATS, nextDir, COMPLEX_LEVELS, CANNON_SHOT_FRAC, type MachineCat } from '../data/machines';
+import { MACHINES, MACHINE, MACHINE_CATS, nextDir, COMPLEX_LEVELS, CANNON_SHOT_FRAC, type MachineCat, type MachineDef } from '../data/machines';
 import { RESEARCH, RESEARCH_CATS, type ResearchCat } from '../data/research';
 import { RECIPE, RECIPES } from '../data/recipes';
 import { SECTORS, HAZARD_NAMES, type HazardKey } from '../data/sectors';
@@ -19,6 +19,7 @@ import { esc } from './dom';
 import { HIDDEN_RESEARCH } from '../data/economy';
 import { gradeLabel, gradeColor, compOf, RAW_BY_LAYER } from '../data/composition';
 import { SEP_EFF } from '../systems/Machines';
+import { ioSpec, howTo } from '../data/howto';
 
 export type PanelId = 'inventory' | 'build' | 'upgrades' | 'research' | 'sectors' | 'robots' | 'contracts' | 'archive' | 'map' | 'help' | 'menu' | 'machine' | 'ops' | 'lifts' | 'settings' | 'missions';
 
@@ -251,7 +252,7 @@ export class Panels {
       const afford = g.stock.has(d.cost, g.pack.items);
       return `<div class="card ${locked ? 'locked' : afford ? '' : 'poor'}">
         <div class="ch"><img src="${g.sprites.machineUrl(d)}"><div><b>${esc(d.name)}</b><small>${d.w}×${d.h} tiles${d.capacity ? ` · ${fmtShort(d.capacity)} ${d.behavior === 'storage' ? 'kg' : 'kg/min'}` : ''}</small></div></div>
-        <p>${esc(d.desc)}</p>${d.takes ? `<p class="muted">Processa: ${Object.entries(d.takes).map(([k, f]) => `${esc(itemName(k))}${f < 1 ? ` <span class="warn">(−${Math.round((1 - f) * 100)}%)</span>` : ''}`).join(', ')}</p>` : ''}<div class="cost">${costStr(g, d.cost)}</div>${req ? `<div class="req">${req}</div>` : ''}
+        <p>${esc(['drill', 'belt', 'riser', 'launcher', 'storage', 'separator', 'prep', 'compactor', 'refinery'].includes(d.behavior) ? howTo(d, g.planet.layer) : d.desc)}</p>${this.howtoHtml(d, 0, true)}${d.takes ? `<p class="muted">Processa: ${Object.entries(d.takes).map(([k, f]) => `${esc(itemName(k))}${f < 1 ? ` <span class="warn">(−${Math.round((1 - f) * 100)}%)</span>` : ''}`).join(', ')}</p>` : ''}<div class="cost">${costStr(g, d.cost)}</div>${req ? `<div class="req">${req}</div>` : ''}
         <div class="row">${locked ? '' : `<button class="btn" data-act="build" data-arg="${d.key}">POSICIONAR</button><button class="btn ghost" data-act="pin" data-arg="${d.key}">📌</button>`}<span class="count">${g.machines.count(d.key) ? `Ativas: ${g.machines.count(d.key)}` : ''}</span></div></div>`;
     }).join('')}</div>`;
     return h;
@@ -481,6 +482,16 @@ export class Panels {
   }
 
   // =============== MÁQUINA ===============
+  /** Diagrama ENTRA → máquina → SAI, com a instrução de uso. */
+  private howtoHtml(d: MachineDef, dir: number, compact = false): string {
+    const g = this.g, io = ioSpec(d, dir, g.planet.layer);
+    const icons = (ks: string[]) => ks.map(k => this.icon(k, compact ? 16 : 22)).join('');
+    const inp = io.inTop ? `<div class="hw-in"><small>ENTRA ▼ funil</small><div>${io.inTop === 'tudo' ? '<b>qualquer grão</b>' : icons(io.inTop)}</div></div>` : (d.behavior === 'drill' || d.behavior === 'complex' ? '<div class="hw-in"><small>CAVA</small><div><b>a terra à frente da seta</b></div></div>' : '');
+    const outs = io.outs.map(o => `<div class="hw-out"><small>SAI ${o.side === 0 ? '▶ direita' : '◀ esquerda'}</small><div>${o.keys.length ? icons(o.keys) : ''}<b>${o.label}</b></div></div>`).join('');
+    if (!inp && !outs) return compact ? '' : `<p class="hw-txt">${howTo(d, g.planet.layer)}</p>`;
+    return `<div class="howto ${compact ? 'c' : ''}"><div class="hw-flow">${inp}${inp && outs ? '<i>→</i>' : ''}${compact ? '' : `<img src="${g.sprites.machineUrl(d)}">${outs ? '<i>→</i>' : ''}`}<div class="hw-outs">${outs}</div></div>${compact ? '' : `<p class="hw-txt">${howTo(d, g.planet.layer)}</p>`}${io.base && !compact ? '<p class="muted">◆ Na base (perto da cápsula) ela também puxa e entrega direto no estoque.</p>' : ''}</div>`;
+  }
+
   /** Painel de processamento: ENTRADA, PROCESSANDO, SAÍDA, CAPACIDADE, EFICIÊNCIA, GARGALO. */
   private procInfo(m: Machine): string {
     const g = this.g, d = m.def;
@@ -512,6 +523,7 @@ export class Panels {
     const d = m.def, rt = g.sectors.rt[m.sector];
     const inb = Object.entries(m.inb).filter(([, v]) => v > 0.01), out = Object.entries(m.out).filter(([, v]) => v > 0.01);
     let h = `<div class="cols"><div class="col"><div class="dh"><img src="${g.sprites.machineUrl(d)}" style="width:64px"><div><h2>${esc(d.name)}${d.behavior === 'complex' ? ' ' + COMPLEX_LEVELS[m.level].name : ''}</h2><small>${SECTORS[m.sector - 1].code} · ${esc(SECTORS[m.sector - 1].name)}</small><p>${esc(d.desc)}</p></div></div>
+      <h4>COMO FUNCIONA</h4>${this.howtoHtml(d, m.dir)}
       <div class="kv"><span>Estado</span><b style="color:${m.broken || m.overheat ? '#ff6a4a' : m.working ? '#9cff8a' : '#ffd04a'}">${esc(m.state)}</b></div>
       <div class="kv"><span>Condição</span><b>${Math.round(m.cond)}%</b></div>${this.bar(m.cond, 100, m.cond < 30 ? '#ff6a3a' : '#e8962a')}
       ${['complex', 'tectonic', 'mantle', 'collector'].includes(d.behavior) ? `<div class="kv"><span>Calibração / eficiência</span><b style="color:${m.eff < 0.6 ? '#ff7a5a' : '#9cff8a'}">${Math.round(m.eff * 100)}%</b></div>${this.bar(m.eff, 1.1, m.eff < 0.6 ? '#ff6a3a' : '#3aff8a')}<div class="kv"><span>Extração</span><b>${fmtShort(m.produced)} t no total</b></div>` : ''}

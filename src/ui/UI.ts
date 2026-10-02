@@ -241,6 +241,9 @@ export class UI {
     const warn = this.bottleneck();
     this.el.lyWarn.innerHTML = warn ? esc(warn) : '';
     this.el.lyWarn.style.display = warn ? 'block' : 'none';
+    // o aviso aumenta o cartão da camada: empurra os vitais para baixo dele
+    const vit = this.root.querySelector<HTMLElement>('.hcard.vitals');
+    if (vit && g.input.touch) { const rb = this.el.layerCard.getBoundingClientRect(); vit.style.top = Math.round(rb.bottom + 4) + 'px'; }
     // recursos: os 4 mais abundantes + créditos
     const tops = TOP_BAR_ITEMS.filter(k => g.stock.count(k) >= 1).sort((a, b) => g.stock.count(b) - g.stock.count(a)).slice(0, 3);
     if (!tops.length) tops.push('ferronox', 'lumenita');

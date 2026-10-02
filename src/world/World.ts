@@ -69,20 +69,23 @@ export class World {
     if (!this.inside(x, y)) return;
     const i = y * WORLD_W + x;
     if (this.mat[i] === m && this.aux[i] === aux) return;
+    const wasSolid = IS_SOLID[this.mat[i]] === 1;
     this.mat[i] = m; this.aux[i] = aux; this.dmg[i] = 0;
-    this.touch(x, y);
+    this.touch(x, y, wasSolid || IS_SOLID[m] === 1 ? 6 : 1);
   }
 
   /** marca re-renderização e acorda a simulação ao redor */
-  touch(x: number, y: number) {
+  touch(x: number, y: number, rad = 1) {
     const cx = (x / CHUNK) | 0, cy = (y / CHUNK) | 0;
     const k = cy * WORLD_CW + cx;
     const lx = x - cx * CHUNK, ly = y - cy * CHUNK;
-    this.markDirty(k, lx - 1, ly - 1, lx + 1, ly + 1);
-    if (lx < 1 && cx > 0) this.markDirty(k - 1, CHUNK - 1, ly - 1, CHUNK - 1, ly + 1);
-    if (lx > CHUNK - 2 && cx < WORLD_CW - 1) this.markDirty(k + 1, 0, ly - 1, 0, ly + 1);
-    if (ly < 1 && cy > 0) this.markDirty(k - WORLD_CW, lx - 1, CHUNK - 1, lx + 1, CHUNK - 1);
-    if (ly > CHUNK - 2 && cy < WORLD_CH - 1) this.markDirty(k + WORLD_CW, lx - 1, 0, lx + 1, 0);
+    // o sombreamento do terreno depende dos vizinhos: re-renderiza um raio ao redor
+    const R = rad;
+    this.markDirty(k, lx - R, ly - R - 1, lx + R, ly + R);
+    if (lx < R && cx > 0) this.markDirty(k - 1, CHUNK - R, ly - R - 1, CHUNK - 1, ly + R);
+    if (lx > CHUNK - 1 - R && cx < WORLD_CW - 1) this.markDirty(k + 1, 0, ly - R - 1, R, ly + R);
+    if (ly < R + 1 && cy > 0) this.markDirty(k - WORLD_CW, lx - R, CHUNK - R - 1, lx + R, CHUNK - 1);
+    if (ly > CHUNK - 1 - R && cy < WORLD_CH - 1) this.markDirty(k + WORLD_CW, lx - R, 0, lx + R, R);
     this.wakeChunk(cx, cy);
     if (cy > 0) this.wakeChunk(cx, cy - 1);
     if (lx < 2 && cx > 0) this.wakeChunk(cx - 1, cy);

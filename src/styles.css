@@ -617,3 +617,17 @@ body.touch .geocard { bottom: 52px; font-size: 11px; transform: translateX(-50%)
 #mobile .stick.left span { left: 30px; } #mobile .stick.right span { right: 120px; }
 
 #mobile [data-b="blow"].on { background: rgba(232,150,42,.85) !important; color: #1a1006 !important; box-shadow: 0 0 14px rgba(255,180,60,.7); }
+
+/* Como funciona */
+.howto { background: #0a1520; border: 1px solid #23435a; border-radius: 8px; padding: 6px 8px; margin: 4px 0 8px; }
+.howto.c { padding: 3px 6px; margin: 4px 0; }
+.hw-flow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.hw-flow > i { color: #ffb04a; font-style: normal; font-weight: 800; font-size: 16px; }
+.hw-flow img { width: 44px; height: auto; image-rendering: pixelated; }
+.hw-in, .hw-out { background: #0f2030; border-radius: 6px; padding: 3px 6px; }
+.hw-in small { color: #6aff8a; } .hw-out small { color: #ffb04a; }
+.hw-in small, .hw-out small { display: block; font-size: 10px; font-weight: 800; letter-spacing: 1px; }
+.hw-in div, .hw-out div { display: flex; align-items: center; gap: 3px; font-size: 12px; }
+.hw-outs { display: flex; flex-direction: column; gap: 3px; }
+.hw-txt { font-size: 13px; line-height: 1.3; margin: 6px 0 0; color: #dfe9f2; }
+.howto.c .hw-in div, .howto.c .hw-out div { font-size: 11px; }
