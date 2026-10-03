@@ -25,7 +25,7 @@ import { FAB_UPS, SILO_KEYS, fabLevel } from '../data/factory';
 export type PanelId = 'inventory' | 'build' | 'upgrades' | 'research' | 'sectors' | 'robots' | 'contracts' | 'archive' | 'map' | 'help' | 'menu' | 'machine' | 'ops' | 'lifts' | 'settings' | 'missions';
 
 /** O menu único: 5 abas grandes. Os painéis antigos viram atalhos para elas. */
-const MAIN: [PanelId, string, string][] = [['upgrades', '✚', 'MELHORIAS'], ['inventory', '▣', 'ESTOQUE'], ['map', '⌖', 'MAPA']];
+const MAIN: [PanelId, string, string][] = [['upgrades', '✚', 'MELHORIAS'], ['map', '⌖', 'MAPA']];
 const IS_MAIN = new Set(MAIN.map(m => m[0]));
 
 const TITLES: Record<PanelId, string> = {
@@ -287,8 +287,9 @@ export class Panels {
   // =============== MELHORIAS: árvore única ===============
   r_upgrades() {
     const g = this.g, p = g.player;
-    const BR: { key: string; name: string }[] = [{ key: 'fab', name: '⚡ Laser · Soprador · Tubos · Silos' }, { key: 'perf', name: '🔫 Força do Laser' }, { key: 'traje', name: '🧑‍🚀 Traje e Aspirador' },
-      ...RESEARCH_CATS.filter(c => c.key !== 'energia').map(c => ({ key: c.key, name: c.key === 'robotica' ? 'Drones' : c.key === 'mineracao' ? 'Extração' : c.name }))];
+    // só o que serve para destruir o planeta: laser, soprador, tubos e as peças que se desbloqueiam
+    const BR: { key: string; name: string }[] = [{ key: 'fab', name: '⚡ Laser · Soprador · Tubos' }, { key: 'perf', name: '🔫 Força do Laser' },
+      ...RESEARCH_CATS.filter(c => c.key === 'logistica' || c.key === 'processamento').map(c => ({ key: c.key, name: '🔓 ' + c.name }))];
     const br = this.st.upBr;
     let h = `<div class="tabs branches">${BR.map(b => {
       const avail = b.key === 'perf' ? !!DRILLS[p.drillLevel + 1] && g.upHas(DRILLS[p.drillLevel + 1].cost) && (!DRILLS[p.drillLevel + 1].research || g.research.has(DRILLS[p.drillLevel + 1].research!))
@@ -690,20 +691,13 @@ export class Panels {
       <h3>INTERFACE</h3><button class="btn ghost" data-act="collapse">Recolher/expandir HUD</button><button class="btn" data-act="resume">VOLTAR</button></div>`;
   }
   r_help() {
-    return `<div class="help scroll tall"><button class="btn orange" data-act="tutorial">▶ REFAZER O TUTORIAL GUIADO</button><button class="btn" data-act="briefing">📋 REVER O BRIEFING DO CONTRATO</button><div class="cols"><div class="col"><h3>CONTROLES (PC)</h3><table>
-      ${[['WASD', 'Mover (Shift: correr)'], ['Mouse', 'Mirar'], ['Botão esquerdo', 'Usar ferramenta (minerar / item)'], ['Botão direito', 'Soprar material da mochila · cancelar construção'], ['W / Espaço', 'Jetpack'], ['1–0 / Ctrl+roda', 'Barra rápida'], ['E (segurar)', 'Interagir · reparar · catalogar'], ['F', 'Pulso de scanner'], ['Tab', 'Inventário e fabricação'], ['B', 'Construção'], ['R', 'Girar construção'], ['X', 'Desmontar'], ['U', 'Melhorias'], ['K', 'Pesquisa'], ['G', 'Setores'], ['Y', 'Robôs'], ['J', 'Contratos'], ['L', 'Arquivo de Khelos'], ['M', 'Mapa / visão orbital'], ['Roda', 'Zoom'], ['Espaço', 'Pular fala'], ['Esc', 'Menu']].map(([a, b]) => `<tr><td><kbd>${a}</kbd></td><td>${b}</td></tr>`).join('')}</table>
-      <h3>MOBILE</h3><p>Joystick esquerdo move. Joystick direito mira e usa a ferramenta. Botões grandes: interagir, scanner, ferramenta, construção, inventário, mapa, recolher HUD.</p></div>
-      <div class="col wide"><h3>COMO A ZENITEX FUNCIONA</h3>
-      <p><b>Objetivo:</b> extrair 100% da massa planetária. Cada célula removida, cada tonelada da reserva profunda conta.</p>
-      <p><b>Minerar:</b> segure o botão sobre paredes. O aspirador da arma guarda os grãos até você soprar num funil. Rocha dura exige perfuradores de classe maior (Melhorias).</p>
-      <p><b>Estoque Central:</b> sopre o aspirador num funil ou toque na cápsula. Construções e pesquisas usam o Estoque Central.</p>
-      <p><b>Logística:</b> perfuradoras despejam minério em esteiras que saem delas. Esteiras apontando para máquinas as alimentam. Armazéns e elevadores formam o <i>buffer do setor</i>, que sobe ao Estoque Central na vazão dos elevadores. Gargalos aparecem em vermelho.</p>
-      <p><b>Energia e calor:</b> cada setor tem sua própria rede. Reatores aquecem o setor; sem refrigeração as máquinas superaquecem.</p>
-      <p><b>Saga de automação:</b> cada setor passa por 9 fases (G). Após a certificação, Complexos de Extração Profunda drenam a reserva do setor — mas perdem calibração com o tempo e só você pode recalibrá-los.</p>
-      <p><b>Nunca existe automação total:</b> máquinas quebram, veios se esgotam, robôs ficam presos, desabamentos soterram estruturas, anomalias drenam energia. Automatizar resolve o problema antigo e cria um maior.</p>
-      <p><b>Morte:</b> você volta à base. Sua carga fica no local — recupere-a.</p>
-      <p><b>Khelos:</b> ruínas de pedra ancestral guardam registros. Catalogue-os [E]. Extração automática destrói artefatos expostos.</p></div></div></div>`;
+    return `<div class="help scroll tall"><button class="btn orange" data-act="tutorial">▶ REFAZER O TUTORIAL</button>
+      <h3>OBJETIVO</h3><p><b>Destruir o planeta</b>, camada por camada até o núcleo. Uma camada esvazia com o que <b>sai do planeta</b>: a terra <b>queimada no Incinerador</b> e os minérios <b>entregues na Nave</b> em órbita.</p>
+      <h3>COMO</h3><p><b>Cave</b> com o laser perto de um <b>Soprador</b>: ele aspira a terra solta e manda por <b>Tubo de Vácuo</b> para uma <b>esteira</b>. Por cima da esteira, o <b>Ímã</b> puxa o metal e o <b>Ressonador</b> puxa os cristais (vão para o seu saldo, ou por tubo até a Nave). No fim da esteira, o <b>Incinerador</b> queima o resto.</p>
+      <h3>CONTROLES (CELULAR)</h3><p>Joystick esquerdo: andar. Joystick direito: cavar (toque rápido: usar o que está perto). <b>JATO</b>: liga/desliga o voo livre. <b>SOPRAR</b>: joga o que está no aspirador. <b>CONSTRUIR</b>: canto esquerdo. <b>MENU</b>: melhorias e mapa.</p>
+      <h3>CONTROLES (PC)</h3><p>WASD anda · W/Espaço voa · mouse mira e cava · botão direito sopra · B constrói · R gira · X desmonta · M mapa · Esc menu.</p></div>`;
   }
+
 
   // =============== MAPA / ÓRBITA ===============
   r_map() {

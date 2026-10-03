@@ -78,47 +78,26 @@ const lineOk = (g: Game) => g.blueprint.checkLine().ok;
 
 // CAVAR → PROCESSAR À MÃO → VER O QUE EXISTE → MONTAR A PRIMEIRA INDÚSTRIA PEÇA POR PEÇA (projeto guiado)
 const STEPS: Step[] = [
-  { title: 'Andar e voar', text: t => t ? '<b>Joystick esquerdo</b> anda.<br>Toque <b>JATO</b>: voo livre pelo mapa (toque de novo para pousar).' : '<b>A / D</b> anda. <b>W</b> ou <b>Espaço</b> voa.',
+  { title: 'Andar e voar', text: t => t ? '<b>Joystick esquerdo</b> anda.<br>Toque <b>JATO</b>: voo livre (toque de novo para pousar).' : '<b>A / D</b> anda. <b>W</b> ou <b>Espaço</b> voa.',
     target: (g, t) => t ? (g.flags.tutMoved0 ? '#mobile [data-b="jet"]' : '#mobile .stick.left .base') : null, done: g => !!g.flags.tutMoved },
-  { title: 'Plataforma Orbital', bp: 'piso', text: () => 'Tudo começa pelo <b>piso</b>: ele se sustenta sozinho, até sem terra.<br><b>Construir → Base → Plataforma Orbital</b> na faixa verde e <b>CONFIRMAR</b>.',
-    target: g => buildFlow(g, 'base', 'piso_orbital'), done: g => g.blueprint.placed('piso') || !g.flags.awaitCapsule },
-  { title: 'Pouso da cápsula', text: () => 'Plataforma pronta! A <b>cápsula de comando</b> está descendo.<br>Fique longe do piso.',
-    target: g => () => { const it = g.blueprint.item('piso'); return it ? [(it.tx2! - 1) * TILE, (it.ty - 4) * TILE] : null; }, done: g => !g.flags.awaitCapsule },
-  { title: 'Cavar', text: t => (t ? '<b>Joystick direito</b> no chão e segure.' : 'Mire no chão e <b>segure o clique</b>.') + '<br>O laser solta a terra e o aspirador guarda. Junte <b>40 kg</b>.',
-    target: g => () => nearestWall(g), done: g => g.stats.manualKg >= 40 || analyzed(g) },
-  { title: 'Analisar à mão', text: t => `Vá ao <b>Analisador</b> (seta) e ${t ? '<b>toque no lado direito</b>' : 'aperte <b>E</b>'}.<br>Escolha o Solo, <b>INICIAR</b> e dê o <b>PULSO</b> no verde.`,
-    target: (g, t) => t && (g.hover?.ref as any)?.key === 'analisador' ? '#mobile .stick.right .base' : g.ui.mini.isOpen() ? null : () => machinePos(g, 'analisador'), done: analyzed },
-  { title: 'O que existe dentro', text: () => '<b>80% é resíduo</b>, o resto é mineral.<br>Agora a fábrica: você cava, um <b>Soprador</b> aspira as pilhas e manda por <b>tubo</b>.<br><b>Toque aqui</b> para começar.',
-    target: g => g.ui.panels.isOpen() ? '.pnl .x' : '.hcard.meta', done: () => false, manual: true },
-  { title: 'Linha 1/6 · Esteira', bp: 'esteira', text: () => '<b>Logística → Esteira</b> na faixa verde, andando para a <b>esquerda ◀</b>.<br>É por ela que a terra vai passar.',
-    target: g => buildFlow(g, 'logistica', 'esteira'), done: g => g.blueprint.placed('esteira') },
-  { title: 'Linha 2/6 · Incinerador', bp: 'compactador', text: () => '<b>Processamento → Incinerador</b> no fim da esteira.<br>Ele <b>queima a terra</b> que sobra: é isso que esvazia a camada.',
-    target: g => bpTarget(g, 'processamento', 'compactador'), done: g => g.blueprint.placed('compactador') },
-  { title: 'Linha 3/6 · Soprador', bp: 'soprador', text: (_t, g) => `<b>Extração → Soprador</b> no quadrado verde (${g.pack.count('kit_soprador')} na mão), bocal <b>◀</b>.<br>Ele aspira as pilhas que você cavar.` + rotHint(g, 'soprador'),
-    target: g => bpTarget(g, 'extracao', 'soprador'), done: g => g.blueprint.placed('soprador') },
-  { title: 'Linha 4/6 · Tubo de Vácuo', bp: 'tuboFeed', text: () => '<b>Logística → Tubo de Vácuo</b>: do Soprador, sobe e solta a terra <b>em cima da esteira</b>.<br><b>CONFIRMAR</b>.',
-    target: g => buildFlow(g, 'logistica', 'tubo'), done: g => g.blueprint.placed('tuboFeed') },
-  { title: 'Teste a linha', text: (t) => '<b>Cave perto do Soprador</b> (' + (t ? 'joystick direito' : 'clique') + ').<br>Veja a terra subir pelo tubo, andar na esteira e queimar no Incinerador.',
+  { title: 'Cave perto do Soprador', text: t => 'A Nave largou uma <b>linha de extração</b> pronta.<br>' + (t ? '<b>Joystick direito</b> no chão perto do Soprador' : '<b>Segure o clique</b> no chão perto do Soprador') + ': ele aspira a terra solta.',
     target: g => () => { const m = g.machines.list.find(x => x.def.behavior === 'blower'); return m ? [(m.tx + 0.5) * TILE, (m.ty + 1.5) * TILE] : null; },
     done: g => g.machines.list.some(m => m.def.behavior === 'belt' && m.state === 'ok') },
-  { title: 'Como extrair', text: () => 'A terra tem <b>Ferronox</b> (metal prateado) e <b>Lumenita</b> (cristal azul).<br>Extratores <b>por cima da esteira</b> puxam cada um. <b>Veja a animação.</b>',
+  { title: 'Como a linha funciona', text: () => 'A terra sobe pelo tubo, anda na esteira, o <b>Ímã</b> e o <b>Ressonador</b> puxam os minérios e o resto <b>queima</b>.<br><b>Veja a animação.</b>',
     target: () => '.lesson .ok', done: g => !!g.flags.lessonSep },
-  { title: 'Linha 5/6 · Ímã', bp: 'ima', text: () => '<b>Processamento → Ímã Extrator</b> <b>por cima da esteira</b>, com 1 espaço livre.<br>Ele puxa o <b>metal</b> da terra que passa embaixo, direto para o seu <b>saldo</b>.',
-    target: g => bpTarget(g, 'processamento', 'ima'), done: g => g.blueprint.placed('ima') },
-  { title: 'Linha 6/6 · Ressonador', bp: 'ressonador', text: () => '<b>Processamento → Ressonador Extrator</b> por cima da esteira, depois do Ímã.<br>Ele puxa os <b>cristais</b> para o seu saldo.',
-    target: g => bpTarget(g, 'processamento', 'ressonador'), done: g => g.blueprint.placed('ressonador') },
-  { title: 'Saldo subindo', text: (_t, g) => `Veja o <b>Ferronox</b> e a <b>Lumenita</b> subindo no topo da tela (${Math.floor(g.upHave('ferronox'))} / ${Math.floor(g.upHave('lumenita'))}).<br>A terra que sobra queima no Incinerador e enche a barra da camada.`,
-    target: g => () => { const m = g.machines.list.find(x => x.key === 'ima'); return m ? [(m.tx + 1) * TILE, m.ty * TILE] : null; },
-    done: g => (g.sectors.s[g.planet.layer]?.counters.separated ?? 0) > 30 },
-  { title: 'A Nave em órbita', text: () => 'Lá no alto (toque <b>JATO</b> e suba) está a <b>Nave Zenitex</b>.<br>Minérios só <b>saem do planeta</b> quando chegam na porta de carga dela: encoste um <b>Tubo de Vácuo</b> no Ímã e puxe até lá. <b>Toque aqui.</b>',
+  { title: 'Saldo e camada', text: (_t, g) => `No topo, seu <b>saldo</b>: Ferronox ${Math.floor(g.upHave('ferronox'))} · Lumenita ${Math.floor(g.upHave('lumenita'))}.<br>A terra <b>queimada</b> sai do planeta e diminui o que <b>falta da camada</b> (cartão à esquerda). Continue cavando.`,
+    target: g => () => { const m = g.machines.list.find(x => x.key === 'compactador'); return m ? [(m.tx + 0.5) * TILE, m.ty * TILE] : null; },
+    done: g => (g.sectors.s[g.planet.layer]?.counters.burned ?? 0) > 60 },
+  { title: 'A Nave em órbita', text: () => 'Os minérios só <b>saem do planeta</b> quando chegam na <b>Nave</b>, lá no alto (voe com <b>JATO</b> para ver).<br>Vamos ligar o Ímã a ela.',
     target: g => g.ui.panels.isOpen() ? '.pnl .x' : '.hcard.meta', done: () => false, manual: true },
-  { title: 'Melhorias', text: () => 'Toque <b>✚ MELHORIAS</b> (no topo): <b>Laser</b> (alcance e força), <b>Soprador</b> (alcance e vazão) e <b>Tubos</b>.<br>São pagas com o seu <b>saldo</b>. <b>Toque aqui.</b>',
-    target: () => '.up-btn', done: () => false, manual: true },
-  { title: 'Mais frentes', text: () => 'Pilha acabou? Toque no Soprador → <b>RECOLHER</b> e leve para outro ponto.<br>O <b>Tubo de Vácuo</b> aspira grãos próximos e leva para qualquer distância.<br><b>Toque aqui.</b>',
+  { title: 'Tubo até a Nave', bp: 'tuboNave', text: () => '<b>CONSTRUIR → Logística → Tubo de Vácuo</b>: o caminho já está marcado, de cima do Ímã até a porta de carga.<br><b>CONFIRMAR</b>.',
+    target: g => buildFlow(g, 'logistica', 'tubo'), done: g => g.blueprint.placed('tuboNave') },
+  { title: 'Primeira entrega', text: (_t, g) => `Cave mais: o Ferronox do Ímã agora sobe pelo tubo até a Nave.<br>Enviado: <b>${Math.floor(g.sectors.s[g.planet.layer]?.counters.shipped ?? 0)} kg</b>.`,
+    target: g => () => { const m = g.machines.list.find(x => x.def.behavior === 'blower'); return m ? [(m.tx + 0.5) * TILE, (m.ty + 1.5) * TILE] : null; },
+    done: g => (g.sectors.s[g.planet.layer]?.counters.shipped ?? 0) >= 4 },
+  { title: 'Melhorias', text: () => 'No <b>MENU → MELHORIAS</b>: alcance do <b>laser</b>, alcance e vazão do <b>soprador</b>, velocidade dos <b>tubos</b>.<br>Pagas com o seu saldo. <b>Toque aqui.</b>',
     target: g => g.ui.panels.isOpen() ? '.pnl .x' : '.hcard.meta', done: () => false, manual: true },
-  { title: 'Scanner', text: t => `${t ? 'Toque <b>SCANNER</b>' : 'Aperte <b>F</b>'}: mostra o <b>teor</b> da região.<br>Cave onde o teor é ALTO.`,
-    target: (_g, t) => t ? '#mobile [data-b="scan"]' : null, done: g => (g.sectors.s[g.planet.layer]?.counters.scans ?? 0) > 0 },
-  { title: 'Pronto', text: () => 'Você cava → soprador → tubo → esteira → extratores (saldo) → incinerador; minérios por tubo até a Nave.<br>A barra da <b>CAMADA</b> (no topo) sobe com o que sai do planeta.<br><b>Toque aqui</b> para terminar.',
+  { title: 'Agora é com você', text: () => 'Pilha acabou? Toque no Soprador → <b>RECOLHER</b> e leve para outro ponto. Monte mais linhas no <b>CONSTRUIR</b>.<br>Esvazie a camada e desça até o núcleo. <b>Toque aqui</b> para terminar.',
     target: g => g.ui.panels.isOpen() ? '.pnl .x' : '.hcard.meta', done: () => false, manual: true },
 ];
 
@@ -197,7 +176,7 @@ export class Tutorial {
     const i = this.index();
     const st = STEPS[i]; if (!st) return;
     this.lockBuild();
-    if (st.title === 'Como extrair' && !g.flags.lessonSep && !g.ui.modalOpen()) g.ui.showLesson();
+    if (st.title === 'Como a linha funciona' && !g.flags.lessonSep && !g.ui.modalOpen()) g.ui.showLesson();
     if (i !== this.last) { this.last = i; this.sx = g.player.x; this.sy = g.player.y; }
     if (i === 0) { const dx = Math.abs(g.player.x - this.sx), dy = this.sy - g.player.y; if (dx > 40) g.flags.tutMoved0 = true; if (dx > 40 && (dy > 24 || !g.input.touch)) g.flags.tutMoved = true; }
     const tg = st.target(g, touch);

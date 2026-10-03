@@ -421,12 +421,17 @@ export class Renderer {
       sg.addColorStop(0, 'rgba(255,250,230,1)'); sg.addColorStop(0.06, 'rgba(255,244,210,0.95)'); sg.addColorStop(0.12, 'rgba(255,226,170,0.45)'); sg.addColorStop(0.4, 'rgba(255,214,160,0.12)'); sg.addColorStop(1, 'rgba(255,214,160,0)');
       ctx.fillStyle = sg; ctx.fillRect(0, 0, W, H);
       // nuvens suaves em duas profundidades
-      for (let i = 0; i < 8; i++) {
-        const par = i < 4 ? 0.05 : 0.12;
+      // nuvens em várias altitudes: baixas e cheias perto do chão, finas e ralas lá em cima (somem no espaço)
+      for (let i = 0; i < 16; i++) {
+        const band = Math.floor(i / 4), back = i % 4 < 2;
+        const par = back ? 0.05 + band * 0.01 : 0.12 + band * 0.02;
         const period = WORLD_PX_W * par;
-        const cxw = nearestX((i % 4) * period / 4 + this.time * (1.5 + (i % 3)), L * par, period) - L * par - 100;
-        const cyw = surfY / z - 150 - ((i * 53) % 130) - (i < 4 ? 60 : 0);
-        for (let off = -period; off < W / z + 200; off += period) this.softCloud((cxw + off) * z, cyw * z, (i < 4 ? 0.7 : 1.1) * z, i % 3, i < 4 ? 0.55 : 0.85);
+        const cxw = nearestX((i % 4) * period / 4 + (band * 0.37 % 1) * period + this.time * (1.5 + (i % 3)), L * par, period) - L * par - 100;
+        const cyw = surfY / z - 150 - ((i * 53) % 130) - (back ? 60 : 0) - band * 160;
+        const sy = cyw * z; if (sy < -120 * z || sy > H + 60 * z) continue;
+        const alpha = (back ? 0.55 : 0.85) * Math.max(0.15, 1 - band * 0.16);
+        const scale = (back ? 0.7 : 1.1) * (band >= 3 ? 1.5 : 1) * z;
+        for (let off = -period; off < W / z + 200; off += period) this.softCloud((cxw + off) * z, sy, scale, i % 3, alpha);
       }
     } else {
       const SK: [string, string, string][] = [
@@ -448,6 +453,21 @@ export class Renderer {
         ctx.globalAlpha = starA * (0.35 + 0.65 * hash2(i, 9, 7)) * (0.75 + 0.25 * Math.sin(this.time * 2 + i));
         ctx.fillStyle = '#e8f0ff'; ctx.fillRect(sx, sy, (1 + (i % 3 === 0 ? 1 : 0)) * Math.max(1, z * 0.5), (1 + (i % 3 === 0 ? 1 : 0)) * Math.max(1, z * 0.5));
       }
+      ctx.globalAlpha = 1;
+    }
+    // no espaço: lua e um planeta com anel (paralaxe lenta)
+    if (starA > 0.05) {
+      ctx.globalAlpha = Math.min(1, starA * 1.2);
+      const mx = W * 0.22 - ((L * 0.02) % (W * 1.6)), my = surfY - 1250 * z * 0.92;
+      const mg = ctx.createRadialGradient(mx - 10 * z, my - 10 * z, 2, mx, my, 40 * z);
+      mg.addColorStop(0, '#f4f2ea'); mg.addColorStop(0.7, '#b8b4aa'); mg.addColorStop(1, '#6e6a62');
+      ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(mx, my, 34 * z, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(80,76,70,0.35)'; for (const [a, b, r] of [[-10, -6, 6], [8, 10, 9], [14, -12, 4], [-14, 14, 5]]) { ctx.beginPath(); ctx.arc(mx + a * z, my + b * z, r * z, 0, 7); ctx.fill(); }
+      const px2 = W * 0.78 - ((L * 0.01) % (W * 1.8)), py2 = surfY - 1450 * z * 0.92;
+      const pg = ctx.createRadialGradient(px2 - 18 * z, py2 - 18 * z, 4, px2, py2, 70 * z);
+      pg.addColorStop(0, '#d9a070'); pg.addColorStop(0.6, '#9a5a3a'); pg.addColorStop(1, '#3a1e14');
+      ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(px2, py2, 56 * z, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(230,210,180,0.55)'; ctx.lineWidth = 4 * z; ctx.beginPath(); ctx.ellipse(px2, py2, 96 * z, 18 * z, -0.25, 0, 7); ctx.stroke();
       ctx.globalAlpha = 1;
     }
     void spaceK;
@@ -535,8 +555,11 @@ export class Renderer {
   private post(W: number, H: number, surfScreenY: number, layer: number) {
     const ctx = this.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    if (layer === 1 && surfScreenY > -40) {
+    // raios de sol só perto do chão: somem conforme a câmera sobe para o espaço
+    const rayK = Math.max(0, Math.min(1, 1 - (surfScreenY - H) / (H * 1.2)));
+    if (layer === 1 && surfScreenY > -40 && rayK > 0.02) {
       ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = rayK;
       for (let i = 0; i < 4; i++) {
         const x = W * (0.45 + i * 0.13) + Math.sin(this.time * 0.2 + i) * 20;
         const gr = ctx.createLinearGradient(x, 0, x - 120, surfScreenY);
@@ -545,6 +568,7 @@ export class Renderer {
         ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + 40, 0); ctx.lineTo(x - 80, surfScreenY); ctx.lineTo(x - 160, surfScreenY); ctx.closePath(); ctx.fill();
       }
       ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
     }
     // correção de cor: quente em cima, fria embaixo
     ctx.globalCompositeOperation = 'soft-light';

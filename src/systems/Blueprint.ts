@@ -24,14 +24,14 @@ export class Blueprint {
     // [SILO Fe][COLETOR][SILO Lu] [INCINER.] ◀◀◀◀ esteira ◀◀◀◀  ╚[SOPRADOR ◀]  ← cave aqui
     const X = tx0 - 4;
     this.items = [
-      // PLATAFORMA ORBITAL: piso de 8 peças onde a cápsula pousa
-      { id: 'piso', key: 'piso_orbital', tx: tx0 - 14, tx2: tx0 - 7, ty: gy - 1, dir: 0, label: 'PLATAFORMA ORBITAL' },
       { id: 'esteira', key: 'esteira', tx: X + 17, tx2: X + 8, ty: gy - 1, dir: 2, label: 'ESTEIRA ◀' },
       { id: 'compactador', key: 'compactador', tx: X + 7, ty: gy - 2, dir: 0, label: 'INCINERADOR' },
       { id: 'soprador', key: 'soprador', tx: X + 19, ty: gy - 1, dir: 2, label: 'SOPRADOR ◀' },
       { id: 'tuboFeed', key: 'tubo', tx: X + 18, ty: gy - 1, tx2: X + 17, ty2: gy - 3, dir: 3, label: 'TUBO' },
       { id: 'ima', key: 'ima', tx: X + 14, ty: gy - 3, dir: 0, label: 'ÍMÃ' },
       { id: 'ressonador', key: 'ressonador', tx: X + 10, ty: gy - 3, dir: 0, label: 'RESSONADOR' },
+      // a lição: um Tubo de Vácuo reto, de cima do Ímã até a porta de carga da Nave (que fica bem em cima)
+      { id: 'tuboNave', key: 'tubo', tx: X + 14, ty: gy - 4, tx2: X + 14, ty2: gy - 40, dir: 3, label: 'TUBO ATÉ A NAVE' },
     ];
   }
 

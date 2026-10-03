@@ -967,3 +967,6 @@ body.touch .hud .up-btn { left: calc(max(6px, env(safe-area-inset-left)) + 326px
 body.touch .hud .hcard.meta { top: 76px !important; }
 body.touch .hud .hcard.meta, body.touch .hud .hcard.meta.tut { top: calc(var(--lyH, 74px) + 8px) !important; }
 body.touch .hud .geocard { left: 50% !important; right: auto !important; top: 46px !important; transform: translateX(-50%) !important; }
+/* melhorias ficam dentro do MENU */
+.hud .up-btn { display: none !important; }
+.hud .menu-btn.has-up::after { content: ''; position: absolute; top: 3px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: #3aff8a; box-shadow: 0 0 8px #3aff8a; }

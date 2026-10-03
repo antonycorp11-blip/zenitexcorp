@@ -125,35 +125,40 @@ export class Game {
   /** Base inicial: cápsula, gerador e terminal orbital na clareira de pouso. */
   /** Cápsula (Centro de Comando) e terminal no poço de pouso da camada atual. */
   setupBase() {
-    // vista lateral: a base fica em cima do platô, apoiada no chão
-    const L = this.world.gen.landing;
-    const tx = Math.floor((L.x * CELL) / TILE), gy = Math.floor((SURFACE_Y * CELL) / TILE);
-    this.machines.place('comando', tx - 1, gy - 3, 0);
-    this.placeAnalyzer();
-    this.blueprint.layout();
-    this.player.x = (tx + 4.5) * TILE; this.player.y = gy * TILE;
-    this.camera.x = this.player.x; this.camera.y = this.player.y;
-    this.world.reveal(this.player.x, this.player.y, 22);
-    this.placeShip();
+    // camada nova (depois de descer): a Nave acompanha; a linha é remontada pelo jogador com o reembolso
+    this.setupStart(false);
   }
 
+
   /** Jogo novo: mapa vazio. O jogador monta a Plataforma Orbital e a cápsula desce sobre ela. */
-  setupLanding() {
+  /**
+   * Jogo novo: a Nave chega em órbita e larga no chão uma LINHA DE EXTRAÇÃO pronta
+   * (soprador → tubo → esteira → Ímã/Ressonador → Incinerador). O jogador começa cavando, não montando.
+   */
+  setupStart(withLine = true) {
     const L = this.world.gen.landing;
     const tx = Math.floor((L.x * CELL) / TILE), gy = Math.floor((SURFACE_Y * CELL) / TILE);
-    this.flags.awaitCapsule = true;
-    this.placeShip();
+    this.flags.awaitCapsule = false;
     this.blueprint.layout();
-    this.player.x = (tx + 4.5) * TILE; this.player.y = gy * TILE;
+    this.placeShip();
+    if (withLine) for (const it of this.blueprint.items) {
+      if (it.id === 'tuboNave') continue;           // esse o jogador constrói (é a lição)
+      if (it.key === 'tubo') { for (const [x, y, d] of this.blueprint.tubePath(it)) this.machines.place('tubo', x, y, d); continue; }
+      if (it.tx2 !== undefined) { for (let x = Math.min(it.tx, it.tx2); x <= Math.max(it.tx, it.tx2); x++) this.machines.place(it.key, x, it.ty, it.dir); continue; }
+      const m = this.machines.place(it.key, it.tx, it.ty, it.dir);
+      if (m) this.fx.dust(...this.machines.centerPx(m), 10);
+    }
+    this.player.x = (tx + 2.5) * TILE; this.player.y = gy * TILE;
     this.camera.x = this.player.x; this.camera.y = this.player.y;
-    this.world.reveal(this.player.x, this.player.y, 22);
+    this.world.reveal(this.player.x, this.player.y, 26);
   }
 
   /** a Nave de carga fica em órbita, bem acima da base: é para ela que os minérios precisam subir */
   placeShip() {
     if (this.machines.list.some(m => m.def.behavior === 'ship')) return;
     const L = this.world.gen.landing;
-    const tx = Math.floor((L.x * CELL) / TILE) - 7, gy = Math.floor((SURFACE_Y * CELL) / TILE);
+    // centrada sobre a linha de extração: um tubo reto para cima, saindo do Ímã, entra na porta de carga
+    const tx = Math.floor((L.x * CELL) / TILE), gy = Math.floor((SURFACE_Y * CELL) / TILE);
     for (const dy of [44, 42, 46, 40, 48]) if (this.machines.place('nave', tx, gy - dy, 0)) return;
   }
 
@@ -253,10 +258,10 @@ export class Game {
   }
 
   setupNew() {
-    this.setupLanding();
+    this.setupStart();
     this.markLayerStart();
     this.stock.add('ferronox', 270, false); this.stock.add('lumenita', 120, false);   // kit inicial: a primeira fábrica vertical inteira, com folga
-    this.pack.add('kit_soprador', 2);   // dois sopradores na mão
+    this.pack.add('kit_soprador', 1);   // um soprador extra na mão (o outro já está na linha)
     this.stock.credits = 300;
     this.pack.add('sinalizador', 3); this.pack.add('kit_reparo', 1);
     this.world.reveal(this.player.x, this.player.y, 22);
@@ -265,7 +270,7 @@ export class Game {
 
   basePos(): [number, number] {
     const c = this.machines.list.find(m => m.def.behavior === 'command');
-    if (!c) return [this.player.x, this.player.y];
+    if (!c) { const L = this.world.gen.landing; return [(Math.floor((L.x * CELL) / TILE) + 2.5) * TILE, Math.floor((SURFACE_Y * CELL) / TILE) * TILE - 2]; }
     return [(c.tx + 1.5) * TILE, (c.ty + c.def.h) * TILE];
   }
 
@@ -958,8 +963,8 @@ export class Game {
     this.scanner.mapMarkers = s.markers ?? []; this.final = s.final ?? this.final; this.flares = s.flares ?? []; this.mining.drops = s.drops ?? [];
     this.flags.intro = false; this.flags.ending = false;
     // camada nova (acabou de descer): monta a cápsula no poço central
-    if (!this.machines.list.some(m => m.def.behavior === 'command')) { if (!this.flags.awaitCapsule) this.setupBase(); }
-    else this.placeAnalyzer();
+    // camada nova (acabou de descer, mapa vazio): a Nave chega e o jogador desce embaixo dela
+    if (!this.machines.list.length) this.setupBase();
     this.placeShip();
     this.blueprint.layout();
     this.camera.x = this.player.x; this.camera.y = this.player.y;

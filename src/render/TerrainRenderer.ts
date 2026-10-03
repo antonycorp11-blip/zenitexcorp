@@ -281,7 +281,7 @@ export class TerrainRenderer {
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const m = mat[(y * S) * WORLD_W + x * S], o = (y * W + x) * 4;
       let r = 0, g = 0, b = 0;
-      if (m === MAT.AIR) { if (y * S < gen.surfaceAt(x * S)) { r = 70; g = 120; b = 180; } else { r = sky[0] * 0.3; g = sky[1] * 0.3; b = sky[2] * 0.3; } }
+      if (m === MAT.AIR) { const alt = gen.surfaceAt(x * S) - y * S; if (alt > 0) { const k = Math.min(1, alt / 520); r = 110 * (1 - k) + 4 * k; g = 165 * (1 - k) + 8 * k; b = 220 * (1 - k) + 22 * k; } else { r = sky[0] * 0.3; g = sky[1] * 0.3; b = sky[2] * 0.3; } }
       else { const t = MATERIALS[m].top; r = t[0]; g = t[1]; b = t[2]; if (IS_SOLID[m] && MATERIALS[m].kind === 'rock') { r *= 0.8; g *= 0.8; b *= 0.8; } }
       d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = 255;
     }

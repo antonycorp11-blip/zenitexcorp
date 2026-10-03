@@ -2,7 +2,7 @@ import { FAB_UPS, fabLevel } from '../data/factory';
 import { siloHelp } from '../systems/SiloHelp';
 import { METAS } from '../data/metas';
 import { fmtInt, fmtShort, fmtMass, fmtTime } from '../core/math';
-import { TILE, WORLD_TW, WORLD_TH, WORLD_PX_W, WORLD_PX_H, WORLD_W, WORLD_H, CELL } from '../core/constants';
+import { TILE, WORLD_TW, WORLD_TH, WORLD_PX_W, WORLD_PX_H, WORLD_W, WORLD_H, CELL, SURFACE_Y } from '../core/constants';
 import { SECTORS, HAZARD_NAMES, type HazardKey } from '../data/sectors';
 import { SPEAKERS } from '../data/dialogue';
 import { ITEM, TOP_BAR_ITEMS, itemName } from '../data/items';
@@ -509,7 +509,9 @@ export class UI {
     (this.el.metaBar as HTMLElement).style.width = prog >= 0 ? Math.min(100, prog * 100) + '%' : '0';
     (this.el.metaBar.parentElement as HTMLElement).style.display = prog >= 0 ? 'block' : 'none';
     this.el.meta.classList.toggle('tut', !!tut);
-    (this.el.upDot as HTMLElement).style.display = FAB_UPS.some(u => { const c = u.costs[fabLevel(g.flags, u.key)]; return !!c && g.upHas(c); }) ? 'block' : 'none';
+    const canUp = FAB_UPS.some(u => { const c = u.costs[fabLevel(g.flags, u.key)]; return !!c && g.upHas(c); });
+    (this.el.upDot as HTMLElement).style.display = canUp ? 'block' : 'none';
+    this.el.menuBtn.classList.toggle('has-up', canUp);
   }
 
   private updateDialog() {
@@ -547,11 +549,23 @@ export class UI {
     const ov = g.terrain.overview(performance.now());
     // 1 px do minimapa = 2 células; centrado no jogador
     const sx = p.x / CELL / 2 - W / 2, sy = p.y / CELL / 2 - H / 2;
-    c.fillStyle = '#05080c'; c.fillRect(0, 0, W, H);
+    // céu de verdade no minimapa: azul perto do chão escurecendo até o espaço
+    const surfPx = SURFACE_Y / 2 - sy, spacePx = surfPx - 237;
+    const sk = c.createLinearGradient(0, spacePx, 0, surfPx);
+    sk.addColorStop(0, '#02040a'); sk.addColorStop(0.45, '#0e2650'); sk.addColorStop(0.8, '#3a78c4'); sk.addColorStop(1, '#8ab8e0');
+    c.fillStyle = sk; c.fillRect(0, 0, W, H);
     c.imageSmoothingEnabled = false;
     c.drawImage(ov, -sx, -sy);
     const P = (wx: number, wy: number): [number, number] => [wx / CELL / 2 - sx, wy / CELL / 2 - sy];
-    for (const m of g.machines.list) { const [x, y] = P(m.tx * TILE, m.ty * TILE); c.fillStyle = m.broken ? '#ff4a3a' : '#ffb04a'; c.fillRect(x, y, m.def.w * 2, m.def.h * 2); }
+    for (const m of g.machines.list) { if (m.def.behavior === 'ship') continue; const [x, y] = P(m.tx * TILE, m.ty * TILE); c.fillStyle = m.broken ? '#ff4a3a' : '#ffb04a'; c.fillRect(x, y, m.def.w * 2, m.def.h * 2); }
+    // a Nave (ou uma seta até ela, se estiver fora do quadro)
+    const nave = g.machines.list.find(m => m.def.behavior === 'ship');
+    if (nave) {
+      const [nx, ny] = P(nave.tx * TILE, nave.ty * TILE), nw = nave.def.w * 2, nh = nave.def.h * 2;
+      if (ny + nh >= 0) { c.fillStyle = '#7ae0ff'; c.fillRect(nx, ny, nw, nh); c.fillStyle = '#ffb04a'; c.fillRect(nx + nw / 2 - 2, ny + nh, 4, 2); c.fillStyle = '#e8f6ff'; c.font = 'bold 9px sans-serif'; c.textAlign = 'center'; c.fillText('NAVE', nx + nw / 2, Math.max(9, ny - 2)); }
+      else { const ax = Math.max(10, Math.min(W - 10, nx + nw / 2)); c.fillStyle = '#7ae0ff'; c.beginPath(); c.moveTo(ax, 2); c.lineTo(ax - 6, 11); c.lineTo(ax + 6, 11); c.closePath(); c.fill(); c.font = 'bold 9px sans-serif'; c.textAlign = 'center'; c.fillText('NAVE', ax, 21); }
+      c.textAlign = 'left';
+    }
     for (const m of g.scanner.mapMarkers) { const [x, y] = P(m.x, m.y); if (x < 0 || y < 0 || x > W || y > H) continue; c.fillStyle = m.color; c.fillRect(x - 2, y - 2, 4, 4); }
     c.fillStyle = '#fff'; c.fillRect(W / 2 - 2, H / 2 - 3, 4, 5);
     c.strokeStyle = 'rgba(255,255,255,0.5)';

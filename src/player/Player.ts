@@ -31,7 +31,7 @@ export class Player {
     return p;
   }
 
-  vy0 = 0; grounded = false; jet = 0;
+  vy0 = 0; grounded = false; jet = 0; boost = 0;
   readonly hw = 4; readonly hh = 15;     // meia largura e altura do corpo (px)
 
   /** Vista lateral: anda, cai, sobe degraus de areia e voa com o jetpack (consome energia). */
@@ -48,7 +48,10 @@ export class Player {
     const flying = g.input.touch && g.input.jetHeld;
     const jetting = flying || (!g.input.touch && (my < -0.35 || g.input.down(' ')));
     if (flying) {
-      const fs = 150 * (inLiquid ? 0.6 : 1);
+      // voo livre: acelera quanto mais tempo você segura na mesma direção (até ~3× para subir rápido ao espaço)
+      const push = Math.hypot(ax, my) > 0.6;
+      this.boost = push ? Math.min(1, this.boost + dt * 0.6) : Math.max(0, this.boost - dt * 2);
+      const fs = (170 + 330 * this.boost) * (inLiquid ? 0.6 : 1);
       this.vx += (ax * fs - this.vx) * Math.min(1, dt * 8);
       this.vy += (Math.max(-1, Math.min(1, my)) * fs - this.vy) * Math.min(1, dt * 8);
       this.jet = 0.12;
@@ -62,6 +65,8 @@ export class Player {
     }
     if (my > 0.5 && !jetting) this.vy += 300 * dt;    // descer mais rápido
     if (this.vy > 330) this.vy = 330;
+    // topo do mapa (bem acima da Nave): não sai do mundo
+    if (this.y < 3 * TILE && this.vy < 0) { this.vy = 0; this.y = 3 * TILE; }
     this.moveX(this.vx * dt);
     this.grounded = false;
     this.moveY(this.vy * dt);
