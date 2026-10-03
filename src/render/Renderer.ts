@@ -899,8 +899,8 @@ export class Renderer {
     const g = this.g, ctx = this.ctx;
     const b = g.build;
     if (!b.active) return;
-    const tx = b.deconstruct ? Math.floor(g.input.worldX / TILE) : b.tx;
-    const ty = b.deconstruct ? Math.floor(g.input.worldY / TILE) : b.ty;
+    const tx = b.deconstruct && !g.input.touch ? Math.floor(g.input.worldX / TILE) : b.tx;
+    const ty = b.deconstruct && !g.input.touch ? Math.floor(g.input.worldY / TILE) : b.ty;
     if (b.deconstruct) {
       const m = g.machines.at(tx, ty);
       ctx.strokeStyle = 'rgba(255,80,60,0.9)'; ctx.lineWidth = 1;

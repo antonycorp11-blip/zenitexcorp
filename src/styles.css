@@ -970,3 +970,6 @@ body.touch .hud .geocard { left: 50% !important; right: auto !important; top: 46
 /* melhorias ficam dentro do MENU */
 .hud .up-btn { display: none !important; }
 .hud .menu-btn.has-up::after { content: ''; position: absolute; top: 3px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: #3aff8a; box-shadow: 0 0 8px #3aff8a; }
+.qb-head .qb-del { width: auto !important; flex: none; padding: 0 8px; font-size: 10px !important; font-weight: 800; color: #ffd0c8 !important; border-color: #c0504a !important; background: #3a1414 !important; margin-left: 4px; }
+.build-controls.del [data-build-action="rotate"], .build-controls.del [data-build-action="confirm"] { display: none !important; }
+.build-controls.del [data-build-action="cancel"] { background: linear-gradient(#c0504a, #7a1c18) !important; color: #fff !important; }

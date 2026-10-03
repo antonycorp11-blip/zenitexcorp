@@ -63,6 +63,7 @@ export class UI {
       const button = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
       if (!button) return;
       if (button.dataset.quick === 'close') { this.hideQuickBuild(); return; }
+      if (button.dataset.quick === 'dismantle') { this.hideQuickBuild(); g.startDismantle(); g.audio.click(); return; }
       if (button.dataset.quick === 'cat') { this.quickCat = Number(button.dataset.cat); this.renderQuickBuild(); return; }
       if (button.dataset.quick === 'item') {
         const key = button.dataset.key!;
@@ -181,7 +182,7 @@ export class UI {
     const list = MACHINES.filter(d => d.cat === cat.key && !d.hidden && !['command', 'analyzer'].includes(d.behavior) && (d.minLayer ?? 1) <= g.planet.layer)
       .sort((a, b) => (a.key === 'tubo' ? -1 : b.key === 'tubo' ? 1 : 0) || Number(g.canBuildKey(b.key)) - Number(g.canBuildKey(a.key)));
     const cats = MACHINE_CATS.map((c, i) => ({ c, i })).filter(({ c }) => MACHINES.some(d => d.cat === c.key && !d.hidden && !['command', 'analyzer'].includes(d.behavior) && (d.minLayer ?? 1) <= g.planet.layer));
-    this.el.quickBuild.innerHTML = `<div class="qb-head"><div class="qb-tabs">${cats.map(({ c, i }) => `<button data-quick="cat" data-cat="${i}" class="${i === this.quickCat ? 'on' : ''}">${esc(c.name)}</button>`).join('')}</div><button data-quick="close" aria-label="Fechar">×</button></div><div class="qb-items">${list.map(d => {
+    this.el.quickBuild.innerHTML = `<div class="qb-head"><div class="qb-tabs">${cats.map(({ c, i }) => `<button data-quick="cat" data-cat="${i}" class="${i === this.quickCat ? 'on' : ''}">${esc(c.name)}</button>`).join('')}</div><button data-quick="dismantle" class="qb-del" title="Desmontar peças">🗑 DESMONTAR</button><button data-quick="close" aria-label="Fechar">×</button></div><div class="qb-items">${list.map(d => {
       const locked = !g.canBuildKey(d.key);
       const cost = Object.entries(d.cost).map(([k, n]) => `<span class="${g.stock.count(k) + g.pack.count(k) < n ? 'short' : ''}"><img src="${g.sprites.itemUrl(k)}" alt="">${fmtShort(n)}</span>`).join('');
       const label = d.key === 'tubo' ? 'Tubo Vácuo' : d.key === 'tubo_gigante' ? 'Tubo Gigante' : d.key === 'reforcador' ? 'Reforçador' : d.name;
@@ -401,9 +402,11 @@ export class UI {
     // dica de construção
     const b = g.build;
     this.el.buildHint.style.display = b.active ? 'block' : 'none';
-    this.el.buildControls.style.display = b.active && !b.deconstruct ? 'flex' : 'none';
+    this.el.buildControls.style.display = b.active ? 'flex' : 'none';
+    this.el.buildControls.classList.toggle('del', !!b.deconstruct);
+    const cb = this.el.buildControls.querySelector<HTMLElement>('[data-build-action="cancel"]'); if (cb) { const t = b.deconstruct ? '✕ SAIR' : '✕ CANCELAR'; if (cb.textContent !== t) cb.textContent = t; }
     if (b.active) {
-      if (b.deconstruct) this.el.buildHint.textContent = 'MODO DESMONTAR · clique: desmontar (75% de reembolso) · Q/botão direito: sair';
+      if (b.deconstruct) this.el.buildHint.textContent = g.input.touch ? 'DESMONTAR · toque ou arraste o dedo sobre as peças (esteiras, tubos, máquinas) · devolve o custo · SAIR quando terminar' : 'DESMONTAR · clique nas peças (devolve o custo) · Q ou botão direito: sair';
       else {
         const def = MACHINE[b.key!];
         const ox = b.tx - Math.floor((def.w - 1) / 2), oy = b.ty - Math.floor((def.h - 1) / 2);

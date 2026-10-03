@@ -342,6 +342,13 @@ export class Game {
       inp.worldX = cam.left() + (inp.mouseX * dpr) / cam.zoom;
       inp.worldY = cam.top() + (inp.mouseY * dpr) / cam.zoom;
     }
+    // DESMONTAR no celular: tocar ou arrastar o dedo sobre as peças remove cada uma
+    if (this.build.active && this.build.deconstruct && inp.touch && inp.placeDirty) {
+      const tx = Math.floor((cam.left() + inp.placeX * dpr / cam.zoom) / TILE), ty = Math.floor((cam.top() + inp.placeY * dpr / cam.zoom) / TILE);
+      this.build.tx = tx; this.build.ty = ty;
+      this.dismantleAt(tx, ty);
+      inp.placeDirty = false; inp.placeStart = false;
+    }
     if (this.build.active && !this.build.deconstruct) {
       const b = this.build, line = this.isLineBuild();
       this.lockGuide();
@@ -439,7 +446,7 @@ export class Game {
     if (inp.pressed('u')) ui.open('upgrades');
     if (inp.pressed('h') || inp.pressed('F1')) ui.open('help');
     if (inp.pressed('f')) this.scanner.pulse();
-    if (inp.pressed('x')) { this.exitBuild(); this.build.active = true; this.build.deconstruct = true; }
+    if (inp.pressed('x')) this.startDismantle();
     if (inp.pressed('r')) this.rotateBuild();
     if (inp.pressed('q') && this.build.active) this.exitBuild();
     if (inp.pressed(' ')) this.dialogue.skip();
@@ -652,19 +659,27 @@ export class Game {
     this.buildAction();
   }
 
+  /** desmonta a peça neste tile (esteiras e tubos inclusive): devolve o custo inteiro */
+  dismantleAt(tx: number, ty: number): boolean {
+    const m = this.machines.at(tx, ty) ?? this.machines.list.find(x => x.def.behavior === 'platform' && x.tx === tx && x.ty === ty);
+    if (!m) return false;
+    if (m.def.behavior === 'command' || m.def.behavior === 'analyzer' || m.def.behavior === 'ship') { this.toast(`${m.def.name}: não pode ser desmontada.`, '#ff8a3a'); return false; }
+    if (m.key === 'soprador') this.pack.add('kit_soprador', 1);
+    else for (const k in m.def.cost) this.stock.add(k, m.def.cost[k], false);
+    this.machines.remove(m);
+    this.audio.click();
+    this.fx.dust(...this.machines.centerPx(m), 8);
+    return true;
+  }
+  startDismantle() { this.exitBuild(); this.build.active = true; this.build.deconstruct = true; this.input.placeMode = true; this.input.placeDirty = false; }
+
   private buildAction() {
     const inp = this.input;
     const tx = this.build.deconstruct ? Math.floor(inp.worldX / TILE) : this.build.tx;
     const ty = this.build.deconstruct ? Math.floor(inp.worldY / TILE) : this.build.ty;
     if (this.build.deconstruct) {
       if (!inp.clickPrimary()) return;
-      const m = this.machines.at(tx, ty) ?? this.machines.list.find(x => x.def.behavior === 'platform' && x.tx === tx && x.ty === ty);
-      if (!m) return;
-      if (m.def.behavior === 'command' || m.def.behavior === 'analyzer') { this.toast(`${m.def.name}: propriedade da Zenitex.`, '#ff8a3a'); return; }
-      for (const k in m.def.cost) this.stock.add(k, Math.floor(m.def.cost[k] * 0.75), false);
-      this.machines.remove(m);
-      this.audio.click();
-      this.fx.dust(...this.machines.centerPx(m), 8);
+      this.dismantleAt(tx, ty);
       return;
     }
     const def = MACHINE[this.build.key!];
