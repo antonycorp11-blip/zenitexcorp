@@ -19,6 +19,8 @@ import { esc, h } from './dom';
 import { Tutorial } from './Tutorial';
 import type { OfflineReport } from '../systems/Offline';
 
+const CAT_ICON: Record<string, string> = { base: '⌂', extracao: '⛏', logistica: '⇄', processamento: '⚙', drones: '✈', estabilizacao: '⛨', mega: '◉' };
+
 const PCT = (f: number) => {
   const p = f * 100;
   const digits = p < 0.01 ? 7 : p < 1 ? 5 : p < 10 ? 4 : 4;
@@ -207,7 +209,7 @@ export class UI {
     const list = MACHINES.filter(d => d.cat === cat.key && !d.hidden && !['command', 'analyzer'].includes(d.behavior) && (d.minLayer ?? 1) <= g.planet.layer)
       .sort((a, b) => (a.key === 'tubo' ? -1 : b.key === 'tubo' ? 1 : 0) || Number(g.canBuildKey(b.key)) - Number(g.canBuildKey(a.key)));
     const cats = MACHINE_CATS.map((c, i) => ({ c, i })).filter(({ c }) => MACHINES.some(d => d.cat === c.key && !d.hidden && !['command', 'analyzer'].includes(d.behavior) && (d.minLayer ?? 1) <= g.planet.layer));
-    this.el.quickBuild.innerHTML = `<div class="qb-head"><div class="qb-stepper"><button data-quick="step" data-dir="prev" aria-label="Categoria anterior">‹</button><b>${esc(cat.name)}</b><button data-quick="step" data-dir="next" aria-label="Próxima categoria">›</button></div><div class="qb-tabs">${cats.map(({ c, i }) => `<button data-quick="cat" data-cat="${i}" class="${i === this.quickCat ? 'on' : ''}">${esc(c.name)}</button>`).join('')}</div><button data-quick="dismantle" class="qb-del" title="Desmontar peças">🗑 DESMONTAR</button><button data-quick="close" aria-label="Fechar">×</button></div><div class="qb-items">${list.map(d => {
+    this.el.quickBuild.innerHTML = `<div class="qb-head"><div class="qb-stepper"><button data-quick="step" data-dir="prev" aria-label="Categoria anterior">‹</button><b>${esc(cat.name)}</b><button data-quick="step" data-dir="next" aria-label="Próxima categoria">›</button></div><div class="qb-tabs">${cats.map(({ c, i }) => `<button data-quick="cat" data-cat="${i}" class="${i === this.quickCat ? 'on' : ''}"><i class="qb-ico">${CAT_ICON[c.key] ?? '◆'}</i>${esc(c.name)}</button>`).join('')}</div><button data-quick="dismantle" class="qb-del" title="Desmontar peças">🗑 DESMONTAR</button><button data-quick="close" aria-label="Fechar">×</button></div><div class="qb-items">${list.map(d => {
       const locked = !g.canBuildKey(d.key);
       const cost = Object.entries(d.cost).map(([k, n]) => `<span class="${g.stock.count(k) + g.pack.count(k) < n ? 'short' : ''}"><img src="${g.sprites.itemUrl(k)}" alt="">${fmtShort(n)}</span>`).join('');
       const label = d.key === 'tubo' ? 'Tubo Vácuo' : d.key === 'tubo_gigante' ? 'Tubo Gigante' : d.key === 'reforcador' ? 'Reforçador' : d.name;

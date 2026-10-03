@@ -427,30 +427,36 @@ export class Renderer {
     const ctx = this.ctx;
     if (m.def.leaky) { this.drawLeakyBelt(m, x, y); return; }
     const tier = m.key === 'esteira3' ? 2 : m.key === 'esteira2' ? 1 : 0;
-    const frame = tier === 2 ? '#a169be' : tier === 1 ? '#68aee0' : '#e2a148';
+    const plate = tier === 2 ? '#c58bff' : tier === 1 ? '#7cc8ff' : '#ffc53a';
     const d = m.dir === 2 ? -1 : 1;
-    ctx.fillStyle = '#121d27'; ctx.fillRect(x - 0.4, y - 0.6, 16.8, 9.5);
-    ctx.fillStyle = '#566674'; ctx.fillRect(x + 0.5, y, 15, 1.3);
-    ctx.fillStyle = '#2d3942'; ctx.fillRect(x + 0.5, y + 1.3, 15, 5);
-    ctx.fillStyle = frame; ctx.fillRect(x, y + 6.6, 16, 1.5);
-    ctx.fillStyle = '#17242e'; ctx.fillRect(x + 1.5, y + 8, 13, 5);
-    ctx.fillStyle = '#101b24'; ctx.fillRect(x + 2, y + 12, 2, 4); ctx.fillRect(x + 12, y + 12, 2, 4);
     const sp = (m.def.speed ?? 1) * (m.broken ? 0 : 1);
-    const off = (((this.time * sp * 24 * d) % 4) + 4) % 4;
-    ctx.fillStyle = '#707b80';
-    for (let k = -4; k < 20; k += 4) { const o = k + off; if (o >= 0 && o < 15) ctx.fillRect(x + o, y + 1.7, 1.2, 3.5); }
-    ctx.fillStyle = '#b8c5c2'; ctx.fillRect(x, y, 16, 0.45);
-    // roletes, marcação industrial e seta legível nas duas direções
-    for (const rx of [3, 8, 13]) {
-      ctx.fillStyle = '#0a1219'; ctx.beginPath(); ctx.arc(x + rx, y + 10.5, 2, 0, 7); ctx.fill();
-      ctx.strokeStyle = '#a9b5b4'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.arc(x + rx, y + 10.5, 1.25, 0, 7); ctx.stroke();
-      ctx.fillStyle = '#d3dcd5'; ctx.beginPath(); ctx.arc(x + rx, y + 10.5, 0.45, 0, 7); ctx.fill();
+    const off = (((this.time * sp * 24 * d) % 8) + 8) % 8;
+    // lona escura com placas de aço que correm no sentido da esteira
+    ctx.fillStyle = '#0d1218'; ctx.fillRect(x - 0.3, y - 0.4, 16.6, 7.6);
+    ctx.fillStyle = '#2b333d'; ctx.fillRect(x, y + 0.4, 16, 5.4);
+    ctx.fillStyle = '#4c5763';
+    for (let k = -8; k < 24; k += 4) { const o = k + (off % 4); if (o > -1 && o < 16) ctx.fillRect(x + Math.max(0, o), y + 0.6, Math.min(0.7, 16 - o), 5); }
+    // losango amarelo (marcador industrial) andando com a lona
+    const dx = x + ((off + 4) % 8) * 2;
+    ctx.fillStyle = '#14171c'; ctx.beginPath(); ctx.moveTo(dx, y + 0.5); ctx.lineTo(dx + 3, y + 3.1); ctx.lineTo(dx, y + 5.7); ctx.lineTo(dx - 3, y + 3.1); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = plate; ctx.beginPath(); ctx.moveTo(dx, y + 1.1); ctx.lineTo(dx + 2.4, y + 3.1); ctx.lineTo(dx, y + 5.1); ctx.lineTo(dx - 2.4, y + 3.1); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#14171c'; ctx.beginPath(); ctx.moveTo(dx + d * 1.1, y + 3.1); ctx.lineTo(dx - d * 0.6, y + 2); ctx.lineTo(dx - d * 0.6, y + 4.2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fillRect(x, y + 0.4, 16, 0.5);
+    // longarina laranja e caixa dos roletes
+    ctx.fillStyle = '#e8902e'; ctx.fillRect(x, y + 6.2, 16, 1.4);
+    ctx.fillStyle = '#9a5418'; ctx.fillRect(x, y + 7.6, 16, 0.5);
+    ctx.fillStyle = '#1a222b'; ctx.fillRect(x, y + 8.1, 16, 4.6);
+    for (let k = 0; k < 5; k++) {
+      const rx = x + 1.6 + k * 3.2;
+      ctx.fillStyle = '#05080c'; ctx.beginPath(); ctx.arc(rx, y + 10.4, 1.5, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#8f9ca8'; ctx.lineWidth = 0.55; ctx.beginPath(); ctx.arc(rx, y + 10.4, 1.05, 0, 7); ctx.stroke();
+      const a = this.time * sp * 9 * d + k; ctx.strokeStyle = '#d6dde3'; ctx.lineWidth = 0.35;
+      ctx.beginPath(); ctx.moveTo(rx - Math.cos(a) * 0.9, y + 10.4 - Math.sin(a) * 0.9); ctx.lineTo(rx + Math.cos(a) * 0.9, y + 10.4 + Math.sin(a) * 0.9); ctx.stroke();
     }
-    ctx.fillStyle = '#d39138'; ctx.fillRect(x, y + 6, 16, 0.8);
-    ctx.strokeStyle = '#ffd47a'; ctx.lineWidth = 1.2;
-    const ar = d > 0 ? x + 11 : x + 5;
-    ctx.beginPath(); ctx.moveTo(ar - d * 2.5, y + 4); ctx.lineTo(ar, y + 2.3); ctx.lineTo(ar - d * 2.5, y + 0.6); ctx.stroke();
-    if (m.state.startsWith('Travada') && Math.floor(this.time * 2) % 2) { ctx.fillStyle = 'rgba(255,60,40,0.45)'; ctx.fillRect(x, y, 16, 9); }
+    // pés
+    ctx.fillStyle = '#121820'; ctx.fillRect(x + 2.5, y + 12.7, 1.6, 3.3); ctx.fillRect(x + 11.9, y + 12.7, 1.6, 3.3);
+    ctx.fillStyle = '#3a4450'; ctx.fillRect(x + 1.8, y + 15.2, 3, 0.8); ctx.fillRect(x + 11.2, y + 15.2, 3, 0.8);
+    if (m.state.startsWith('Travada') && Math.floor(this.time * 2) % 2) { ctx.fillStyle = 'rgba(255,60,40,0.45)'; ctx.fillRect(x, y, 16, 8); }
   }
 
   /** Céu atmosférico (superfície) ou caverna gigante com neblina (camadas de baixo), com paralaxe suave. */
@@ -463,16 +469,22 @@ export class Renderer {
     const spaceTop = surfY - 950 * z, spaceK = Math.max(0, Math.min(1, (0 - (surfY - 700 * z)) / (600 * z)));
     if (layer === 1) {
       const gr = ctx.createLinearGradient(0, spaceTop, 0, surfY + 10 * z);
-      gr.addColorStop(0, '#02040a'); gr.addColorStop(0.3, '#081430'); gr.addColorStop(0.5, '#215a9d'); gr.addColorStop(0.7, '#2888c9'); gr.addColorStop(0.9, '#70bee6'); gr.addColorStop(1, '#e9d5ad');
+      gr.addColorStop(0, '#02040a'); gr.addColorStop(0.3, '#081430'); gr.addColorStop(0.5, '#1d4f9a'); gr.addColorStop(0.72, '#2d7fd0'); gr.addColorStop(0.88, '#56aceb'); gr.addColorStop(0.97, '#a6d6f2'); gr.addColorStop(1, '#d6ecf0');
       ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
       // Disco de um mundo vizinho, visível apenas junto à atmosfera.
       const planetX = W * 0.26 - ((L * z * 0.008) % (W * 0.6));
-      const planetY = surfY - 120 * z, planetR = Math.min(W * 0.2, 86 * z);
+      const planetY = surfY - 215 * z, planetR = Math.min(W * 0.3, 120 * z);
       if (planetY + planetR > 0 && planetY - planetR < H) {
         const atm = ctx.createRadialGradient(planetX - planetR * 0.32, planetY - planetR * 0.36, 0, planetX, planetY, planetR);
-        atm.addColorStop(0, 'rgba(227,250,255,0.28)'); atm.addColorStop(0.75, 'rgba(147,199,224,0.2)'); atm.addColorStop(0.96, 'rgba(66,130,173,0.22)'); atm.addColorStop(1, 'rgba(226,247,255,0.08)');
+        atm.addColorStop(0, 'rgba(244,250,255,0.62)'); atm.addColorStop(0.55, 'rgba(196,220,244,0.46)'); atm.addColorStop(1, 'rgba(140,178,224,0.36)');
         ctx.fillStyle = atm; ctx.beginPath(); ctx.arc(planetX, planetY, planetR, 0, 7); ctx.fill();
-        ctx.strokeStyle = 'rgba(222,246,255,0.16)'; ctx.lineWidth = Math.max(1, z * 0.8); ctx.stroke();
+        // faixas de nuvens do planeta e lado na sombra (crescente iluminado)
+        ctx.save(); ctx.clip();
+        ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = planetR * 0.06;
+        for (let k = -2; k <= 2; k++) { ctx.beginPath(); ctx.ellipse(planetX, planetY + k * planetR * 0.32, planetR * 1.1, planetR * 0.08, -0.18, 0, 7); ctx.stroke(); }
+        ctx.fillStyle = 'rgba(70,120,190,0.42)'; ctx.beginPath(); ctx.arc(planetX + planetR * 0.42, planetY + planetR * 0.3, planetR * 1.05, 0, 7); ctx.fill();
+        ctx.restore();
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = Math.max(1, z * 0.9); ctx.beginPath(); ctx.arc(planetX, planetY, planetR, Math.PI * 0.85, Math.PI * 1.7); ctx.stroke();
       }
       // sol com brilho atmosférico
       const sx = W * 0.74, sy = surfY - 190 * z;
@@ -563,7 +575,7 @@ export class Renderer {
     }
     // névoa do horizonte
     const hz = ctx.createLinearGradient(0, surfY - 60 * z, 0, surfY + 4 * z);
-    hz.addColorStop(0, 'rgba(255,255,255,0)'); hz.addColorStop(1, layer === 1 ? 'rgba(240,226,200,0.55)' : 'rgba(120,90,70,0.12)');
+    hz.addColorStop(0, 'rgba(255,255,255,0)'); hz.addColorStop(1, layer === 1 ? 'rgba(226,240,240,0.3)' : 'rgba(120,90,70,0.12)');
     ctx.fillStyle = hz; ctx.fillRect(0, surfY - 60 * z, W, 64 * z);
     if (layer > 1 && false) {
       // (removido) teto rochoso: agora dá para subir até o espaço em qualquer camada
@@ -591,9 +603,9 @@ export class Renderer {
     if (surface < -45 * z) return;
     const ctx = this.ctx;
     const layers = [
-      { par: 0.125, step: 128, count: 6, height: 77, base: 14, top: '#729fc5', foot: '#aacbd9', snow: 0.36 },
-      { par: 0.25, step: 96, count: 16, height: 50, base: 13, top: '#517ca2', foot: '#8db2c4', snow: 0.2 },
-      { par: 0.5, step: 64, count: 48, height: 25, base: 12, top: '#5c8297', foot: '#8caaa5', snow: 0.02 },
+      { par: 0.125, step: 128, count: 6, height: 80, base: 14, top: '#7a90cf', foot: '#b6c8ea', snow: 0.75 },
+      { par: 0.25, step: 96, count: 16, height: 54, base: 13, top: '#4c66ab', foot: '#7d95cb', snow: 0.45 },
+      { par: 0.5, step: 64, count: 48, height: 22, base: 12, top: '#3d7650', foot: '#6f9d5c', snow: 0 },
     ];
     for (let k = 0; k < layers.length; k++) {
       const q = layers[k], base = surface + q.base * z;
@@ -667,10 +679,10 @@ export class Renderer {
       for (let n = first; n <= last; n++) {
         if (hash2(n & 127, 17, 58) < 0.43) continue;
         const sx = (n * gap + hash2(n & 127, 18, 58) * 12 - L * par) * z;
-        const height = (8 + hash2(n & 127, 19, 58) * 15) * z;
+        const height = (12 + hash2(n & 127, 19, 58) * 20) * z;
         const by = surface + 5 * z, tw = height * 0.28;
-        ctx.globalAlpha = 0.14 + hash2(n & 127, 20, 58) * 0.12;
-        ctx.fillStyle = '#224f55';
+        ctx.globalAlpha = 0.85 + hash2(n & 127, 20, 58) * 0.15;
+        ctx.fillStyle = hash2(n & 127, 21, 58) < 0.5 ? '#1f4a33' : '#2b5e3e';
         ctx.fillRect(sx - Math.max(0.6, z * 0.3), by - height * 0.4, Math.max(1.2, z * 0.6), height * 0.45);
         for (let tier = 0; tier < 3; tier++) {
           const yy = by - height * (0.95 - tier * 0.22), width = tw * (0.57 + tier * 0.24);
@@ -762,16 +774,18 @@ export class Renderer {
     };
     // tubo de vidro reforçado: carcaça grafite, canal de vidro com brilho ciano e anéis de contenção
     // TUBO TRANSPARENTE: vidro quase invisível com bordas claras; os grãos aparecem andando dentro
-    for (const d of sides) seg(d, 'rgba(170,230,255,0.55)', R + 0.5);
-    for (const d of sides) seg(d, 'rgba(120,200,255,0.10)', R - 0.5);
-    ctx.fillStyle = 'rgba(170,230,255,0.55)'; ctx.fillRect(cx - R - 0.5, cy - R - 0.5, R * 2 + 1, R * 2 + 1);
-    ctx.fillStyle = 'rgba(120,200,255,0.10)'; ctx.fillRect(cx - R + 0.5, cy - R + 0.5, R * 2 - 1, R * 2 - 1);
+    for (const d of sides) seg(d, 'rgba(18,30,42,0.75)', R + 1.1);
+    ctx.fillStyle = 'rgba(18,30,42,0.75)'; ctx.fillRect(cx - R - 1.1, cy - R - 1.1, R * 2 + 2.2, R * 2 + 2.2);
+    for (const d of sides) seg(d, 'rgba(190,235,255,0.85)', R + 0.4);
+    ctx.fillStyle = 'rgba(190,235,255,0.85)'; ctx.fillRect(cx - R - 0.4, cy - R - 0.4, R * 2 + 0.8, R * 2 + 0.8);
+    for (const d of sides) seg(d, 'rgba(70,170,230,0.32)', R - 0.6);
+    ctx.fillStyle = 'rgba(70,170,230,0.32)'; ctx.fillRect(cx - R + 0.6, cy - R + 0.6, R * 2 - 1.2, R * 2 - 1.2);
     // reflexo do vidro
     ctx.fillStyle = 'rgba(220,245,255,0.35)';
     for (const d of sides) { const [dx] = DIRS[d]; if (dx) ctx.fillRect(dx > 0 ? cx : cx - TILE / 2, cy - R * 0.5, TILE / 2, 0.6); else ctx.fillRect(cx - R * 0.5, DIRS[d][1] > 0 ? cy : cy - TILE / 2, 0.6, TILE / 2); }
     // anéis de contenção nas juntas (luz azul)
     for (const d of sides) { const [dx, dy] = DIRS[d]; const fx = cx + dx * (TILE / 2 - 1.2), fy = cy + dy * (TILE / 2 - 1.2);
-      ctx.fillStyle = '#4a5670'; ctx.fillRect(fx - (dx ? 1 : R + 0.8), fy - (dy ? 1 : R + 0.8), dx ? 2 : R * 2 + 1.6, dy ? 2 : R * 2 + 1.6);
+      ctx.fillStyle = '#1a2230'; ctx.fillRect(fx - (dx ? 1.3 : R + 1.4), fy - (dy ? 1.3 : R + 1.4), dx ? 2.6 : R * 2 + 2.8, dy ? 2.6 : R * 2 + 2.8); ctx.fillStyle = '#a9b6c2'; ctx.fillRect(fx - (dx ? 1 : R + 1.1), fy - (dy ? 1 : R + 1.1), dx ? 2 : R * 2 + 2.2, dy ? 2 : R * 2 + 2.2);
       ctx.fillStyle = 'rgba(120,230,255,0.9)'; ctx.fillRect(fx - (dx ? 0.25 : R * 0.5), fy - (dy ? 0.25 : R * 0.5), dx ? 0.5 : R, dy ? 0.5 : R); }
     // pacotes correndo para a saída (brilham dentro do vidro)
     const [ox, oy] = DIRS[m.dir], ph = (this.time * 10) % 1;
@@ -799,7 +813,7 @@ export class Renderer {
     }
     if (m.q?.length) g.lighting.add(cx, cy, 16, [110, 210, 255], 0.25);
     // seta discreta (chevron) da direção
-    ctx.strokeStyle = 'rgba(255,208,74,0.75)'; ctx.lineWidth = 0.7;
+    ctx.strokeStyle = 'rgba(120,235,255,0.95)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(cx - ox * 1 + oy * 1.6, cy - oy * 1 + ox * 1.6); ctx.lineTo(cx + ox * 1.4, cy + oy * 1.4); ctx.lineTo(cx - ox * 1 - oy * 1.6, cy - oy * 1 - ox * 1.6); ctx.stroke();
     if (m.key === 'reforcador') {
       // colar do reforçador de vazão
@@ -824,12 +838,22 @@ export class Renderer {
     const bw = m.def.w * TILE, by0 = (m.ty + m.def.h) * TILE;
     const cs = ctx.createRadialGradient(m.tx * TILE + bw / 2, by0, 0, m.tx * TILE + bw / 2, by0, bw * 0.7);
     cs.addColorStop(0, 'rgba(0,0,0,0.45)'); cs.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = cs; ctx.fillRect(m.tx * TILE - bw * 0.2, by0 - 4, bw * 1.4, 7);
+    if (m.def.behavior !== 'ship') { ctx.fillStyle = cs; ctx.fillRect(m.tx * TILE - bw * 0.2, by0 - 4, bw * 1.4, 7); }
+    if (m.def.behavior === 'extractor') {
+      // pernas de aço que apoiam o extrator na esteira (o vão de 1 tile fica livre para a terra passar)
+      const yb = (m.ty + m.def.h) * TILE, belt = g.machines.at(m.tx, m.ty + 2) ?? g.machines.at(m.tx + 1, m.ty + 2);
+      if (belt?.belt) for (const lx of [m.tx * TILE + 1.5, m.tx * TILE + m.def.w * TILE - 3.5]) {
+        const lg = ctx.createLinearGradient(lx, 0, lx + 2, 0); lg.addColorStop(0, '#9aa6b2'); lg.addColorStop(1, '#2a323c');
+        ctx.fillStyle = lg; ctx.fillRect(lx, yb - 1, 2, TILE + 1);
+        ctx.fillStyle = '#ffc53a'; ctx.fillRect(lx, yb + 3, 2, 1.2); ctx.fillStyle = '#14171c'; ctx.fillRect(lx, yb + 4.2, 2, 0.8);
+        ctx.fillStyle = '#1a222b'; ctx.fillRect(lx - 0.6, yb + TILE - 1.4, 3.2, 1.4);
+      }
+    }
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(img, x, y, img.width / SPRITE_K, img.height / SPRITE_K);
     ctx.imageSmoothingEnabled = true;
     this.animate(m, x, y + oy);
-    if (m.def.w >= 2 && m.def.behavior !== 'platform') {
+    if (m.def.w >= 2 && m.def.behavior !== 'platform' && m.def.behavior !== 'ship') {
       const px = m.tx * TILE + m.def.w * TILE - 8, py = m.ty * TILE + m.def.h * TILE - 6;
       ctx.fillStyle = '#0b1118'; ctx.fillRect(px - 1, py - 1, 6, 4);
       ctx.fillStyle = m.broken ? '#ff5944' : m.working ? '#75e2d1' : '#e6a34a';

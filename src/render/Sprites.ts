@@ -167,7 +167,15 @@ export class Sprites {
     if (!u) {
       const s = 80;
       const [c, x] = cv(s, s);
-      if (def.leaky) {
+      if (def.behavior === 'belt' && !def.leaky) {
+        // esteira: lona escura com losangos amarelos, longarina laranja e roletes
+        x.fillStyle = '#0d1218'; x.fillRect(4, 26, 72, 22);
+        x.fillStyle = '#2b333d'; x.fillRect(6, 28, 68, 16);
+        for (const dx of [18, 40, 62]) { x.fillStyle = '#14171c'; x.beginPath(); x.moveTo(dx, 29); x.lineTo(dx + 8, 36); x.lineTo(dx, 43); x.lineTo(dx - 8, 36); x.closePath(); x.fill(); x.fillStyle = '#ffc53a'; x.beginPath(); x.moveTo(dx, 31); x.lineTo(dx + 6, 36); x.lineTo(dx, 41); x.lineTo(dx - 6, 36); x.closePath(); x.fill(); }
+        x.fillStyle = '#e8902e'; x.fillRect(4, 47, 72, 4);
+        x.fillStyle = '#1a222b'; x.fillRect(4, 51, 72, 13);
+        for (let k = 0; k < 6; k++) { x.fillStyle = '#05080c'; x.beginPath(); x.arc(10 + k * 12, 57.5, 4.5, 0, 7); x.fill(); x.strokeStyle = '#8f9ca8'; x.lineWidth = 1.6; x.beginPath(); x.arc(10 + k * 12, 57.5, 3, 0, 7); x.stroke(); }
+      } else if (def.leaky) {
         // Esteira Vazada: grade de aço com fogo por baixo e calhas
         x.fillStyle = '#ff7a28'; x.globalAlpha = 0.55; x.fillRect(8, 26, 64, 22); x.globalAlpha = 1;
         x.fillStyle = '#3c4048'; x.fillRect(6, 22, 68, 5);

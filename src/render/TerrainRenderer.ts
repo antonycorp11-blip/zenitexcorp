@@ -85,8 +85,8 @@ export class TerrainRenderer {
         for (let px = 0; px <= S; px += 8) x.lineTo(px, y0 + Math.sin((px / S) * Math.PI * 4 + k) * 6);
         x.stroke();
       }
-      for (let i = 0; i < (kind === 'soil' ? 54 : 45); i++) {
-        const px = rnd(i, 5) * S, py = rnd(i, 6) * S, r = 1.8 + rnd(i, 7) * (kind === 'soil' ? 3.5 : 8);
+      for (let i = 0; i < (kind === 'soil' ? 42 : 45); i++) {
+        const px = rnd(i, 5) * S, py = rnd(i, 6) * S, r = 2.2 + rnd(i, 7) * (kind === 'soil' ? 5.5 : 8);
         const stone: C3 = kind === 'soil' ? [142, 119, 99] : light;
         x.fillStyle = rgb(dark, 0.8, 0.5); x.beginPath(); x.ellipse(px + 1, py + 1.5, r, r * 0.75, 0, 0, 7); x.fill();
         x.fillStyle = rgb(stone, 0.95); x.beginPath(); x.ellipse(px, py, r, r * 0.75, 0, 0, 7); x.fill();
@@ -225,11 +225,11 @@ export class TerrainRenderer {
       const m = at(lx, ly); if (!IS_SOLID[m]) continue;
       const def = MATERIALS[m];
       const X = ox + lx, Y = oy + ly;
-      if (def.kind === 'ore') { ctx.fillStyle = rgb(def.face, 1.2, 0.8); ctx.fillRect(lx * RES - 1.2, ly * RES - 1.2, RES + 2.4, RES + 2.4); }
+      if (def.kind === 'ore') { ctx.fillStyle = rgb(def.face, 0.75, 0.45); ctx.fillRect(lx * RES - 1, ly * RES - 1, RES + 2, RES + 2); }
       else if (def.kind === 'edge') { ctx.fillStyle = 'rgba(22,18,24,0.94)'; ctx.fillRect(lx * RES - 1, ly * RES - 1, RES + 2, RES + 2); }
       else if (def.kind === 'ancient') { ctx.fillStyle = pat(ruin); ctx.fillRect(lx * RES - 1, ly * RES - 1, RES + 2, RES + 2); }
       else if (L === 1 && m !== MAT.R1) { ctx.fillStyle = 'rgba(70,60,70,0.35)'; ctx.fillRect(lx * RES, ly * RES, RES, RES); }
-      if (def.kind === 'ore' && (X % 3) === 1 && (Y % 3) === 1 && hash2(X, Y, 11) > 0.35) this.gem(ctx, (lx + 0.5) * RES, (ly + 0.5) * RES, def.top, def.face, hash2(X, Y, 12));
+      if (def.kind === 'ore' && (X % 3) === 1 && (Y % 3) === 1 && hash2(X, Y, 11) > 0.12) this.gem(ctx, (lx + 0.5) * RES, (ly + 0.5) * RES, def.top, def.face, hash2(X, Y, 12));
       if (lights && def.glow && hash2(X, Y, 13) > 0.996) lights.push({ x: X * CELL, y: Y * CELL, r: 30, c: def.glow as [number, number, number], a: 0.5 });
       const dm = w.dmg[Y * WORLD_W + X];
       if (dm > 30) { ctx.strokeStyle = `rgba(0,0,0,${dm / 255 * 0.7})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(lx * RES, ly * RES + 1); ctx.lineTo(lx * RES + RES, ly * RES + RES - 1); ctx.stroke(); }
@@ -244,8 +244,9 @@ export class TerrainRenderer {
       ctx.beginPath();
       for (let lx = x0 - 1; lx <= x1; lx++) { const sy = gen.surfaceAt(ox + lx) - oy; ctx.rect(lx * RES, (sy - 2) * RES, RES + 0.5, 7 * RES); }
       ctx.clip();
-      ctx.translate(0, RES * 1.2); ctx.strokeStyle = '#4f9a36'; ctx.lineWidth = RES * 2.6; ctx.stroke(edge);
-      ctx.translate(0, -RES * 0.6); ctx.strokeStyle = '#78c24a'; ctx.lineWidth = RES * 1.2; ctx.stroke(edge);
+      ctx.translate(0, RES * 1.6); ctx.strokeStyle = '#3c8a2a'; ctx.lineWidth = RES * 4.4; ctx.stroke(edge);
+      ctx.translate(0, -RES * 0.9); ctx.strokeStyle = '#62b83a'; ctx.lineWidth = RES * 2.2; ctx.stroke(edge);
+      ctx.translate(0, -RES * 0.5); ctx.strokeStyle = '#9ade5c'; ctx.lineWidth = RES * 0.7; ctx.stroke(edge);
       ctx.restore();
     }
     ctx.restore();

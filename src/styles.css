@@ -1069,3 +1069,7 @@ body.touch .hud .quick-build .qb-del::before { content: '🗑'; font-size: 15px;
 body.touch .hud .quick-build .qb-items { display: flex; flex-direction: row; overflow-x: auto; overflow-y: hidden; }
 body.touch .hud .quick-build .qb-item { display: flex; flex: 0 0 68px; width: 68px; height: 63px; }
 @media (max-width: 760px) { body:not(.touch) .hud .hcard.layer { width: min(352px, calc(100vw - 150px)); } body:not(.touch) .hud .menu-btn { left: auto !important; right: 12px; } }
+
+/* ícones das categorias do painel CONSTRUIR */
+.qb-tabs button .qb-ico { font-style: normal; display: inline-block; width: 16px; margin-right: 5px; text-align: center; color: #ffc56b; font-size: 13px; }
+.qb-tabs button.on .qb-ico { color: #2a1404; }

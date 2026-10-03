@@ -246,32 +246,56 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
   p.r(1, bot - 1, W - 2, 1, [0, 0, 0], 0.5);
 
   if (k === 'nave') {
-    // NAVE ZENITEX: casco longo, faixa laranja, janelas, motores à esquerda e PORTA DE CARGA embaixo (é ali que os tubos entregam)
-    const x = p.x;
-    const hull = (y0: number, h: number) => { x.beginPath(); x.moveTo(10, y0); x.lineTo(W - 34, y0); x.quadraticCurveTo(W - 2, y0 + 2, W - 1, y0 + h * 0.55); x.quadraticCurveTo(W - 6, y0 + h, W - 40, y0 + h); x.lineTo(10, y0 + h); x.closePath(); };
-    hull(top + 6, H - 14);
-    const hg = x.createLinearGradient(0, top + 6, 0, bot - 8); hg.addColorStop(0, '#9aa6bc'); hg.addColorStop(0.35, '#5a6478'); hg.addColorStop(1, '#22283a');
-    x.fillStyle = hg; x.fill(); x.strokeStyle = 'rgba(10,12,18,0.95)'; x.lineWidth = 0.8; x.stroke();
-    x.save(); hull(top + 6, H - 14); x.clip();
-    x.fillStyle = css(P.or); x.fillRect(0, top + 22, W, 4); x.fillStyle = css(P.orD); x.fillRect(0, top + 26, W, 1.2);
-    for (let k = 0; k < 14; k++) { x.fillStyle = k % 3 ? '#ffd890' : '#8ae8ff'; x.fillRect(40 + k * 11, top + 13, 5, 3); }
-    x.fillStyle = 'rgba(255,255,255,0.18)'; x.fillRect(0, top + 7, W, 2);
+    // NAVE ZENITEX: cargueiro orbital — nariz afilado à direita, casco em placas, faixa laranja, cabine de vidro,
+    // asas, três motores com brilho azul à esquerda e a PORTA DE CARGA embaixo (é ali que os tubos entregam)
+    const x = p.x, y0 = top + 4, y1 = bot - 8, mid = (y0 + y1) / 2;
+    const ink = 'rgba(10,12,18,0.95)';
+    // asa/aleta de cima e de baixo (atrás do casco)
+    x.beginPath(); x.moveTo(34, y0 + 4); x.lineTo(58, top - 14); x.lineTo(92, top - 14); x.lineTo(104, y0 + 4); x.closePath();
+    let gg = x.createLinearGradient(0, top - 14, 0, y0 + 4); gg.addColorStop(0, '#4a5568'); gg.addColorStop(1, '#262d3a'); x.fillStyle = gg; x.fill(); x.strokeStyle = ink; x.lineWidth = 0.8; x.stroke();
+    x.fillStyle = '#e8902e'; x.fillRect(60, top - 13, 30, 2);
+    x.beginPath(); x.moveTo(40, y1 - 2); x.lineTo(56, bot + 2); x.lineTo(84, bot + 2); x.lineTo(96, y1 - 2); x.closePath(); x.fillStyle = '#20262f'; x.fill(); x.stroke();
+    // casco
+    const hull = () => { x.beginPath(); x.moveTo(14, y0 + 3); x.lineTo(W - 70, y0); x.bezierCurveTo(W - 30, y0 + 1, W - 4, mid - 6, W - 1, mid + 2); x.bezierCurveTo(W - 8, y1 - 2, W - 40, y1, W - 76, y1); x.lineTo(14, y1); x.lineTo(8, y1 - 6); x.lineTo(8, y0 + 8); x.closePath(); };
+    hull();
+    const hg = x.createLinearGradient(0, y0, 0, y1); hg.addColorStop(0, '#dfe6ee'); hg.addColorStop(0.18, '#a8b4c2'); hg.addColorStop(0.55, '#5f6b7c'); hg.addColorStop(1, '#262c38');
+    x.fillStyle = hg; x.fill(); x.strokeStyle = ink; x.lineWidth = 1; x.stroke();
+    x.save(); hull(); x.clip();
+    // placas do casco
+    x.strokeStyle = 'rgba(20,26,36,0.35)'; x.lineWidth = 0.5;
+    for (let px = 30; px < W - 20; px += 22) { x.beginPath(); x.moveTo(px, y0); x.lineTo(px - 4, y1); x.stroke(); }
+    x.beginPath(); x.moveTo(0, mid + 8); x.lineTo(W, mid + 8); x.stroke();
+    // faixa laranja Zenitex
+    x.fillStyle = '#f0952e'; x.fillRect(0, mid - 3, W, 5); x.fillStyle = '#ffd08a'; x.fillRect(0, mid - 3, W, 1); x.fillStyle = '#a2541a'; x.fillRect(0, mid + 2, W, 1.2);
+    // janelas
+    for (let i = 0; i < 12; i++) { const wx = 44 + i * 11; x.fillStyle = '#0d1a28'; x.beginPath(); x.roundRect(wx, y0 + 7, 6, 3.4, 1.2); x.fill(); x.fillStyle = i % 4 === 1 ? '#ffd890' : '#8ae8ff'; x.beginPath(); x.roundRect(wx + 0.6, y0 + 7.6, 4.8, 2.2, 0.8); x.fill(); }
+    // brilho superior e sombra inferior
+    x.fillStyle = 'rgba(255,255,255,0.35)'; x.fillRect(0, y0 + 1, W, 1.4);
+    x.fillStyle = 'rgba(0,0,0,0.25)'; x.fillRect(0, y1 - 6, W, 6);
     x.restore();
     // cabine
-    x.beginPath(); x.ellipse(W - 30, top + 15, 12, 6, 0, Math.PI, 0); x.fillStyle = '#123050'; x.fill(); x.strokeStyle = 'rgba(10,12,18,0.95)'; x.stroke();
-    x.fillStyle = 'rgba(140,220,255,0.55)'; x.beginPath(); x.ellipse(W - 33, top + 12, 6, 2, 0, 0, 7); x.fill();
+    x.beginPath(); x.moveTo(W - 64, y0 + 1); x.bezierCurveTo(W - 44, y0 - 3, W - 24, y0 + 3, W - 14, mid - 4); x.lineTo(W - 40, mid - 4); x.closePath();
+    const cg = x.createLinearGradient(W - 64, y0, W - 14, mid); cg.addColorStop(0, '#9be8ff'); cg.addColorStop(0.5, '#2a6fa8'); cg.addColorStop(1, '#0c2440');
+    x.fillStyle = cg; x.fill(); x.strokeStyle = ink; x.lineWidth = 0.8; x.stroke();
+    x.fillStyle = 'rgba(255,255,255,0.6)'; x.beginPath(); x.moveTo(W - 58, y0 + 1.5); x.lineTo(W - 46, y0); x.lineTo(W - 52, y0 + 5); x.closePath(); x.fill();
     // motores
-    for (const ey of [top + 12, top + 30]) { x.fillStyle = '#20242e'; x.fillRect(0, ey, 12, 10); x.fillStyle = '#8ae8ff'; x.fillRect(-1, ey + 2, 3, 6); }
-    // aletas e antena
-    x.fillStyle = '#3a4256'; x.beginPath(); x.moveTo(30, top + 6); x.lineTo(50, top - 10); x.lineTo(70, top + 6); x.closePath(); x.fill();
-    x.fillStyle = css(P.stLL); x.fillRect(120, top - 14, 1.2, 20); p.light(119.5, top - 17, P.red);
-    p.logo(90, top + 24);
+    for (const ey of [y0 + 4, mid - 5, y1 - 13]) {
+      x.beginPath(); x.roundRect(0, ey, 16, 9, 2); const eg = x.createLinearGradient(0, ey, 0, ey + 9); eg.addColorStop(0, '#6b7686'); eg.addColorStop(1, '#1c222c'); x.fillStyle = eg; x.fill(); x.strokeStyle = ink; x.lineWidth = 0.7; x.stroke();
+      x.fillStyle = '#0a121c'; x.beginPath(); x.ellipse(1.5, ey + 4.5, 2, 3.6, 0, 0, 7); x.fill();
+      const fl = x.createRadialGradient(1, ey + 4.5, 0, 1, ey + 4.5, 5); fl.addColorStop(0, '#ffffff'); fl.addColorStop(0.4, '#8ae8ff'); fl.addColorStop(1, 'rgba(60,160,255,0)');
+      x.fillStyle = fl; x.beginPath(); x.ellipse(1, ey + 4.5, 2.6, 3.4, 0, 0, 7); x.fill();
+      x.fillStyle = '#f0952e'; x.fillRect(12, ey + 1, 1.4, 7);
+    }
+    // antena e luzes de navegação
+    x.fillStyle = css(P.stLL); x.fillRect(118, top - 12, 1.2, 16); p.light(117.5, top - 15, P.red);
+    p.light(W - 6, mid, P.green);
+    p.logo(100, mid - 0.5);
     // porta de carga (funil para cima) embaixo, no meio
     const cx = W / 2;
-    x.beginPath(); x.moveTo(cx - 22, bot - 9); x.lineTo(cx + 22, bot - 9); x.lineTo(cx + 12, bot); x.lineTo(cx - 12, bot); x.closePath();
+    x.beginPath(); x.moveTo(cx - 24, y1 - 1); x.lineTo(cx + 24, y1 - 1); x.lineTo(cx + 14, bot); x.lineTo(cx - 14, bot); x.closePath();
     x.fillStyle = '#1a1e28'; x.fill(); x.strokeStyle = '#ffb04a'; x.lineWidth = 0.8; x.stroke();
-    x.fillStyle = 'rgba(120,230,255,0.9)'; x.fillRect(cx - 11, bot - 1.6, 22, 1.2);
-    p.hazard(cx - 20, bot - 9, 40, 2);
+    x.fillStyle = 'rgba(120,230,255,0.9)'; x.fillRect(cx - 13, bot - 1.6, 26, 1.2);
+    p.hazard(cx - 22, y1 - 1, 44, 2.2);
   } else if (k === 'comando') {
     // cápsula de pouso: casco laranja arredondado, janela, pernas, rampa e antena
     const x = p.x, cx = W / 2, cy = top + 22;
@@ -369,53 +393,78 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
     p.chute(right ? W - 1 : 0, top + 4, right, [150, 120, 96]);
     p.light(right ? 2 : W - 4, top + 3, glow);
   } else if (def.behavior === 'compactor' && def.outMode === 'bottom') {
-    // Incinerador: casco cerâmico claro, aço grafite, visor do fogo e proteção laranja.
+    // INCINERADOR: gabinete industrial grafite, coifa com chaminé, janela da fornalha com grade e base com faixa de perigo
     const x = p.x;
-    p.hopper(1, top - 4, W - 2, 5);
-    x.beginPath(); x.roundRect(1, top + 1, W - 2, H - 3, 2);
-    const g = x.createLinearGradient(1, top + 1, W - 1, bot); g.addColorStop(0, '#f0eee1'); g.addColorStop(0.33, '#a7b6b8'); g.addColorStop(0.7, '#667987'); g.addColorStop(1, '#263643');
-    x.fillStyle = g; x.fill(); x.strokeStyle = 'rgba(10,12,18,0.95)'; x.lineWidth = 0.6; x.stroke();
-    x.fillStyle = '#263541'; x.fillRect(2, top + 3, 1.3, H - 7); x.fillRect(W - 3.3, top + 3, 1.3, H - 7);
-    x.fillStyle = '#e99335'; x.fillRect(3.5, top + 3, W - 7, 1.3);
-    // visor da fornalha
-    x.beginPath(); x.roundRect(3, top + 8, W - 6, 12, 1.5); x.fillStyle = '#200d08'; x.fill(); x.strokeStyle = '#ffbd67'; x.lineWidth = 0.9; x.stroke();
-    x.fillStyle = 'rgba(255,195,88,0.4)'; x.fillRect(4, top + 9, W - 8, 1.2);
-    for (let k = 0; k < 4; k++) { x.fillStyle = 'rgba(30,30,36,0.9)'; x.fillRect(4 + k * ((W - 8) / 4), top + 8, 0.6, 12); }
-    // grade de ventilação e listra
-    p.hazard(1, bot - 4, W - 2, 2);
-    x.fillStyle = '#dbe5de'; for (let y = top + 23; y < bot - 6; y += 2.2) x.fillRect(4, y, W - 8, 0.6);
-    p.light(W - 3, top + 4, P.orL);
-    // chaminé
-    x.fillStyle = '#20242e'; x.fillRect(W - 6, top - 9, 4, 9); x.fillStyle = css(P.or); x.fillRect(W - 6.5, top - 9.5, 5, 1.2);
+    // coifa + chaminé
+    x.fillStyle = '#2a3038'; x.beginPath(); x.roundRect(W - 6.5, top - 7, 4.5, 8, 0.8); x.fill();
+    x.fillStyle = '#e8902e'; x.fillRect(W - 7, top - 7.5, 5.5, 1.3);
+    x.beginPath(); x.moveTo(2, top + 3); x.lineTo(4, top - 2); x.lineTo(W - 4, top - 2); x.lineTo(W - 2, top + 3); x.closePath();
+    const hg = x.createLinearGradient(0, top - 2, 0, top + 3); hg.addColorStop(0, '#9aa6b2'); hg.addColorStop(1, '#4b5663');
+    x.fillStyle = hg; x.fill(); x.strokeStyle = 'rgba(10,12,18,0.95)'; x.lineWidth = 0.5; x.stroke();
+    // corpo
+    x.beginPath(); x.roundRect(1, top + 2.5, W - 2, H - 6, 1.6);
+    const bg = x.createLinearGradient(1, 0, W - 1, 0); bg.addColorStop(0, '#6c7886'); bg.addColorStop(0.18, '#9aa7b4'); bg.addColorStop(0.5, '#4a5562'); bg.addColorStop(1, '#232a33');
+    x.fillStyle = bg; x.fill(); x.strokeStyle = 'rgba(10,12,18,0.95)'; x.lineWidth = 0.6; x.stroke();
+    x.fillStyle = 'rgba(255,255,255,0.25)'; x.fillRect(2, top + 3.2, W - 4, 0.6);
+    // moldura laranja da fornalha
+    x.beginPath(); x.roundRect(2.4, top + 6, W - 4.8, 15, 1.6); x.fillStyle = '#c26a1c'; x.fill(); x.strokeStyle = 'rgba(10,12,18,0.95)'; x.lineWidth = 0.5; x.stroke();
+    x.fillStyle = 'rgba(255,214,140,0.6)'; x.fillRect(3, top + 6.4, W - 6, 0.6);
+    // janela: brasa (o fogo animado é desenhado por cima no Renderer)
+    x.beginPath(); x.roundRect(3.6, top + 7.4, W - 7.2, 12.2, 1.2);
+    const fg = x.createRadialGradient(W / 2, top + 15, 0.5, W / 2, top + 13, 8); fg.addColorStop(0, '#fff2b8'); fg.addColorStop(0.35, '#ffb43c'); fg.addColorStop(0.75, '#e2541a'); fg.addColorStop(1, '#5a1406');
+    x.fillStyle = fg; x.fill();
+    // grade
+    for (let k = 1; k < 4; k++) { const gx = 3.6 + k * (W - 7.2) / 4; x.fillStyle = 'rgba(40,20,14,0.85)'; x.fillRect(gx - 0.35, top + 7.4, 0.7, 12.2); x.fillStyle = 'rgba(255,200,120,0.35)'; x.fillRect(gx + 0.35, top + 7.4, 0.25, 12.2); }
+    x.fillStyle = 'rgba(40,20,14,0.85)'; x.fillRect(3.6, top + 13.2, W - 7.2, 0.6);
+    // painel inferior com aletas e luz de status
+    x.fillStyle = '#1b2129'; x.beginPath(); x.roundRect(3, top + 22.5, W - 6, 4.5, 0.8); x.fill();
+    for (let y = top + 23.3; y < top + 26.6; y += 1.1) { x.fillStyle = '#5d6a77'; x.fillRect(3.6, y, W - 7.2, 0.45); }
+    p.light(W - 4.4, top + 3.6, P.orL);
+    // base com faixa de perigo
+    x.fillStyle = '#14181e'; x.beginPath(); x.roundRect(0.5, bot - 4.2, W - 1, 4.2, 0.8); x.fill();
+    p.hazard(1.2, bot - 3.6, W - 2.4, 2.4);
   } else if (def.behavior === 'extractor') {
     const x = p.x, ima = def.key === 'ima';
-    // suporte de fixação no topo
-    x.fillStyle = '#1c2230'; x.fillRect(W / 2 - 6, top, 12, 2.4); x.fillRect(W / 2 - 1, top - 3, 2, 3.5);
+    // suportes que descem até a esteira são desenhados no Renderer (dependem do mundo)
+    // mangueiras/duto no topo
+    x.fillStyle = '#2a313b'; x.beginPath(); x.roundRect(W / 2 - 5, top - 3, 10, 3.5, 1); x.fill();
+    x.fillStyle = '#8a97a4'; x.fillRect(W / 2 - 4.5, top - 2.6, 9, 0.6);
     if (ima) {
-      // ELETROÍMÃ: bobina de cobre enrolada + placa magnética virada para a esteira
-      x.beginPath(); x.roundRect(4, top + 2, W - 8, 8, 2);
-      const cg = x.createLinearGradient(0, top + 2, 0, top + 10); cg.addColorStop(0, '#f0a060'); cg.addColorStop(0.5, '#b8642a'); cg.addColorStop(1, '#6a3412');
-      x.fillStyle = cg; x.fill(); x.strokeStyle = 'rgba(10,12,18,0.95)'; x.lineWidth = 0.6; x.stroke();
-      x.strokeStyle = 'rgba(60,24,6,0.8)'; x.lineWidth = 0.45; for (let k = 6; k < W - 5; k += 1.4) { x.beginPath(); x.moveTo(k, top + 2.3); x.lineTo(k + 0.5, top + 9.7); x.stroke(); }
-      x.fillStyle = 'rgba(255,230,190,0.35)'; x.fillRect(5, top + 3, W - 10, 1);
-      // placa: polo vermelho e polo prateado
-      x.beginPath(); x.roundRect(1, top + 10, W - 2, 5.5, 1.2); x.fillStyle = '#2a2f3c'; x.fill(); x.strokeStyle = 'rgba(10,12,18,0.95)'; x.stroke();
-      x.fillStyle = '#d43a2a'; x.fillRect(2.5, top + 11.5, W / 2 - 3.5, 2.6); x.fillStyle = '#c8d0de'; x.fillRect(W / 2 + 1, top + 11.5, W / 2 - 3.5, 2.6);
-      x.fillStyle = 'rgba(255,255,255,0.45)'; x.fillRect(2.5, top + 11.5, W - 5, 0.5);
-      p.light(W - 5, top + 4, [255, 80, 60]);
+      // ÍMÃ EXTRATOR: armação de aço com radiador de bobinas laranja incandescente e polos virados para a esteira
+      x.beginPath(); x.roundRect(1, top, W - 2, 12.5, 2);
+      const fr = x.createLinearGradient(0, top, 0, top + 12.5); fr.addColorStop(0, '#b9c4ce'); fr.addColorStop(0.4, '#6d7a88'); fr.addColorStop(1, '#2a323c');
+      x.fillStyle = fr; x.fill(); x.strokeStyle = 'rgba(10,12,18,0.95)'; x.lineWidth = 0.6; x.stroke();
+      // radiador
+      x.beginPath(); x.roundRect(4, top + 2.2, W - 8, 7.6, 1.2);
+      const cg = x.createLinearGradient(0, top + 2.2, 0, top + 9.8); cg.addColorStop(0, '#ffd27a'); cg.addColorStop(0.45, '#ff8a26'); cg.addColorStop(1, '#a8400e');
+      x.fillStyle = cg; x.fill(); x.strokeStyle = 'rgba(30,14,6,0.9)'; x.lineWidth = 0.5; x.stroke();
+      for (let k = 5.2; k < W - 4.6; k += 1.5) { x.fillStyle = 'rgba(70,24,6,0.75)'; x.fillRect(k, top + 2.4, 0.5, 7.2); x.fillStyle = 'rgba(255,240,200,0.35)'; x.fillRect(k + 0.5, top + 2.4, 0.3, 7.2); }
+      x.fillStyle = 'rgba(255,255,255,0.35)'; x.fillRect(4.5, top + 2.6, W - 9, 0.5);
+      // placa de aviso
+      x.fillStyle = '#ffd046'; x.beginPath(); x.moveTo(W - 7.5, top + 11.8); x.lineTo(W - 5.5, top + 8.6); x.lineTo(W - 3.5, top + 11.8); x.closePath(); x.fill(); x.strokeStyle = '#1a1a1a'; x.lineWidth = 0.35; x.stroke();
+      // polos: vermelho e prateado
+      x.beginPath(); x.roundRect(2, top + 12, W - 4, 3.6, 1); x.fillStyle = '#1d232c'; x.fill();
+      x.fillStyle = '#d8402c'; x.fillRect(3, top + 12.8, W / 2 - 4, 2); x.fillStyle = '#cfd8e2'; x.fillRect(W / 2 + 1, top + 12.8, W / 2 - 4, 2);
+      p.light(3.2, top + 0.8, [255, 120, 60]);
     } else {
-      // RESSONADOR: corpo de vidro com núcleo de cristal e três emissores apontando para a esteira
-      x.beginPath(); x.roundRect(3, top + 2, W - 6, 9, 3);
-      const rg = x.createLinearGradient(0, top + 2, 0, top + 11); rg.addColorStop(0, '#3a5c80'); rg.addColorStop(1, '#14243a');
-      x.fillStyle = rg; x.fill(); x.strokeStyle = 'rgba(10,12,18,0.95)'; x.lineWidth = 0.6; x.stroke();
-      const cx = W / 2, cy = top + 6.5;
-      x.fillStyle = '#8ae8ff'; x.beginPath(); x.moveTo(cx, cy - 4); x.lineTo(cx + 2.4, cy); x.lineTo(cx, cy + 4); x.lineTo(cx - 2.4, cy); x.closePath(); x.fill();
-      x.fillStyle = 'rgba(255,255,255,0.8)'; x.beginPath(); x.moveTo(cx - 0.3, cy - 3); x.lineTo(cx + 0.8, cy - 0.5); x.lineTo(cx - 0.6, cy); x.closePath(); x.fill();
-      for (const ex2 of [6, W / 2, W - 6]) {
-        x.fillStyle = '#22324a'; x.fillRect(ex2 - 1.6, top + 10.5, 3.2, 2.4);
-        x.fillStyle = '#5ad0ff'; x.beginPath(); x.moveTo(ex2 - 1.4, top + 12.8); x.lineTo(ex2 + 1.4, top + 12.8); x.lineTo(ex2, top + 15.5); x.closePath(); x.fill();
-      }
-      x.strokeStyle = 'rgba(140,230,255,0.6)'; x.lineWidth = 0.4; x.beginPath(); x.ellipse(cx, cy, 6, 3, 0, 0, 7); x.stroke();
+      // RESSONADOR: cápsula prateada com janela de cristal azul e emissores de ressonância embaixo
+      x.beginPath(); x.roundRect(1.5, top + 0.5, W - 3, 12, 5);
+      const sg = x.createLinearGradient(0, top, 0, top + 12.5); sg.addColorStop(0, '#e6eef4'); sg.addColorStop(0.35, '#9eabb8'); sg.addColorStop(1, '#3a4553');
+      x.fillStyle = sg; x.fill(); x.strokeStyle = 'rgba(10,12,18,0.95)'; x.lineWidth = 0.6; x.stroke();
+      // tampas laterais azuis
+      for (const cx0 of [4.2, W - 4.2]) { x.beginPath(); x.roundRect(cx0 - 2.2, top + 2, 4.4, 9, 1.6); x.fillStyle = '#244a7a'; x.fill(); x.fillStyle = 'rgba(120,220,255,0.9)'; x.fillRect(cx0 - 0.4, top + 3.2, 0.8, 6.6); }
+      // janela central com o cristal
+      const cx = W / 2, cy = top + 6.6;
+      x.beginPath(); x.roundRect(cx - 7, top + 2, 14, 9.4, 2.4);
+      const wg = x.createRadialGradient(cx, cy, 0.5, cx, cy, 8); wg.addColorStop(0, '#bff4ff'); wg.addColorStop(0.4, '#2f9ee8'); wg.addColorStop(1, '#0b2448');
+      x.fillStyle = wg; x.fill(); x.strokeStyle = 'rgba(10,12,18,0.95)'; x.lineWidth = 0.5; x.stroke();
+      x.fillStyle = '#e8fbff'; x.beginPath(); x.moveTo(cx, cy - 3.8); x.lineTo(cx + 2.6, cy); x.lineTo(cx, cy + 3.8); x.lineTo(cx - 2.6, cy); x.closePath(); x.fill();
+      x.fillStyle = '#5cc8ff'; x.beginPath(); x.moveTo(cx, cy - 3.8); x.lineTo(cx + 2.6, cy); x.lineTo(cx, cy + 0.4); x.closePath(); x.fill();
+      x.strokeStyle = 'rgba(170,240,255,0.7)'; x.lineWidth = 0.35; x.beginPath(); x.ellipse(cx, cy, 5.6, 2.2, 0, 0, 7); x.stroke();
+      x.fillStyle = 'rgba(255,255,255,0.4)'; x.beginPath(); x.ellipse(cx - 3, top + 3.4, 3, 0.8, -0.2, 0, 7); x.fill();
+      // emissores
+      x.beginPath(); x.roundRect(4, top + 12, W - 8, 2.4, 0.8); x.fillStyle = '#1b2430'; x.fill();
+      for (const ex2 of [7, W / 2, W - 7]) { x.fillStyle = '#5ad0ff'; x.beginPath(); x.moveTo(ex2 - 1.5, top + 14.2); x.lineTo(ex2 + 1.5, top + 14.2); x.lineTo(ex2, top + 16); x.closePath(); x.fill(); }
     }
   } else if (def.behavior === 'silo') {
     // silo: cilindro alto com teto cônico, funil em cima e calha de transbordo
@@ -528,27 +577,21 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
     for (let k = 0; k < 9; k++) { p.r(bx + d * k - 1, by - k - 1, 3, 3, k > 6 ? P.orL : P.or); }
     p.r(bx - 3, top + 2, 6, 5, P.stL); p.r(bx - 3, top + 2, 6, 1, P.stLL);
   } else if (def.behavior === 'blower') {
-    // EXTRATOR DE PLASMA portátil: carcaça grafite, anel de contenção com núcleo de plasma (o núcleo brilha no Renderer),
-    // bocal de sucção embaixo e canhão de saída do lado da seta
-    const x = p.x, cx = W / 2, cy = top + H / 2 - 0.5;
-    // base com pés magnéticos
-    x.fillStyle = css(P.stDD); x.beginPath(); x.roundRect(1.5, bot - 3, W - 3, 2.6, 1); x.fill();
-    x.fillStyle = 'rgba(120,230,255,0.9)'; x.fillRect(3, bot - 1.2, 2, 0.6); x.fillRect(W - 5, bot - 1.2, 2, 0.6);
-    // carcaça hexagonal
-    x.beginPath(); x.moveTo(cx - 5.5, top + 1.5); x.lineTo(cx + 5.5, top + 1.5); x.lineTo(cx + 7.4, cy); x.lineTo(cx + 5.5, bot - 3); x.lineTo(cx - 5.5, bot - 3); x.lineTo(cx - 7.4, cy); x.closePath();
-    const hg = x.createLinearGradient(0, top, 0, bot); hg.addColorStop(0, css(P.stL)); hg.addColorStop(0.5, css(P.st)); hg.addColorStop(1, css(P.stDD));
+    // SOPRADOR DE PLASMA: turbina redonda com anel laranja, núcleo azul (animado no Renderer), bocal do lado da seta
+    const x = p.x, cx = W / 2, cy = top + H / 2 - 0.5, d = right ? 1 : -1;
+    x.fillStyle = css(P.stDD); x.beginPath(); x.roundRect(2, bot - 2.6, W - 4, 2.4, 0.8); x.fill();
+    // bocal
+    x.beginPath(); x.roundRect(right ? cx + 4 : cx - 9, cy - 2.6, 5, 5.2, 1); x.fillStyle = '#3a4552'; x.fill(); x.strokeStyle = 'rgba(10,12,18,0.95)'; x.lineWidth = 0.5; x.stroke();
+    x.fillStyle = css(P.plasma); x.fillRect(right ? cx + 8.2 : cx - 9, cy - 1.6, 0.8, 3.2);
+    // carcaça
+    x.beginPath(); x.arc(cx, cy, 7.2, 0, 7);
+    const hg = x.createRadialGradient(cx - 2.5, cy - 3, 1, cx, cy, 7.5); hg.addColorStop(0, '#c8d2dc'); hg.addColorStop(0.6, '#5c6876'); hg.addColorStop(1, '#222a33');
     x.fillStyle = hg; x.fill(); x.strokeStyle = 'rgba(10,12,18,0.95)'; x.lineWidth = 0.6; x.stroke();
-    // anel de contenção
-    x.fillStyle = css(P.stDD); x.beginPath(); x.arc(cx, cy, 4.6, 0, 7); x.fill();
-    x.strokeStyle = css(P.stLL); x.lineWidth = 0.7; x.beginPath(); x.arc(cx, cy, 4.3, 0, 7); x.stroke();
-    for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; x.fillStyle = css(P.or); x.fillRect(cx + Math.cos(a) * 4.3 - 0.5, cy + Math.sin(a) * 4.3 - 0.5, 1, 1); }
-    // bocal de saída (canhão) do lado da seta
-    const d = right ? 1 : -1, nx = cx + d * 7.2;
-    x.fillStyle = css(P.stD); x.beginPath(); x.roundRect(right ? nx - 1 : nx - 3.2, cy - 2, 4.2, 4, 1); x.fill(); x.strokeStyle = 'rgba(10,12,18,0.95)'; x.lineWidth = 0.5; x.stroke();
-    x.fillStyle = css(P.plasma); x.fillRect(right ? nx + 2.4 : nx - 3, cy - 1.2, 0.8, 2.4);
-    // listras laranja da Zenitex e alça
-    x.fillStyle = css(P.or); x.fillRect(cx - 5, top + 2.2, 10, 1);
-    x.strokeStyle = css(P.stLL); x.lineWidth = 1; x.beginPath(); x.moveTo(cx - 3.5, top + 1.5); x.lineTo(cx - 3.5, top - 1.5); x.lineTo(cx + 3.5, top - 1.5); x.lineTo(cx + 3.5, top + 1.5); x.stroke();
+    x.strokeStyle = '#f0952e'; x.lineWidth = 1.3; x.beginPath(); x.arc(cx, cy, 5.6, 0, 7); x.stroke();
+    x.strokeStyle = 'rgba(255,220,160,0.6)'; x.lineWidth = 0.4; x.beginPath(); x.arc(cx, cy, 6.1, Math.PI * 1.1, Math.PI * 1.6); x.stroke();
+    x.fillStyle = '#0a1622'; x.beginPath(); x.arc(cx, cy, 4.6, 0, 7); x.fill();
+    for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; x.fillStyle = '#1f2a36'; x.fillRect(cx + Math.cos(a) * 6.6 - 0.45, cy + Math.sin(a) * 6.6 - 0.45, 0.9, 0.9); }
+    void d;
   } else if (def.behavior === 'tube') {
     // desenhado no Renderer (liga nos vizinhos)
   } else if (def.behavior === 'link') {
