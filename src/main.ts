@@ -77,7 +77,7 @@ function start(opts: GameOptions, save: any) {
   }
   if (save) {
     g.load(save);
-    g.beginOffline(save.savedAt, save.offlineRemaining);
+    g.beginOffline(save.savedAt);
     g.flags.intro = false;
     g.dialogue.line('zena', 'Bem-vindo de volta. O planeta esperou por você. Ele não tinha escolha.');
     g.flags.briefed = true;

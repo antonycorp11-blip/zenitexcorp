@@ -17,7 +17,7 @@ import { Minigames } from './Minigames';
 import { Cinematics } from './Cinematics';
 import { esc, h } from './dom';
 import { Tutorial } from './Tutorial';
-import type { OfflineProgress } from '../systems/Offline';
+import type { OfflineReport } from '../systems/Offline';
 
 const PCT = (f: number) => {
   const p = f * 100;
@@ -186,28 +186,16 @@ export class UI {
   get modal() { return this.el.modal; }
   get cineLayer() { return this.el.cine; }
 
-  showOffline(progress: OfflineProgress) {
-    if (!this.offlineEl) {
-      this.offlineEl = document.createElement('div');
-      this.offlineEl.className = 'offline-progress';
-      this.offlineEl.innerHTML = '<b>⛏ FÁBRICA TRABALHANDO</b><span></span><div><i></i></div><small></small>';
-      this.root.appendChild(this.offlineEl);
-    }
-    this.updateOffline(progress);
-  }
-
-  updateOffline(progress: OfflineProgress) {
-    if (!this.offlineEl) return;
-    const done = progress.total - progress.remaining;
-    this.offlineEl.querySelector('span')!.textContent = `${fmtTime(done)} / ${fmtTime(progress.total)} de produção offline`;
-    (this.offlineEl.querySelector('i') as HTMLElement).style.width = `${Math.min(100, done / progress.total * 100)}%`;
-    this.offlineEl.querySelector('small')!.textContent = `${fmtInt(progress.loose)} grãos soltos restantes · +${fmtInt(progress.gainedUnits())} unidades extraídas`;
-  }
-
-  finishOffline(progress: OfflineProgress) {
+  /** resumo da produção offline: cartão que some sozinho e não bloqueia nada */
+  showOfflineReport(r: OfflineReport) {
     this.offlineEl?.remove();
-    this.offlineEl = null;
-    this.g.toast(`Fábrica offline: ${fmtTime(progress.elapsed)} · +${fmtInt(progress.gainedUnits())} unidades extraídas`, '#9cebb9');
+    const el = this.offlineEl = document.createElement('div');
+    el.className = 'offline-progress';
+    const mins = Object.entries(r.minerals).filter(([, n]) => n >= 1).map(([k, n]) => `+${fmtShort(n)} kg ${esc(ITEM[k]?.name ?? k)}`).join(' · ');
+    const why = r.limit === 'pilhas' ? 'acabaram as pilhas no alcance dos sopradores: cave mais perto deles' : r.limit === 'incinerador' ? 'os Incineradores limitaram a queima: ponha mais' : 'os sopradores trabalharam o tempo todo';
+    el.innerHTML = `<b>⛏ ENQUANTO VOCÊ ESTEVE FORA · ${fmtTime(r.seconds)}</b><span>${r.pulled > 0 ? `${fmtShort(r.burned)} kg de terra queimados${mins ? ' · ' + mins : ''}` : 'A fábrica não tinha terra solta para puxar.'}</span><small>${esc(why)}</small>`;
+    this.root.appendChild(el);
+    setTimeout(() => { if (this.offlineEl === el) { el.remove(); this.offlineEl = null; } }, 12000);
   }
 
   private hideQuickBuild() {

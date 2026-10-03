@@ -58,7 +58,7 @@ export class Renderer {
 
   /** Reduz pixels processados só após lentidão persistente; recupera nitidez quando sobra tempo. */
   recordFrame(gap: number, busyMs: number) {
-    if (document.hidden || this.g.offline || gap <= 0 || gap > 5) return;
+    if (document.hidden || gap <= 0 || gap > 5) return;
     const frameGap = Math.min(gap, 0.25);
     this.qualityTime += frameGap;
     this.qualityGap += frameGap;
