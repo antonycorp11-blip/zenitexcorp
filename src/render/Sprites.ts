@@ -167,7 +167,17 @@ export class Sprites {
     if (!u) {
       const s = 80;
       const [c, x] = cv(s, s);
-      if (def.behavior === 'tube') {
+      if (def.leaky) {
+        // Esteira Vazada: grade de aço com fogo por baixo e calhas
+        x.fillStyle = '#ff7a28'; x.globalAlpha = 0.55; x.fillRect(8, 26, 64, 22); x.globalAlpha = 1;
+        x.fillStyle = '#3c4048'; x.fillRect(6, 22, 68, 5);
+        x.fillStyle = '#b4bcc6'; for (let k = 10; k < 70; k += 9) x.fillRect(k, 27, 4, 18);
+        x.fillStyle = '#20232a'; x.fillRect(6, 45, 68, 7);
+        x.fillStyle = '#e8b030'; for (let k = 6; k < 74; k += 12) x.fillRect(k, 45, 6, 7);
+        x.fillStyle = '#5a606a';
+        for (const cx of [24, 56]) { x.beginPath(); x.moveTo(cx - 11, 52); x.lineTo(cx + 11, 52); x.lineTo(cx + 4, 66); x.lineTo(cx - 4, 66); x.closePath(); x.fill(); }
+        x.fillStyle = '#ffae3c'; x.fillRect(21, 66, 6, 9); x.fillRect(53, 66, 6, 9);
+      } else if (def.behavior === 'tube') {
         const giant = def.key === 'tubo_gigante', booster = def.key === 'reforcador';
         const rad = giant ? 17 : 13;
         x.fillStyle = '#111b25'; x.fillRect(9, 40 - rad, 62, rad * 2);

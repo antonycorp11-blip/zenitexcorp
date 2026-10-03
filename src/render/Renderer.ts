@@ -377,9 +377,30 @@ export class Renderer {
     ctx.textAlign = 'start';
   }
 
+  /** Esteira Vazada: grade de aço aberta (sem lona), furos com o brilho do fogo de baixo e calhas que despejam no Incinerador */
+  private drawLeakyBelt(m: Machine, x: number, y: number) {
+    const ctx = this.ctx, d = m.dir === 2 ? -1 : 1, t = this.time;
+    const glow = 0.45 + 0.25 * Math.sin(t * 5 + m.tx);
+    ctx.fillStyle = `rgba(255,120,40,${glow * 0.5})`; ctx.fillRect(x, y + 1, 16, 8);          // fogo visto pelos furos
+    ctx.fillStyle = '#3c4048'; ctx.fillRect(x, y, 16, 1.5);                                 // trilho de cima
+    // grade: barras inclinadas que correm no sentido da esteira
+    const off = (((t * (m.def.speed ?? 1) * 18 * d) % 4) + 4) % 4;
+    ctx.fillStyle = '#9aa3ad';
+    for (let k = -4; k < 20; k += 4) { const o = k + off; if (o >= 0 && o < 15) ctx.fillRect(x + o, y + 1.5, 1.2, 4.5); }
+    ctx.fillStyle = '#20232a'; ctx.fillRect(x, y + 6, 16, 2);                               // longarina escura
+    ctx.fillStyle = '#e8b030'; for (let k = 0; k < 16; k += 4) ctx.fillRect(x + k, y + 6, 2, 2);   // faixa de perigo amarela/preta
+    // calhas em funil despejando para baixo
+    ctx.fillStyle = '#5a606a';
+    for (const cx of [4, 12]) { ctx.beginPath(); ctx.moveTo(x + cx - 3, y + 8); ctx.lineTo(x + cx + 3, y + 8); ctx.lineTo(x + cx + 1, y + 13); ctx.lineTo(x + cx - 1, y + 13); ctx.closePath(); ctx.fill(); }
+    ctx.fillStyle = `rgba(255,170,60,${glow})`; ctx.fillRect(x + 3, y + 13, 2, 3); ctx.fillRect(x + 11, y + 13, 2, 3);
+    // seta da direção
+    ctx.fillStyle = '#ffd47a'; ctx.beginPath(); const ax = x + 8, ay = y + 3.5; ctx.moveTo(ax + 3 * d, ay); ctx.lineTo(ax - 1 * d, ay - 2.5); ctx.lineTo(ax - 1 * d, ay + 2.5); ctx.closePath(); ctx.fill();
+  }
+
   /** Esteira vista de lado: estrutura, roletes girando e lona; os grãos andam por cima (são terreno). */
   private drawBelt(m: Machine, x: number, y: number) {
     const ctx = this.ctx;
+    if (m.def.leaky) { this.drawLeakyBelt(m, x, y); return; }
     const tier = m.key === 'esteira3' ? 2 : m.key === 'esteira2' ? 1 : 0;
     const frame = tier === 2 ? '#7a3aa0' : tier === 1 ? '#2a6aa0' : '#b8742a';
     const d = m.dir === 2 ? -1 : 1;
@@ -391,7 +412,6 @@ export class Renderer {
     ctx.fillStyle = '#4a4e58';
     for (let k = -4; k < 20; k += 4) { const o = k + off; if (o >= 0 && o < 15) ctx.fillRect(x + o, y + 1, 1, 4); }
     ctx.fillStyle = '#6a6e78'; ctx.fillRect(x, y, 16, 1);
-    if (m.def.leaky) { ctx.fillStyle = '#05060a'; for (const hx of [2, 6, 10, 14]) ctx.fillRect(x + hx - 1, y + 1, 2, 4); ctx.fillStyle = '#ff9a3a'; ctx.globalAlpha = 0.35 + 0.2 * Math.sin(this.time * 6); ctx.fillRect(x + 1, y + 8, 14, 1); ctx.globalAlpha = 1; }
     // roletes, marcação industrial e seta legível nas duas direções
     for (const rx of [3, 8, 13]) {
       ctx.fillStyle = '#0d1118'; ctx.beginPath(); ctx.arc(x + rx, y + 10, 1.8, 0, 7); ctx.fill();
