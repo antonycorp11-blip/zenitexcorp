@@ -86,5 +86,6 @@ export class MobileControls {
     for (const el of [b, k]) { el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.opacity = '1'; }
     k.style.transform = 'translate(0,0)';
   }
-  private hide(b: HTMLDivElement, k: HTMLDivElement) { b.style.opacity = '0.25'; k.style.opacity = '0.25'; k.style.transform = 'translate(0,0)'; }
+  /** ao soltar, o joystick volta para o lugar de repouso (não fica marcado onde o dedo tocou) */
+  private hide(b: HTMLDivElement, k: HTMLDivElement) { for (const el of [b, k]) { el.style.left = ''; el.style.top = ''; el.style.opacity = ''; } k.style.transform = 'translate(0,0)'; }
 }

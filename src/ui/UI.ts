@@ -38,7 +38,8 @@ export class UI {
   private discoveryEl: HTMLElement | null = null;
   menuOpen = false;
   collapsed = false;
-  private quickCat = 2;
+  quickCat = 2;
+  quickOpen() { return this.el.quickBuild.classList.contains('show'); }
 
   constructor(private g: Game) {
     this.root = document.getElementById('ui')!;
@@ -62,11 +63,7 @@ export class UI {
       const button = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
       if (!button) return;
       if (button.dataset.quick === 'close') { this.hideQuickBuild(); return; }
-      if (button.dataset.quick === 'prev' || button.dataset.quick === 'next') {
-        this.quickCat = (this.quickCat + (button.dataset.quick === 'next' ? 1 : -1) + MACHINE_CATS.length) % MACHINE_CATS.length;
-        this.renderQuickBuild();
-        return;
-      }
+      if (button.dataset.quick === 'cat') { this.quickCat = Number(button.dataset.cat); this.renderQuickBuild(); return; }
       if (button.dataset.quick === 'item') {
         const key = button.dataset.key!;
         if (!g.canBuildKey(key)) { g.toast('Desbloqueie esta peça em Melhorias', '#ffb86a'); return; }
@@ -137,6 +134,7 @@ export class UI {
         <div class="ly-top"><span class="ly-code" data-id="lyCode"></span><b data-id="lyName"></b></div>
         <div class="ly-bar"><u data-id="lyDug"></u><i data-id="lyBar"></i><span data-id="lyPct"></span></div>
         <div class="ly-sub"><span data-id="lyPlanet"></span><span data-id="lyRate" class="rate"></span></div>
+        <div class="ly-obj" data-id="lyObj"></div>
         <div class="ly-warn" data-id="lyWarn"></div>
         <button class="descend" data-id="descendBtn">▼ DESCER PARA A PRÓXIMA CAMADA</button>
       </div>
@@ -182,7 +180,8 @@ export class UI {
     const g = this.g, cat = MACHINE_CATS[this.quickCat];
     const list = MACHINES.filter(d => d.cat === cat.key && !d.hidden && !['command', 'analyzer'].includes(d.behavior) && (d.minLayer ?? 1) <= g.planet.layer)
       .sort((a, b) => (a.key === 'tubo' ? -1 : b.key === 'tubo' ? 1 : 0) || Number(g.canBuildKey(b.key)) - Number(g.canBuildKey(a.key)));
-    this.el.quickBuild.innerHTML = `<div class="qb-head"><button data-quick="prev" aria-label="Categoria anterior">‹</button><b>${esc(cat.name.toUpperCase())}</b><button data-quick="next" aria-label="Próxima categoria">›</button><button data-quick="close" aria-label="Fechar">×</button></div><div class="qb-items">${list.map(d => {
+    const cats = MACHINE_CATS.map((c, i) => ({ c, i })).filter(({ c }) => MACHINES.some(d => d.cat === c.key && !d.hidden && !['command', 'analyzer'].includes(d.behavior) && (d.minLayer ?? 1) <= g.planet.layer));
+    this.el.quickBuild.innerHTML = `<div class="qb-head"><div class="qb-tabs">${cats.map(({ c, i }) => `<button data-quick="cat" data-cat="${i}" class="${i === this.quickCat ? 'on' : ''}">${esc(c.name)}</button>`).join('')}</div><button data-quick="close" aria-label="Fechar">×</button></div><div class="qb-items">${list.map(d => {
       const locked = !g.canBuildKey(d.key);
       const cost = Object.entries(d.cost).map(([k, n]) => `<span class="${g.stock.count(k) + g.pack.count(k) < n ? 'short' : ''}"><img src="${g.sprites.itemUrl(k)}" alt="">${fmtShort(n)}</span>`).join('');
       const label = d.key === 'tubo' ? 'Tubo Vácuo' : d.key === 'tubo_gigante' ? 'Tubo Gigante' : d.key === 'reforcador' ? 'Reforçador' : d.name;
@@ -216,21 +215,21 @@ export class UI {
       <div class="lt">COMO OS EXTRATORES FUNCIONAM</div>
       <div class="lbody">
         <div class="ldia">
-          <div class="lb lsfe">SILO<br>Fe</div><div class="lb lslu">SILO<br>Lu</div>
+          <div class="lb lsfe">SALDO<br>Fe</div><div class="lb lslu">SALDO<br>Lu</div>
           <div class="lb ltfe"></div><div class="lb ltfe v"></div><div class="lb ltlu"></div><div class="lb ltlu v"></div>
           <div class="lb lima">ÍMÃ</div><div class="lb lres">RESSON.</div>
           <div class="lgap a"></div><div class="lgap b"></div>
-          <div class="lb lbelt"></div><div class="lb lprensa">PRENSA</div><div class="lb lsop">SOPR.</div><div class="lb ltin"></div>
+          <div class="lb lbelt"></div><div class="lb lprensa">🔥</div><div class="lb lsop">SOPR.</div><div class="lb ltin"></div>
           ${dots('d-dirt', 5)}${dots('d-fe', 3)}${dots('d-lu', 3)}
         </div>
         <ol class="lsteps">
           <li><i class="k d-dirt0"></i>O <b>Soprador</b> manda a terra pelo <b>Tubo de Vácuo</b> até a <b>esteira</b>.</li>
-          <li><i class="k d-fe"></i>O <b>Ímã</b>, <b>por cima da esteira</b>, puxa o <b>Ferronox</b> (prateado) e manda pelo tubo encostado nele até o <b>Silo</b>.</li>
-          <li><i class="k d-lu"></i>O <b>Ressonador</b> puxa a <b>Lumenita</b> (azul) para o outro Silo.</li>
-          <li><i class="k d-gray"></i>A terra muda de cor a cada extração. O que sobra (<b>cinza</b>) cai na <b>Prensa</b> e vira bloco.</li>
+          <li><i class="k d-fe"></i>O <b>Ímã</b>, <b>por cima da esteira</b>, puxa o <b>Ferronox</b> (prateado) direto para o seu <b>saldo</b> (com um tubo encostado, você leva até a <b>Nave</b>).</li>
+          <li><i class="k d-lu"></i>O <b>Ressonador</b> puxa a <b>Lumenita</b> (azul) do mesmo jeito.</li>
+          <li><i class="k d-gray"></i>A terra muda de cor a cada extração. O que sobra (<b>cinza</b>) é <b>queimado no Incinerador</b> e sai do planeta.</li>
         </ol>
       </div>
-      <p class="lnote">Regra: deixe <b>1 espaço livre</b> entre o extrator e a esteira, e encoste um <b>Tubo de Vácuo</b> nele. O tubo vai para onde você quiser: <b>Silo</b> (melhorias), <b>Coletor</b> (construir) ou <b>Refinaria</b>.</p>
+      <p class="lnote">Regra: deixe <b>1 espaço livre</b> entre o extrator e a esteira. Para os minérios <b>saírem do planeta</b>, encoste um <b>Tubo de Vácuo</b> no extrator e leve até a <b>Nave</b> lá no alto.</p>
       <button class="ok">ENTENDI</button></div>`;
     el.querySelector('.ok')!.addEventListener('click', () => { this.g.flags.lessonSep = true; el.remove(); });
     document.body.appendChild(el);
@@ -340,22 +339,27 @@ export class UI {
     this.el.lyPlanet.textContent = `Escavado ${Math.floor(g.planet.dugFraction() * 100)}% · removido ${(lf * 100).toFixed(1).replace('.', ',')}% · planeta ${PCT(g.planet.fraction())}`;
     const ru = g.planet.rateUnits();
     this.el.lyRate.textContent = ru > 0.05 ? `+${(ru / L.target * 100).toFixed(ru / L.target < 0.001 ? 3 : 2).replace('.', ',')}%/min` : '';
+    // OBJETIVO fixo: esvaziar a camada (terra queimada + minérios entregues na Nave), camada por camada até o núcleo
+    const cs = g.sectors.s[g.planet.layer]?.counters ?? {}, burned = cs.burned ?? 0, shipped = cs.shipped ?? 0;
+    const leftT = Math.max(0, (L.target - g.planet.units[g.planet.layer]) * 2 / 1000);
+    this.el.lyObj.innerHTML = `<b>DESTRUIR O PLANETA</b> · faltam ${fmtShort(leftT)} t nesta camada<br>🔥 ${fmtShort(burned)} kg queimados · 🚀 ${fmtShort(shipped)} kg na Nave`;
     this.el.descendBtn.style.display = g.canDescend() && !g.descendBlocked() ? 'block' : 'none';
     const warn = this.bottleneck();
     this.el.lyWarn.innerHTML = warn ? esc(warn) : '';
     this.el.lyWarn.style.display = warn ? 'block' : 'none';
+    // o cartão de meta/tutorial fica logo abaixo do cartão da camada (que muda de altura)
+    document.body.style.setProperty('--lyH', Math.round(this.el.layerCard.getBoundingClientRect().bottom) + 'px');
     // o aviso aumenta o cartão da camada: empurra os vitais para baixo dele
     const vit = this.root.querySelector<HTMLElement>('.hcard.vitals');
     if (vit && g.input.touch) { const rb = this.el.layerCard.getBoundingClientRect(); vit.style.top = Math.round(rb.bottom + 4) + 'px'; }
     // recursos: os 4 mais abundantes + créditos
-    const tops = TOP_BAR_ITEMS.filter(k => g.stock.count(k) >= 1).sort((a, b) => g.stock.count(b) - g.stock.count(a)).slice(0, 3);
-    if (!tops.length) tops.push('ferronox', 'lumenita');
-    const raw = rawOf(g.planet.layer);
-    if (g.stock.count(raw) >= 1) tops.unshift(raw);
+    // saldo = estoque + silos (é o que paga construções e melhorias). Os 2 minérios da camada sempre à vista.
+    const mins = compOf(g.planet.layer).minerals.map(x => x.k);
+    const tops = [...mins, ...TOP_BAR_ITEMS.filter(k => !mins.includes(k) && g.upHave(k) >= 1).sort((a, b) => g.upHave(b) - g.upHave(a)).slice(0, 1)];
     const yu = g.machines.yardUsed(), yc = g.machines.yardCap();
     this.el.res.innerHTML = tops.map(k => {
       const rt = g.stock.rate(k);
-      return `<div class="ri" title="${ITEM[k].name}"><img src="${g.sprites.itemUrl(k)}"><b>${fmtShort(g.stock.count(k))}</b>${rt > 1 ? `<em>+${fmtShort(rt)}</em>` : ''}</div>`;
+      return `<div class="ri" title="${ITEM[k].name}"><img src="${g.sprites.itemUrl(k)}"><b>${fmtShort(g.upHave(k))}</b>${rt > 1 ? `<em>+${fmtShort(rt)}</em>` : ''}</div>`;
     }).join('') + (yu >= 1 ? `<div class="ri yard ${yu >= yc * 0.9 ? 'bad' : ''}" title="Pátio de resíduo"><img src="${g.sprites.itemUrl('residuo')}"><b>${Math.round(yu / yc * 100)}%</b></div>` : '')
       + `<div class="ri cr" title="Créditos"><span class="cico">◆</span><b>${fmtShort(g.stock.credits)}</b></div>`;
     // vitais
@@ -439,7 +443,6 @@ export class UI {
     // cadeia da massa: o gargalo mais adiante na linha aparece primeiro
     const yu = M.yardUsed(), yc = M.yardCap();
     if (yu >= yc * 0.95) return M.count('compactador') ? '⚠ Pátio de resíduo cheio: mais Compactadores ou Terminais Orbitais.' : '⚠ Pátio de resíduo CHEIO: construa um Compactador Planetário na base. Tudo para em cascata.';
-    if (g.stock.count('bloco_massa') >= 20 && M.blockCap <= 0) return '⚠ Blocos parados: sem Terminal Orbital para exportar.';
     if (g.stock.count('bloco_massa') >= 60) return `Exportação no limite (${fmtShort(M.blockCap)} kg/min): outro Terminal Orbital acelera a remoção.`;
     const procs = M.list.filter(m => m.def.behavior === 'separator' || m.def.behavior === 'prep' || m.def.behavior === 'compactor');
     const clog = procs.filter(m => m.state.startsWith('Travada') || m.state.startsWith('Saída cheia'));
@@ -495,10 +498,12 @@ export class UI {
         prog = o.cur / o.max;
       } else {
         title = 'META · REMOVER A CAMADA';
-        text = `Remova o resto da ${g.planet.def.name}: escave, processe o bruto, compacte o resíduo e exporte os blocos.`;
+        text = `Esvazie a ${g.planet.def.name}: queime a terra no Incinerador e leve os minérios até a Nave em órbita.`;
         prog = g.planet.layerFraction();
       }
     }
+    // fora do tutorial, o cartão de meta só aparece para avisos (camada esgotada, operação final); o objetivo fixo fica no cartão da camada
+    (this.el.meta as HTMLElement).style.display = tut || g.flags.finalReady || g.canDescend() ? '' : 'none';
     this.el.metaTitle.textContent = title;
     this.el.metaText.innerHTML = text;
     (this.el.metaBar as HTMLElement).style.width = prog >= 0 ? Math.min(100, prog * 100) + '%' : '0';
@@ -508,6 +513,8 @@ export class UI {
   }
 
   private updateDialog() {
+    // falas da IA corporativa desligadas: o foco é minerar o planeta
+    if (!this.g.flags.showAI) { this.el.dialog.classList.remove('show'); return; }
     const d = this.g.dialogue.current;
     const box = this.el.dialog;
     if (!d) { box.classList.remove('show'); return; }

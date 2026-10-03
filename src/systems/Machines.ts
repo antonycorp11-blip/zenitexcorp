@@ -97,7 +97,7 @@ export class Machines {
     const sec = w.sectorAtTile(tx, ty);
     if (!sec) return 'Fora do planeta';
     // vista lateral: construções precisam de apoio (esteiras e elevadores podem ficar suspensos)
-    if (!['belt', 'riser', 'lamp', 'support', 'scaffold', 'filter', 'launcher', 'tube', 'extractor'].includes(def.behavior)) {
+    if (!['belt', 'riser', 'lamp', 'support', 'scaffold', 'filter', 'launcher', 'tube', 'extractor', 'ship'].includes(def.behavior)) {
       let sup = false;
       for (let x = 0; x < def.w && !sup; x++) sup = w.tileSupported(tx + x, ty + def.h - 1);
       if (!sup && def.behavior === 'drill') sup = true;
@@ -135,7 +135,7 @@ export class Machines {
       const k = GRAIN_ITEM[gr.m]; if (k) this.g.stock.add(k, k === 'bloco_massa' ? 1 : GRAIN_KG, false, gr.a / 40);
     }
     // fundação: no chão irregular, preenche o vão embaixo da máquina com o terreno de baixo (fica assentada, sem flutuar)
-    if (!['belt', 'riser', 'lamp', 'support', 'scaffold', 'filter', 'launcher', 'tube', 'platform', 'extractor'].includes(def.behavior)) {
+    if (!['belt', 'riser', 'lamp', 'support', 'scaffold', 'filter', 'launcher', 'tube', 'platform', 'extractor', 'ship'].includes(def.behavior)) {
       const w = this.g.world, y0 = (ty + def.h) * TILE_CELLS;
       if (!this.at(tx, ty + def.h)) for (let x = tx * TILE_CELLS; x < (tx + def.w) * TILE_CELLS; x++) {
         let d = 0; while (d < TILE_CELLS && !IS_SOLID[w.get(x, y0 + d)]) d++;
@@ -483,7 +483,6 @@ export class Machines {
       this.flow(m, 'fin', q, dt); this.flow(m, 'fout', minerals, dt); this.flow(m, 'fres', res.residue, dt);
       m.produced += minerals;
       g.stats.processed += minerals;
-      g.planet.addUnits(minerals / KG_PER_UNIT);
       g.sectors.counter(g.planet.layer, 'processed', q);
       g.sectors.counter(g.planet.layer, 'separated', minerals);
     }
@@ -513,10 +512,13 @@ export class Machines {
     const q = Math.min(this.rate(m) * dt, m.inb.residuo ?? 0);
     if (q <= 0) return;
     bagAdd(m.inb, 'residuo', -q);
-    m.prog += q;
-    while (m.prog >= BLOCK_KG) { m.prog -= BLOCK_KG; bagAdd(m.out, 'bloco_massa', 1); m.produced += 1; }
+    // INCINERADOR: a terra/resíduo é queimada e sai do planeta (é isso que esvazia a camada)
+    const L = this.g.planet.layer;
+    this.g.planet.addUnits(q / KG_PER_UNIT);
+    this.g.sectors.counter(L, 'burned', q);
+    m.produced += q;
     this.flow(m, 'fin', q, dt); this.flow(m, 'fres', q, dt);
-    m.state = `Compactando · ${Math.round(m.fin)} kg/min`;
+    m.state = `Queimando · ${Math.round(m.fin)} kg/min`;
   }
 
   /** máquinas de processamento na base puxam o próprio insumo do estoque */
@@ -684,6 +686,19 @@ export class Machines {
         if (bagTotal(r.buffer) + q > r.bufCap) return false;
         gradeMix(r.bufG, r.buffer[k] ?? 0, k, q, grade);
         bagAdd(r.buffer, k, q); return true;
+      }
+      case 'ship': {
+        // a Nave só leva o que tem valor (minérios, barras, peças); terra e resíduo se queimam no Incinerador
+        if (k === 'residuo' || k === 'bruto_sm' || k === 'bruto_sc' || k === 'fragmentado' || RAW_BY_LAYER.includes(k)) { m.state = 'Recusou terra: queime no Incinerador'; return false; }
+        const L = this.g.planet.layer;
+        this.g.stock.add(k, q, false, grade);
+        this.g.planet.addUnits(q / KG_PER_UNIT);
+        this.g.sectors.counter(L, 'shipped', q);
+        this.g.stock.credits += (ITEM[k]?.value ?? 1) * q;
+        const [cx, cy] = this.centerPx(m);
+        this.g.fx.pickup(cx, cy + m.def.h * 6, k, q);
+        m.produced += q; m.state = 'Recebendo minérios';
+        return true;
       }
       case 'terminal': case 'launchpad': {
         if (!this.shippable(k)) return false;
@@ -1049,6 +1064,11 @@ export class Machines {
     for (let i = -1; i <= d.w; i++) for (const [tx, ty] of [[m.tx + i, m.ty - 1], [m.tx + i, m.ty + d.h]] as [number, number][]) { const o = this.at(tx, ty); if (o && o.def.behavior === 'tube' && !tubes.includes(o)) tubes.push(o); }
     for (const tx of [m.tx - 1, m.tx + d.w]) { const o = this.at(tx, m.ty); if (o && o.def.behavior === 'tube' && !tubes.includes(o)) tubes.push(o); }
     let out = 0;
+    if (!tubes.length) {
+      // sem tubo: o que o extrator puxa vai direto para o SALDO (estoque da base); com tubo, vai para onde o tubo levar (ex.: a Nave)
+      const [cx, cy] = this.centerPx(m);
+      for (const k of Object.keys(m.out)) { const n = m.out[k] ?? 0; if (n <= 0) continue; this.g.stock.add(k, n, false, m.g[k]); this.g.fx.pickup(cx, cy - 6, k, n); m.out[k] = 0; }
+    }
     for (const k of Object.keys(m.out)) {
       while ((m.out[k] ?? 0) >= GRAIN_KG - 1e-6 && out < 6) {
         let ok = false;
@@ -1058,7 +1078,7 @@ export class Machines {
       }
     }
     const name = magnet ? 'metal' : 'cristais';
-    m.state = bagTotal(m.out) >= OUT_CAP ? 'Saída cheia: ligue um Tubo de Vácuo nele' : !tubes.length ? `Ligue um Tubo de Vácuo encostado nele (${Math.round(bagTotal(m.out))} kg esperando)` : got > 0 ? `Puxando ${name}` : seen ? 'Terra passando' : 'Esperando terra na esteira embaixo';
+    m.state = bagTotal(m.out) >= OUT_CAP ? 'Tubo cheio: a saída está travada' : got > 0 ? `Puxando ${name}` + (tubes.length ? ' → tubo' : ' → estoque') : seen ? 'Terra passando' : 'Esperando terra na esteira embaixo';
   }
 
   // ---- elevador de grãos: coluna vertical que leva grãos até o topo e solta para o lado ----

@@ -10,8 +10,6 @@ export const FAB_UPS: FabUp[] = [
     costs: [{ ferronox: 60, lumenita: 10 }, { ferronox: 160, lumenita: 40 }, { ferronox: 360, lumenita: 100, lumenita_pura: 6 }] },
   { key: 'pressao', name: 'Tubo · Velocidade', unit: '×', vals: [1, 1.35, 1.7, 2.1], desc: 'Acelera a passagem dos grãos pelos tubos, sem limite de distância.',
     costs: [{ ferronox: 50, lumenita: 20 }, { ferronox: 140, lumenita: 60 }, { ferronox: 320, lumenita: 140, lumenita_pura: 8 }] },
-  { key: 'silo', name: 'Silo · Capacidade', unit: 'kg', vals: [150, 400, 1000, 2500], desc: 'Quanto cada silo guarda antes de transbordar.',
-    costs: [{ ferronox: 80 }, { ferronox: 200, lumenita: 40 }, { ferronox: 450, lumenita: 120 }] },
 ];
 
 /** Minerais que só podem pagar melhorias se estiverem guardados num silo. */
@@ -19,4 +17,4 @@ export const SILO_KEYS = new Set(['ferronox', 'lumenita', 'nexolita', 'pyroxis',
   'lumenita_pura', 'nexolita_condensada', 'pyroxis_volatil', 'lumenita_instavel', 'fragmento_nucleo']);
 
 export function fabLevel(flags: Record<string, any>, key: string): number { return flags.fab?.[key] ?? 0; }
-export function fabVal(flags: Record<string, any>, key: string): number { const u = FAB_UPS.find(x => x.key === key)!; return u.vals[Math.min(u.vals.length - 1, fabLevel(flags, key))]; }
+export function fabVal(flags: Record<string, any>, key: string): number { const u = FAB_UPS.find(x => x.key === key); if (!u) return key === 'silo' ? 150 : 1; return u.vals[Math.min(u.vals.length - 1, fabLevel(flags, key))]; }

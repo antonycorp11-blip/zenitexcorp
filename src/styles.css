@@ -949,3 +949,21 @@ body.touch .hud .toasts { right: calc(max(6px, env(safe-area-inset-right)) + 124
   body.touch .hud .geocard { max-height: 110px; overflow-y: auto; }
   .modal-layer .pnl { max-height: calc(100dvh - 12px) !important; }
 }
+
+/* ===== HUD limpo (celular): CONSTRUIR acima do joystick esquerdo, objetivo fixo no cartão da camada ===== */
+body.touch .hud .hotbar { display: none !important; }
+.hud .quick-build-btn { top: auto !important; right: auto !important; left: calc(max(10px, env(safe-area-inset-left)) + 4px) !important; bottom: calc(150px + env(safe-area-inset-bottom)) !important; width: 64px !important; height: 54px !important; }
+.hud .quick-build { top: auto !important; right: auto !important; left: calc(max(10px, env(safe-area-inset-left)) + 74px) !important; bottom: calc(118px + env(safe-area-inset-bottom)) !important; width: min(560px, calc(100vw - 230px)) !important; height: 124px !important; }
+.qb-head { justify-content: space-between; }
+.qb-tabs { display: flex; gap: 3px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; touch-action: pan-x; }
+.qb-tabs button { width: auto !important; flex: none; padding: 0 8px; height: 24px !important; font-size: 10px !important; font-weight: 700; letter-spacing: .03em; border-radius: 5px; }
+.qb-tabs button.on { background: linear-gradient(#ffb24a, #e0701a) !important; color: #1a0e02 !important; border-color: #ffd28a !important; }
+.hud .hcard.layer .ly-obj { font-size: 9.5px; line-height: 1.3; color: #cfe6f4; margin-top: 3px; }
+.hud .hcard.layer .ly-obj b { color: #ffb84a; letter-spacing: .06em; }
+body.touch .hud .hcard.layer { width: 252px !important; }
+body.touch .hud .menu-btn { left: calc(max(6px, env(safe-area-inset-left)) + 262px) !important; }
+body.touch .hud .up-btn { left: calc(max(6px, env(safe-area-inset-left)) + 326px) !important; }
+/* tutorial abaixo do cartão da camada (que ficou um pouco mais alto) */
+body.touch .hud .hcard.meta { top: 76px !important; }
+body.touch .hud .hcard.meta, body.touch .hud .hcard.meta.tut { top: calc(var(--lyH, 74px) + 8px) !important; }
+body.touch .hud .geocard { left: 50% !important; right: auto !important; top: 46px !important; transform: translateX(-50%) !important; }

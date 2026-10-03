@@ -21,22 +21,17 @@ export class Blueprint {
     // LINHA DE EXTRAÇÃO (tudo à direita da cápsula, no platô):
     //   tubo do Ímã  ◀══════════════════════╗
     //               tubo Lu ◀══╗ [RESSON.]   [ÍMÃ]   ╔═ tubo
-    // [SILO Fe][COLETOR][SILO Lu] [PRENSA] ◀◀◀◀ esteira ◀◀◀◀  ╚[SOPRADOR ◀]  ← cave aqui
+    // [SILO Fe][COLETOR][SILO Lu] [INCINER.] ◀◀◀◀ esteira ◀◀◀◀  ╚[SOPRADOR ◀]  ← cave aqui
     const X = tx0 - 4;
     this.items = [
       // PLATAFORMA ORBITAL: piso de 8 peças onde a cápsula pousa
       { id: 'piso', key: 'piso_orbital', tx: tx0 - 14, tx2: tx0 - 7, ty: gy - 1, dir: 0, label: 'PLATAFORMA ORBITAL' },
       { id: 'esteira', key: 'esteira', tx: X + 17, tx2: X + 8, ty: gy - 1, dir: 2, label: 'ESTEIRA ◀' },
-      { id: 'compactador', key: 'compactador', tx: X + 7, ty: gy - 2, dir: 0, label: 'PRENSA' },
+      { id: 'compactador', key: 'compactador', tx: X + 7, ty: gy - 2, dir: 0, label: 'INCINERADOR' },
       { id: 'soprador', key: 'soprador', tx: X + 19, ty: gy - 1, dir: 2, label: 'SOPRADOR ◀' },
       { id: 'tuboFeed', key: 'tubo', tx: X + 18, ty: gy - 1, tx2: X + 17, ty2: gy - 3, dir: 3, label: 'TUBO' },
       { id: 'ima', key: 'ima', tx: X + 14, ty: gy - 3, dir: 0, label: 'ÍMÃ' },
-      { id: 'armazem', key: 'armazem', tx: X + 2, ty: gy - 2, dir: 0, label: 'COLETOR' },
-      { id: 'siloFe', key: 'silo', tx: X, ty: gy - 2, dir: 0, label: 'SILO FERRONOX' },
-      { id: 'tuboFe', key: 'tubo', tx: X + 14, ty: gy - 4, tx2: X + 2, ty2: gy - 5, dir: 3, label: 'TUBO DO ÍMÃ' },
       { id: 'ressonador', key: 'ressonador', tx: X + 10, ty: gy - 3, dir: 0, label: 'RESSONADOR' },
-      { id: 'siloLu', key: 'silo', tx: X + 4, ty: gy - 2, dir: 2, label: 'SILO LUMENITA' },
-      { id: 'tuboLu', key: 'tubo', tx: X + 9, ty: gy - 3, tx2: X + 6, ty2: gy - 3, dir: 2, label: 'TUBO DO RESSONADOR' },
     ];
   }
 
@@ -104,19 +99,14 @@ export class Blueprint {
   /** Confere a fábrica do projeto peça a peça e diz exatamente o que falta ou está errado. */
   checkLine(): { ok: boolean; msg: string; stage: number } {
     const order: [string, string][] = [
-      ['esteira', 'A esteira vai do soprador até a Prensa, andando para a ESQUERDA.'],
-      ['compactador', 'A Prensa vai no fim da esteira (à esquerda).'],
+      ['esteira', 'A esteira vai do soprador até o Incinerador, andando para a ESQUERDA.'],
+      ['compactador', 'O Incinerador vai no fim da esteira (à esquerda).'],
       ['soprador', 'O Soprador vai no quadrado marcado, com o bocal ◀.'],
       ['tuboFeed', 'O tubo sai do Soprador, sobe e solta a terra em cima da esteira.'],
       ['ima', 'O Ímã vai POR CIMA da esteira, com 1 espaço livre embaixo.'],
-      ['armazem', 'Falta o Coletor no quadrado marcado.'],
-      ['siloFe', 'O Silo do Ferronox vai à esquerda do Coletor.'],
-      ['tuboFe', 'O tubo do Ímã sai de cima dele e vai até em cima do Silo do Ferronox.'],
       ['ressonador', 'O Ressonador vai POR CIMA da esteira, com 1 espaço livre embaixo.'],
-      ['siloLu', 'O Silo da Lumenita vai à direita do Coletor.'],
-      ['tuboLu', 'O tubo do Ressonador sai do lado esquerdo dele até em cima do Silo da Lumenita.'],
     ];
     for (let i = 0; i < order.length; i++) if (!this.placed(order[i][0])) return { ok: false, msg: order[i][1], stage: i };
-    return { ok: true, msg: 'Linha montada: soprador → tubo → esteira → Ímã (Ferronox → silo) → Ressonador (Lumenita → silo) → Prensa.', stage: order.length };
+    return { ok: true, msg: 'Linha montada: soprador → tubo → esteira → Ímã (Ferronox → saldo) → Ressonador (Lumenita → saldo) → Incinerador.', stage: order.length };
   }
 }

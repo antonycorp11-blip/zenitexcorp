@@ -1,5 +1,5 @@
 import './data/economy';
-import { CELL, TILE, TILE_CELLS, SIM_DT, WORLD_TW, WORLD_TH, WORLD_W, WORLD_H, LEGACY_WORLD_W, SURFACE_Y, wrapX, nearestX } from './core/constants';
+import { CELL, TILE, TILE_CELLS, SIM_DT, WORLD_TW, WORLD_TH, WORLD_W, WORLD_H, LEGACY_WORLD_W, LEGACY_WORLD_H, SURFACE_Y, wrapX, nearestX } from './core/constants';
 import { MAT, IS_SOLID } from './data/materials';
 import { bus, EventBus } from './core/events';
 import { World } from './world/World';
@@ -129,12 +129,12 @@ export class Game {
     const L = this.world.gen.landing;
     const tx = Math.floor((L.x * CELL) / TILE), gy = Math.floor((SURFACE_Y * CELL) / TILE);
     this.machines.place('comando', tx - 1, gy - 3, 0);
-    this.machines.place('terminal_orbital', tx - 7, gy - 3, 0);
     this.placeAnalyzer();
     this.blueprint.layout();
     this.player.x = (tx + 4.5) * TILE; this.player.y = gy * TILE;
     this.camera.x = this.player.x; this.camera.y = this.player.y;
     this.world.reveal(this.player.x, this.player.y, 22);
+    this.placeShip();
   }
 
   /** Jogo novo: mapa vazio. O jogador monta a Plataforma Orbital e a cápsula desce sobre ela. */
@@ -142,10 +142,19 @@ export class Game {
     const L = this.world.gen.landing;
     const tx = Math.floor((L.x * CELL) / TILE), gy = Math.floor((SURFACE_Y * CELL) / TILE);
     this.flags.awaitCapsule = true;
+    this.placeShip();
     this.blueprint.layout();
     this.player.x = (tx + 4.5) * TILE; this.player.y = gy * TILE;
     this.camera.x = this.player.x; this.camera.y = this.player.y;
     this.world.reveal(this.player.x, this.player.y, 22);
+  }
+
+  /** a Nave de carga fica em órbita, bem acima da base: é para ela que os minérios precisam subir */
+  placeShip() {
+    if (this.machines.list.some(m => m.def.behavior === 'ship')) return;
+    const L = this.world.gen.landing;
+    const tx = Math.floor((L.x * CELL) / TILE) - 7, gy = Math.floor((SURFACE_Y * CELL) / TILE);
+    for (const dy of [44, 42, 46, 40, 48]) if (this.machines.place('nave', tx, gy - dy, 0)) return;
   }
 
   /** cápsula descendo do céu (animação de pouso) */
@@ -188,7 +197,6 @@ export class Game {
     for (let x = d.tx - 2; x >= d.tx - 8; x--) if (this.machines.place('analisador', x, pad.y - 2, 0)) break;
     if (!this.machines.count('analisador')) this.placeAnalyzer();
     const gy = Math.floor((SURFACE_Y * CELL) / TILE);
-    for (const dx of [-8, -10, -12, 6, 8, 12]) if (this.machines.place('terminal_orbital', d.tx + dx, gy - 3, 0)) break;
     this.blueprint.layout();
     this.toast('Cápsula de comando pousou: base ativa', '#9cff8a');
   }
@@ -235,7 +243,7 @@ export class Game {
     }
     this.stock.add('residuo', res.residue);
     this.stock.credits += pay;
-    this.planet.addUnits(minerals / KG_PER_UNIT);
+    // minerais vão para o saldo; só saem do planeta quando chegam à Nave
     const L = this.planet.layer;
     this.sectors.counter(L, 'analyzed', kg);
     this.sectors.counter(L, 'separated', minerals);
@@ -485,12 +493,13 @@ export class Game {
     this.audio.click();
   }
   // ---- melhorias: minerais saem dos SILOS; o resto (barras, peças) do estoque ----
-  upHave(k: string) { return SILO_KEYS.has(k) ? this.machines.siloCount(k) : this.stock.count(k) + this.pack.count(k); }
+  // um saldo só: estoque + silos (melhorias tiram primeiro dos silos)
+  upHave(k: string) { return this.stock.count(k) + this.pack.count(k) + (SILO_KEYS.has(k) ? this.machines.siloCount(k) : 0); }
   upHas(cost: Record<string, number>) { for (const k in cost) if (this.upHave(k) < cost[k] - 1e-6) return false; return true; }
   upPay(cost: Record<string, number>) {
     if (!this.upHas(cost)) return false;
     const rest: Record<string, number> = {};
-    for (const k in cost) { if (SILO_KEYS.has(k)) this.machines.siloTake(k, cost[k]); else rest[k] = cost[k]; }
+    for (const k in cost) { let need = cost[k]; if (SILO_KEYS.has(k)) { const fromSilo = Math.min(need, this.machines.siloCount(k)); this.machines.siloTake(k, fromSilo); need -= fromSilo; } if (need > 0) rest[k] = need; }
     return this.stock.pay(rest, this.pack.items);
   }
 
@@ -520,7 +529,7 @@ export class Game {
     return this.guideV;
   }
 
-  canBuildKey(k: string) { const d = MACHINE[k]; return !!d && (!d.research || this.research.has(d.research)) && d.behavior !== 'command'; }
+  canBuildKey(k: string) { const d = MACHINE[k]; return !!d && (!d.research || this.research.has(d.research)) && d.behavior !== 'command' && d.behavior !== 'ship'; }
   startBuild(k: string) {
     const [tx, ty] = this.freeSpotFor(k);
     this.build = { active: true, key: k, dir: this.build.dir, reverse: false, deconstruct: false, tx, ty, anchor: null, dragging: false };
@@ -859,7 +868,7 @@ export class Game {
   // ---------------- save ----------------
   serialize() {
     return {
-      v: 4, opts: this.opts, time: this.time, flags: this.flags, selected: this.selected, hotbar: this.hotbar,
+      v: 5, opts: this.opts, time: this.time, flags: this.flags, selected: this.selected, hotbar: this.hotbar,
       chunks: this.world.serializeChunks(), explored: packBytes(this.world.explored),
       regrow: this.world.regrowQueue,
       player: this.player.serialize(), pack: { items: this.pack.items, level: this.pack.level, g: this.pack.g },
@@ -873,6 +882,21 @@ export class Game {
 
   load(s: any) {
     const legacy = s.v === 3;
+    // até o v4 o mundo não tinha o céu alto: tudo desce para o fundo do mapa novo
+    const fromW = legacy ? LEGACY_WORLD_W : WORLD_W, fromH = (s.v ?? 0) < 5 ? LEGACY_WORLD_H : WORLD_H;
+    if (fromH !== WORLD_H) {
+      const cells = WORLD_H - fromH, py = cells * CELL, ty = py / TILE;
+      const sh = (o: any) => { if (o && typeof o.y === 'number') o.y += py; };
+      sh(s.player); sh(s.player?.cargo);
+      for (const m of s.machines?.list ?? []) m.ty += ty;
+      for (const r of s.robots?.list ?? []) { sh(r); if (typeof r.zy === 'number') r.zy += py; }
+      for (const a of s.events?.anomalies ?? []) sh(a);
+      for (const a of s.markers ?? []) sh(a);
+      for (const a of s.flares ?? []) sh(a);
+      for (const a of s.drops ?? []) sh(a);
+      for (const a of s.final?.stabilizers ?? []) sh(a);
+      for (const a of s.regrow ?? []) a.y += cells;
+    }
     if (legacy) {
       const cells = (WORLD_W - LEGACY_WORLD_W) / 2, px = cells * CELL, tiles = cells * CELL / TILE;
       const shiftPx = (o: any) => { if (o && typeof o.x === 'number') o.x += px; };
@@ -889,7 +913,7 @@ export class Game {
     this.time = s.time; this.flags = s.flags; this.selected = s.selected ?? 0; if (s.hotbar) this.hotbar = s.hotbar;
     // Saves antigos conservam áreas exploradas. Nas áreas ainda ocultas, aplica a nova geração de cavernas.
     const denseTerrain = !legacy && !this.flags.cavesDense && s.chunks?.mat ? new Uint8Array(this.world.mat) : null;
-    this.world.loadChunks(s.chunks, legacy);
+    this.world.loadChunks(s.chunks, fromW, fromH);
     if (legacy) {
       const gen = this.world.gen, old = gen.legacySites(), left = (WORLD_W - LEGACY_WORLD_W) / 2, right = left + LEGACY_WORLD_W;
       const outerRuins = gen.ruins.filter(r => r.x0 + r.w <= left || r.x0 >= right);
@@ -900,11 +924,11 @@ export class Game {
       this.chests.migrateLegacy();
     }
     if (s.explored) {
-      if (legacy) {
-        const oldTw = LEGACY_WORLD_W * CELL / TILE, offset = (WORLD_TW - oldTw) / 2;
-        const old = new Uint8Array(oldTw * (WORLD_H * CELL / TILE));
+      if (fromW !== WORLD_W || fromH !== WORLD_H) {
+        const oldTw = fromW * CELL / TILE, oldTh = fromH * CELL / TILE, offset = (WORLD_TW - oldTw) / 2, offTy = WORLD_TH - oldTh;
+        const old = new Uint8Array(oldTw * oldTh);
         unpackBytes(s.explored, old);
-        for (let y = 0; y < old.length / oldTw; y++) this.world.explored.set(old.subarray(y * oldTw, (y + 1) * oldTw), y * WORLD_TW + offset);
+        for (let y = 0; y < oldTh; y++) this.world.explored.set(old.subarray(y * oldTw, (y + 1) * oldTw), (y + offTy) * WORLD_TW + offset);
       } else unpackBytes(s.explored, this.world.explored);
     }
     for (let i = 0; i < this.world.explored.length; i++) if (this.world.explored[i]) this.world.sectorTileExplored[this.world.sectorTiles[i]]++;
@@ -936,6 +960,7 @@ export class Game {
     // camada nova (acabou de descer): monta a cápsula no poço central
     if (!this.machines.list.some(m => m.def.behavior === 'command')) { if (!this.flags.awaitCapsule) this.setupBase(); }
     else this.placeAnalyzer();
+    this.placeShip();
     this.blueprint.layout();
     this.camera.x = this.player.x; this.camera.y = this.player.y;
   }

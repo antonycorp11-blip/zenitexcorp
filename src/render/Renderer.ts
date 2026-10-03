@@ -409,9 +409,11 @@ export class Renderer {
     const surfY = (g.world.gen.landing.y * CELL - T) * z;
     const layer = g.planet.layer;
     ctx.imageSmoothingEnabled = true;
+    // ESPAÇO: muito acima do chão o céu escurece até o preto, com estrelas (é lá que fica a Nave)
+    const spaceTop = surfY - 950 * z, spaceK = Math.max(0, Math.min(1, (0 - (surfY - 700 * z)) / (600 * z)));
     if (layer === 1) {
-      const gr = ctx.createLinearGradient(0, surfY - 420 * z, 0, surfY + 10 * z);
-      gr.addColorStop(0, '#2f6fc2'); gr.addColorStop(0.5, '#6aa8e0'); gr.addColorStop(0.82, '#b6d8ee'); gr.addColorStop(1, '#f0dcb8');
+      const gr = ctx.createLinearGradient(0, spaceTop, 0, surfY + 10 * z);
+      gr.addColorStop(0, '#02040a'); gr.addColorStop(0.3, '#081430'); gr.addColorStop(0.5, '#2a62b4'); gr.addColorStop(0.7, '#6aa8e0'); gr.addColorStop(0.9, '#b6d8ee'); gr.addColorStop(1, '#f0dcb8');
       ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
       // sol com brilho atmosférico
       const sx = W * 0.74, sy = surfY - 190 * z;
@@ -432,10 +434,23 @@ export class Renderer {
         ['#03070e', '#0a1a2c', '#1e3a56'], ['#06030c', '#140c24', '#2c1c40'], ['#020a0d', '#06202a', '#123a40'], ['#140601', '#3a1204', '#8a3410'],
       ];
       const [a2, b2, c2] = SK[layer - 1];
-      const gr = ctx.createLinearGradient(0, surfY - 300 * z, 0, surfY);
-      gr.addColorStop(0, a2); gr.addColorStop(0.6, b2); gr.addColorStop(1, c2);
+      const gr = ctx.createLinearGradient(0, spaceTop, 0, surfY);
+      gr.addColorStop(0, '#010207'); gr.addColorStop(0.55, a2); gr.addColorStop(0.85, b2); gr.addColorStop(1, c2);
       ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
     }
+    // estrelas (só aparecem conforme a câmera sobe)
+    const starA = Math.max(0, Math.min(1, (surfY - 500 * z) / (500 * z)));
+    if (starA > 0.02) {
+      for (let i = 0; i < 140; i++) {
+        const per = WORLD_PX_W * 0.08;
+        const sx = ((hash2(i, 3, 7) * per - L * 0.08) % per + per) % per * z, sy = hash2(i, 5, 7) * H;
+        if (sx > W) continue;
+        ctx.globalAlpha = starA * (0.35 + 0.65 * hash2(i, 9, 7)) * (0.75 + 0.25 * Math.sin(this.time * 2 + i));
+        ctx.fillStyle = '#e8f0ff'; ctx.fillRect(sx, sy, (1 + (i % 3 === 0 ? 1 : 0)) * Math.max(1, z * 0.5), (1 + (i % 3 === 0 ? 1 : 0)) * Math.max(1, z * 0.5));
+      }
+      ctx.globalAlpha = 1;
+    }
+    void spaceK;
     // cordilheiras com perspectiva aérea (as de trás somem na névoa)
     const ridges = layer === 1
       ? [['#88a6c2', '#bccfdd'], ['#5b7891', '#93abbd'], ['#3b5263', '#6c8394']]
@@ -469,8 +484,8 @@ export class Renderer {
     const hz = ctx.createLinearGradient(0, surfY - 60 * z, 0, surfY + 4 * z);
     hz.addColorStop(0, 'rgba(255,255,255,0)'); hz.addColorStop(1, layer === 1 ? 'rgba(240,226,200,0.55)' : 'rgba(120,90,70,0.12)');
     ctx.fillStyle = hz; ctx.fillRect(0, surfY - 60 * z, W, 64 * z);
-    if (layer > 1) {
-      // teto rochoso com estalactites e partículas em suspensão
+    if (layer > 1 && false) {
+      // (removido) teto rochoso: agora dá para subir até o espaço em qualquer camada
       ctx.fillStyle = '#040507';
       ctx.beginPath(); ctx.moveTo(0, 0);
       for (let sx = 0; sx <= W + 6; sx += 6) {
@@ -709,6 +724,31 @@ export class Renderer {
       }
       return;
     }
+    if (d.behavior === 'compactor') {
+      // fogo no visor e fumaça na chaminé (mais forte enquanto queima)
+      const on = m.working || m.fin > 1, k = on ? 1 : 0.25;
+      for (let i = 0; i < 6; i++) {
+        const fx = x + 4 + ((i * 2.3 + t * 9) % (W - 8)), hgt = (3 + Math.sin(t * 12 + i * 1.7) * 2 + 3) * k;
+        ctx.fillStyle = `rgba(255,${120 + i * 18},40,${0.75 * k})`; ctx.beginPath(); ctx.moveTo(fx - 1.6, y + 20); ctx.quadraticCurveTo(fx, y + 20 - hgt * 1.6, fx + 1.6, y + 20); ctx.fill();
+      }
+      g.lighting.add(x + W / 2, y + 14, on ? 46 : 18, [255, 140, 50], on ? 0.9 : 0.3);
+      if (on && Math.random() < 0.25) g.fx.smoke(x + W - 4, y - 9, [90, 90, 96]);
+      if (on && Math.random() < 0.1) g.fx.ember(x + W - 4, y - 9, [255, 150, 60]);
+      return;
+    }
+    if (d.behavior === 'ship') {
+      // porta de carga pulsando + rótulo fixo
+      const cx = x + W / 2, by = y + H, pulse = 0.6 + 0.4 * Math.sin(t * 3);
+      g.lighting.add(cx, by, 60, [120, 220, 255], 0.6 * pulse);
+      g.lighting.add(x + 6, y + 20, 50, [120, 220, 255], 0.8);
+      ctx.save(); ctx.font = 'bold 7px sans-serif'; ctx.textAlign = 'center';
+      const lbl = '▲ PORTA DE CARGA: ligue um Tubo de Vácuo aqui';
+      const tw = ctx.measureText(lbl).width + 10;
+      ctx.fillStyle = 'rgba(6,14,24,0.85)'; ctx.fillRect(cx - tw / 2, by + 4, tw, 11);
+      ctx.fillStyle = `rgba(140,230,255,${0.7 + 0.3 * pulse})`; ctx.fillText(lbl, cx, by + 12);
+      ctx.restore();
+      return;
+    }
     if (d.behavior === 'extractor') {
       // campo puxando para CIMA a partir da esteira: ondas descendo e grãos subindo até o extrator
       const ima = d.key === 'ima', cx = x + W / 2, by = y + H, busy = m.state.startsWith('Puxando'), k = busy ? 1 : 0.4;
@@ -744,10 +784,6 @@ export class Renderer {
     } else if ((d.key === 'descompressor' || d.key === 'desintegrador') && m.working) {
       const r = H * 0.14 * (1 + Math.sin(t * 6) * 0.25);
       ctx.fillStyle = `rgba(${(d.glow ?? [255, 200, 120]).join(',')},0.5)`; ctx.beginPath(); ctx.arc(x + W / 2, y + H / 2, r, 0, 7); ctx.fill();
-    } else if (d.behavior === 'compactor') {
-      const k = m.working ? (Math.sin(t * 5) * 0.5 + 0.5) : 0;
-      ctx.fillStyle = '#c47a22'; ctx.fillRect(x + W / 2 - 7, y + 11 + k * 5, 14, 3);
-      ctx.fillStyle = '#e8a040'; ctx.fillRect(x + W / 2 - 7, y + 11 + k * 5, 14, 1);
     } else if (d.behavior === 'refinery' && m.working && Math.random() < 0.15) {
       g.fx.smoke(x + W - 9, y - 22, [90, 90, 96]);
     } else if (d.behavior === 'storage') {

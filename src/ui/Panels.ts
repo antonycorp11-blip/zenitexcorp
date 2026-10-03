@@ -25,7 +25,7 @@ import { FAB_UPS, SILO_KEYS, fabLevel } from '../data/factory';
 export type PanelId = 'inventory' | 'build' | 'upgrades' | 'research' | 'sectors' | 'robots' | 'contracts' | 'archive' | 'map' | 'help' | 'menu' | 'machine' | 'ops' | 'lifts' | 'settings' | 'missions';
 
 /** O menu único: 5 abas grandes. Os painéis antigos viram atalhos para elas. */
-const MAIN: [PanelId, string, string][] = [['build', '⚒', 'CONSTRUIR'], ['upgrades', '✚', 'MELHORIAS'], ['inventory', '▣', 'ESTOQUE'], ['missions', '◎', 'MISSÕES'], ['map', '⌖', 'MAPA']];
+const MAIN: [PanelId, string, string][] = [['upgrades', '✚', 'MELHORIAS'], ['inventory', '▣', 'ESTOQUE'], ['map', '⌖', 'MAPA']];
 const IS_MAIN = new Set(MAIN.map(m => m[0]));
 
 const TITLES: Record<PanelId, string> = {
@@ -37,7 +37,7 @@ const TITLES: Record<PanelId, string> = {
 export class Panels {
   id: PanelId | null = null;
   el: HTMLElement | null = null;
-  lastTab: PanelId = 'build';
+  lastTab: PanelId = 'upgrades';
   st: Record<string, any> = { invTab: 'todos', buildCat: 'extracao', upBr: 'fab', misTab: 'camada', resCat: 'mineracao', archCat: 'historia', craftSel: 'of_componente', mapTab: 'mapa', conTab: 'disp' };
   machine: Machine | null = null;
   private refreshT = 0;
@@ -215,7 +215,7 @@ export class Panels {
   }
   private icon(k: string, s = 28) { return `<img class="ic" style="width:${s}px;height:${s}px" src="${this.g.sprites.itemUrl(k)}">`; }
   private costCells(cost: Record<string, number>, silo = false) {
-    return `<div class="costs">${Object.entries(cost).map(([k, n]) => { const s = silo && SILO_KEYS.has(k); const have = silo ? this.g.upHave(k) : this.g.stock.count(k) + this.g.pack.count(k); return `<div class="cc ${have >= n ? 'ok' : 'no'}">${this.icon(k, 26)}<span>${s ? '🛢 ' : ''}${esc(itemName(k))}</span><b>${fmtShort(n)}</b><small>${fmtShort(have)}</small></div>`; }).join('')}</div>`;
+    return `<div class="costs">${Object.entries(cost).map(([k, n]) => { const s = silo && SILO_KEYS.has(k); const have = silo ? this.g.upHave(k) : this.g.stock.count(k) + this.g.pack.count(k); return `<div class="cc ${have >= n ? 'ok' : 'no'}">${this.icon(k, 26)}<span>${esc(itemName(k))}</span><b>${fmtShort(n)}</b><small>${fmtShort(have)}</small></div>`; }).join('')}</div>`;
   }
   private bar(v: number, max: number, color = '#3ab4ff') { return `<div class="pbar"><i style="width:${Math.min(100, (v / Math.max(1e-9, max)) * 100)}%;background:${color}"></i></div>`; }
 
@@ -380,8 +380,7 @@ export class Panels {
     const silos = g.machines.list.filter(m => m.def.behavior === 'silo');
     const tot: Record<string, number> = {};
     for (const m of silos) for (const k in m.inb) if ((m.inb[k] ?? 0) > 0) tot[k] = (tot[k] ?? 0) + m.inb[k];
-    let h = `<p class="muted">🛢 Melhorias são pagas com minerais guardados nos <b>SILOS</b> (não com o Estoque). Separe com o <b>Ímã</b> e o <b>Ressonador</b> e encha um silo para cada mineral.</p>`;
-    h += `<div class="silo-sum">${silos.length ? Object.keys(tot).length ? Object.entries(tot).map(([k, n]) => `<span>${this.icon(k, 16)} ${esc(itemName(k))} <b>${fmtShort(n)} kg</b></span>`).join('') : '<span>Silos vazios</span>' : '<span class="warn">Nenhum silo construído (Construir → Logística → Silo)</span>'}</div>`;
+    let h = `<p class="muted">Melhorias são pagas com o seu <b>saldo</b> de minérios (o que aparece no topo da tela).</p>`;
     h += `<div class="ups scroll tall">`;
     for (const u of FAB_UPS) {
       const lv = fabLevel(g.flags, u.key), cost = u.costs[lv], next = u.vals[lv + 1];

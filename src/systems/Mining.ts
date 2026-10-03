@@ -211,7 +211,7 @@ export class Mining {
     g.lore.onCellRemoved(x, y, cause);
     if (def.regrow) w.regrowQueue.push({ x, y, m: mat, t: g.time + 90 + Math.random() * 120 });
     if (def.rare && def.item) {
-      if (toGrain && GRAIN[def.item] !== undefined) { g.planet.addUnits(mult); w.set(x, y, GRAIN[def.item], 40); if (cause === 'player') this.revealRares(x, y); return { item: def.item, kg: GRAIN_KG }; }
+      if (toGrain && GRAIN[def.item] !== undefined) { w.set(x, y, GRAIN[def.item], 40); if (cause === 'player') this.revealRares(x, y); return { item: def.item, kg: GRAIN_KG }; }
       return this.rareCell(x, y, def.item, (def.yieldKg ?? 1) * mult, mult, cause, machine);
     }
     // material bruto da camada: veios visíveis têm teor muito maior
@@ -234,7 +234,7 @@ export class Mining {
   /** Variantes raras: mineral puro, sem resíduo — recompensa imediata da mineração de precisão. */
   private rareCell(x: number, y: number, item: string, kg: number, mult: number, cause: string, machine?: Machine): { item?: string; kg: number } {
     const g = this.g;
-    g.planet.addUnits(mult);
+    void mult;
     if (cause === 'player') {
       kg *= 1 + g.research.eff('oreBonus');
       const got = g.pack.add(item, kg);

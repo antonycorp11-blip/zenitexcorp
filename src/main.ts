@@ -16,7 +16,7 @@ if (isTouch) document.body.classList.add('touch');
 async function boot() {
   let save = await loadSlot('slot1');
   // saves da versão por setores (v1) não são compatíveis com o mundo em camadas
-  if (save && save.v !== 3 && save.v !== 4) { await deleteSlot('slot1'); save = null; }
+  if (save && save.v !== 3 && save.v !== 4 && save.v !== 5) { await deleteSlot('slot1'); save = null; }
   let pendingNG: GameOptions | null = null;
   try { const s = localStorage.getItem('zx_ng'); if (s) pendingNG = JSON.parse(s); } catch { /* */ }
   const title = document.getElementById('title')!;
@@ -63,7 +63,7 @@ function start(opts: GameOptions, save: any) {
     g.load(save);
     g.flags.intro = false;
     g.dialogue.line('zena', 'Bem-vindo de volta. O planeta esperou por você. Ele não tinha escolha.');
-    if (!g.flags.briefed) g.ui.mini.briefing(() => { g.flags.briefed = true; });
+    g.flags.briefed = true;
     if (g.flags.justDescended) {
       g.markLayerStart();
       const L = SECTORS[g.flags.justDescended - 1];
@@ -79,7 +79,7 @@ function start(opts: GameOptions, save: any) {
       g.flags.intro = false;
       g.ui.flashMass();
       g.ui.sectorTitle(1);
-      g.ui.mini.briefing(() => { g.flags.briefed = true; g.dialogue.sayAll('t_start'); });
+      g.flags.briefed = true;
     };
     if (DEV && new URLSearchParams(location.search).has('auto')) afterIntro(); else g.ui.cine.intro(afterIntro);
   }

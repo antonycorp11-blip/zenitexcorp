@@ -1,4 +1,4 @@
-import { CELL, CHUNK, WORLD_W, WORLD_H, WORLD_CW, WORLD_CH, WORLD_TW, WORLD_TH, TILE, TILE_CELLS, LEGACY_WORLD_W, wrapX } from '../core/constants';
+import { CELL, CHUNK, WORLD_W, WORLD_H, WORLD_CW, WORLD_CH, WORLD_TW, WORLD_TH, TILE, TILE_CELLS, wrapX } from '../core/constants';
 import { MAT, IS_SOLID, IS_BLOCKING, IS_LIQUID, IS_LOOSE, matById } from '../data/materials';
 
 /** log2(TILE_CELLS): célula -> tile */
@@ -314,21 +314,22 @@ export class World {
 
   // ---------------- save (RLE do mapa inteiro) ----------------
   serializeChunks(): Record<string, string> { return { mat: rle(this.mat), aux: rle(this.aux) }; }
-  loadChunks(data: Record<string, string>, legacy = false) {
+  /** carrega o mapa salvo; saves antigos (mais estreitos e/ou sem céu alto) são centrados na horizontal e encostados no fundo */
+  loadChunks(data: Record<string, string>, fromW = WORLD_W, fromH = WORLD_H) {
     if (!data?.mat) return;
-    if (legacy) {
-      const offset = (WORLD_W - LEGACY_WORLD_W) >> 1;
+    if (fromW !== WORLD_W || fromH !== WORLD_H) {
+      const offset = (WORLD_W - fromW) >> 1, offY = WORLD_H - fromH;
       const copyOld = (encoded: string, dest: Uint8Array, terrain = false) => {
-        const old = new Uint8Array(LEGACY_WORLD_W * WORLD_H);
+        const old = new Uint8Array(fromW * fromH);
         unrle(encoded, old);
-        for (let y = 0; y < WORLD_H; y++) {
-          const row = old.subarray(y * LEGACY_WORLD_W, (y + 1) * LEGACY_WORLD_W);
-          dest.set(row, y * WORLD_W + offset);
-          if (terrain) for (let x = 0; x < 4; x++) {
-            for (const edge of [x, LEGACY_WORLD_W - 1 - x]) {
-              const i = y * WORLD_W + offset + edge;
+        for (let y = 0; y < fromH; y++) {
+          const row = old.subarray(y * fromW, (y + 1) * fromW), ny = y + offY;
+          dest.set(row, ny * WORLD_W + offset);
+          if (terrain && fromW !== WORLD_W) for (let x = 0; x < 4; x++) {
+            for (const edge of [x, fromW - 1 - x]) {
+              const i = ny * WORLD_W + offset + edge;
               // Os muros da versão antiga não podem virar barreiras no meio do anel.
-              if (dest[i] === MAT.EDGE && y < WORLD_H - 14) dest[i] = y < this.gen.surfaceAt(offset + edge) ? MAT.AIR : row[edge < 4 ? 4 : LEGACY_WORLD_W - 5];
+              if (dest[i] === MAT.EDGE && ny < WORLD_H - 14) dest[i] = ny < this.gen.surfaceAt(offset + edge) ? MAT.AIR : row[edge < 4 ? 4 : fromW - 5];
             }
           }
         }
@@ -344,7 +345,7 @@ export class World {
   }
 }
 
-function rle(a: Uint8Array): string {
+export function rle(a: Uint8Array): string {
   let s = '';
   let prev = a[0], run = 0;
   const parts: string[] = [];
@@ -358,7 +359,7 @@ function rle(a: Uint8Array): string {
   parts.push(s);
   return btoa(parts.join(''));
 }
-function unrle(b: string, out: Uint8Array) {
+export function unrle(b: string, out: Uint8Array) {
   const s = atob(b);
   let p = 0;
   for (let i = 0; i < s.length; i += 2) { const v = s.charCodeAt(i), run = s.charCodeAt(i + 1); out.fill(v, p, p + run); p += run; }
