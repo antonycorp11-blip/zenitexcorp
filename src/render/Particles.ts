@@ -44,7 +44,7 @@ export class Particles {
   }
   blood(x: number, y: number) { this.sparks(x, y, [255, 60, 40], 6); }
   smoke(x: number, y: number, c: C3 = [200, 200, 200]) {
-    this.add({ x: x + (Math.random() - 0.5) * 4, y, vx: (Math.random() - 0.5) * 6, vy: -12 - Math.random() * 10, life: 0, max: 2 + Math.random(), size: 3 + Math.random() * 3, c, g: -2, glow: false });
+    this.add({ x: x + (Math.random() - 0.5) * 4, y, vx: (Math.random() - 0.5) * 6, vy: -12 - Math.random() * 10, life: 0, max: 1.3 + Math.random() * 0.8, size: 3 + Math.random() * 1.2, c, g: -2, glow: false });
   }
   ember(x: number, y: number, c: C3) {
     this.add({ x, y, vx: (Math.random() - 0.5) * 8, vy: -8 - Math.random() * 14, life: 0, max: 1.5 + Math.random() * 1.5, size: 1, c, g: -3, glow: true });
@@ -88,9 +88,9 @@ export class Particles {
       const col = `rgb(${p.c[0] | 0},${p.c[1] | 0},${p.c[2] | 0})`;
       if (p.size >= 3 && !p.glow) {
         // poeira/fumaça: nuvem macia que cresce e some
-        ctx.globalAlpha = a * 0.35;
+        ctx.globalAlpha = a * 0.21;
         ctx.fillStyle = col;
-        ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(0.1, Math.abs(p.size) * (0.6 + Math.max(0, t) * 1.6)), 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(0.1, Math.abs(p.size) * (0.45 + Math.max(0, t) * 0.8)), 0, 7); ctx.fill();
       } else if (p.glow) {
         // faísca: risco na direção do movimento
         ctx.globalAlpha = a;

@@ -16,7 +16,7 @@ const sh = (c: readonly number[], k: number): C3 => [Math.max(0, Math.min(255, c
 export const P = {
   ink: [14, 15, 20] as C3,
   or: [236, 150, 40] as C3, orL: [255, 204, 102] as C3, orD: [170, 92, 22] as C3, orDD: [110, 56, 16] as C3,
-  st: [60, 68, 86] as C3, stL: [112, 126, 150] as C3, stLL: [176, 192, 214] as C3, stD: [34, 39, 52] as C3, stDD: [20, 23, 32] as C3,
+  st: [65, 78, 88] as C3, stL: [132, 151, 158] as C3, stLL: [208, 222, 222] as C3, stD: [30, 43, 51] as C3, stDD: [16, 27, 36] as C3,
   plasma: [120, 230, 255] as C3, plasmaV: [190, 120, 255] as C3,
   glass: [40, 90, 130] as C3, glassL: [130, 210, 255] as C3,
   red: [230, 60, 50] as C3, green: [90, 230, 110] as C3, cyan: [70, 230, 240] as C3, yellow: [255, 214, 70] as C3,
@@ -369,19 +369,22 @@ export function drawSideMachine(def: MachineDef, dir: number, level: number): HT
     p.chute(right ? W - 1 : 0, top + 4, right, [150, 120, 96]);
     p.light(right ? 2 : W - 4, top + 3, glow);
   } else if (def.behavior === 'compactor' && def.outMode === 'bottom') {
-    // INCINERADOR: fornalha grafite com funil, visor de fogo (as chamas se mexem no Renderer) e chaminé
+    // Incinerador: casco cerâmico claro, aço grafite, visor do fogo e proteção laranja.
     const x = p.x;
     p.hopper(1, top - 4, W - 2, 5);
     x.beginPath(); x.roundRect(1, top + 1, W - 2, H - 3, 2);
-    const g = x.createLinearGradient(0, top, 0, bot); g.addColorStop(0, '#4a5268'); g.addColorStop(0.5, '#2a3040'); g.addColorStop(1, '#14181f');
+    const g = x.createLinearGradient(1, top + 1, W - 1, bot); g.addColorStop(0, '#f0eee1'); g.addColorStop(0.33, '#a7b6b8'); g.addColorStop(0.7, '#667987'); g.addColorStop(1, '#263643');
     x.fillStyle = g; x.fill(); x.strokeStyle = 'rgba(10,12,18,0.95)'; x.lineWidth = 0.6; x.stroke();
+    x.fillStyle = '#263541'; x.fillRect(2, top + 3, 1.3, H - 7); x.fillRect(W - 3.3, top + 3, 1.3, H - 7);
+    x.fillStyle = '#e99335'; x.fillRect(3.5, top + 3, W - 7, 1.3);
     // visor da fornalha
-    x.beginPath(); x.roundRect(3, top + 8, W - 6, 12, 1.5); x.fillStyle = '#1a0804'; x.fill(); x.strokeStyle = '#ffb04a'; x.lineWidth = 0.6; x.stroke();
+    x.beginPath(); x.roundRect(3, top + 8, W - 6, 12, 1.5); x.fillStyle = '#200d08'; x.fill(); x.strokeStyle = '#ffbd67'; x.lineWidth = 0.9; x.stroke();
+    x.fillStyle = 'rgba(255,195,88,0.4)'; x.fillRect(4, top + 9, W - 8, 1.2);
     for (let k = 0; k < 4; k++) { x.fillStyle = 'rgba(30,30,36,0.9)'; x.fillRect(4 + k * ((W - 8) / 4), top + 8, 0.6, 12); }
     // grade de ventilação e listra
     p.hazard(1, bot - 4, W - 2, 2);
-    x.fillStyle = css(P.or); x.fillRect(2, top + 3, W - 4, 1.2);
-    x.fillStyle = css(P.stL); for (let y = top + 23; y < bot - 6; y += 2.2) x.fillRect(4, y, W - 8, 0.6);
+    x.fillStyle = '#dbe5de'; for (let y = top + 23; y < bot - 6; y += 2.2) x.fillRect(4, y, W - 8, 0.6);
+    p.light(W - 3, top + 4, P.orL);
     // chaminé
     x.fillStyle = '#20242e'; x.fillRect(W - 6, top - 9, 4, 9); x.fillStyle = css(P.or); x.fillRect(W - 6.5, top - 9.5, 5, 1.2);
   } else if (def.behavior === 'extractor') {
@@ -635,7 +638,7 @@ export function drawPlayer(frame: number, suitTier: number, jet: boolean): HTMLC
   shape(() => x.arc(9, 4.6 + bob * 0.5, 4.5, 0, 7), (() => { const g = x.createRadialGradient(7.4, 2.6, 0.5, 9, 4.6, 5.2); g.addColorStop(0, css(sh(suit, 1.45))); g.addColorStop(0.6, css(suit)); g.addColorStop(1, css(sh(suit, 0.65))); return g; })());
   // visor espelhado
   x.beginPath(); x.roundRect(9.2, 2.4 + bob * 0.5, 5, 3.8, 1.8);
-  const vg = x.createLinearGradient(9, 2.4, 14, 6.2); vg.addColorStop(0, '#5fb4ef'); vg.addColorStop(0.5, '#1d4a78'); vg.addColorStop(1, '#0c2440');
+  const vg = x.createLinearGradient(9, 2.4, 14, 6.2); vg.addColorStop(0, '#ffe58f'); vg.addColorStop(0.48, '#ef9f30'); vg.addColorStop(1, '#74401b');
   x.fillStyle = vg; x.fill(); x.strokeStyle = ink; x.lineWidth = 0.5; x.stroke();
   x.fillStyle = 'rgba(255,255,255,0.75)'; x.beginPath(); x.ellipse(10.8, 3.3 + bob * 0.5, 1.1, 0.45, -0.3, 0, 7); x.fill();
   // lanterna
@@ -707,12 +710,12 @@ export function paintPlayer(x: CanvasRenderingContext2D, o: PlayerPose) {
   x.fillStyle = 'rgba(255,255,255,0.9)'; x.beginPath(); x.arc(10, 10.2, 0.35, 0, 7); x.fill();
   // capacete com visor emissivo de faixa
   fill(() => x.arc(9, 4.4, 4.5, 0, 7), (() => { const g = x.createRadialGradient(7.2, 2.4, 0.5, 9, 4.4, 5.2); g.addColorStop(0, '#ffffff'); g.addColorStop(0.55, css(white)); g.addColorStop(1, css(sh(white, 0.62))); return g; })());
-  fill(() => x.roundRect(8.6, 2.4, 5.6, 3.6, 1.8), (() => { const g = x.createLinearGradient(8.6, 2.4, 14, 6); g.addColorStop(0, '#0c1a2c'); g.addColorStop(1, '#05080f'); return g; })(), 0.5);
+  fill(() => x.roundRect(8.6, 2.4, 5.6, 3.6, 1.8), (() => { const g = x.createLinearGradient(8.6, 2.4, 14, 6); g.addColorStop(0, '#ffdb82'); g.addColorStop(0.45, '#e8932c'); g.addColorStop(1, '#603415'); return g; })(), 0.5);
   x.fillStyle = css(P.stD); x.beginPath(); x.roundRect(5.5, 0.2, 4.8, 1.25, 0.5); x.fill();
   x.fillStyle = css(acc); x.fillRect(6.3, 0.55, 2.9, 0.35);
-  x.fillStyle = css(P.plasma); x.beginPath(); x.roundRect(9.6, 3.6, 4, 0.9, 0.45); x.fill();
-  x.fillStyle = '#8cc9d9'; x.beginPath(); x.moveTo(12.8, 3); x.lineTo(13.8, 3.3); x.lineTo(11.1, 5.1); x.lineTo(10.7, 5); x.closePath(); x.fill();
-  x.fillStyle = 'rgba(160,240,255,0.35)'; x.beginPath(); x.roundRect(9.2, 3.1, 4.8, 1.9, 0.9); x.fill();
+  x.fillStyle = '#ffe4a3'; x.beginPath(); x.roundRect(9.6, 3.6, 4, 0.9, 0.45); x.fill();
+  x.fillStyle = '#fff5cf'; x.beginPath(); x.moveTo(12.8, 3); x.lineTo(13.8, 3.3); x.lineTo(11.1, 5.1); x.lineTo(10.7, 5); x.closePath(); x.fill();
+  x.fillStyle = 'rgba(255,245,214,0.25)'; x.beginPath(); x.roundRect(9.2, 3.1, 4.8, 1.9, 0.9); x.fill();
   x.fillStyle = css(P.st); x.beginPath(); x.roundRect(9.4, 6.4, 3.7, 1, 0.4); x.fill();
   x.fillStyle = '#eea64f'; x.fillRect(11, 6.6, 0.8, 0.35);
   x.fillStyle = css(acc); x.fillRect(5.2, 2, 0.9, 3.2);

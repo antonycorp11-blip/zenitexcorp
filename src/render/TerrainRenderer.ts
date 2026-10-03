@@ -67,6 +67,17 @@ export class TerrainRenderer {
       }
     }
     if (kind === 'rock' || kind === 'soil') {
+      // Camadas sedimentares largas dão escala ao solo e continuam nas bordas do padrão.
+      for (let k = 0; k < 4; k++) {
+        const y0 = (k + 0.35) * S / 4;
+        x.beginPath();
+        for (let px = 0; px <= S; px += 4) {
+          const y = y0 + Math.sin(px / S * Math.PI * 4 + k * 1.4) * 5 + Math.sin(px / S * Math.PI * 8 + k) * 2;
+          if (px === 0) x.moveTo(px, y); else x.lineTo(px, y);
+        }
+        x.strokeStyle = rgb(dark, 1, kind === 'soil' ? 0.22 : 0.13); x.lineWidth = kind === 'soil' ? 11 : 6; x.stroke();
+        x.translate(0, -3); x.strokeStyle = rgb(light, 1, 0.17); x.lineWidth = 2; x.stroke(); x.translate(0, 3);
+      }
       x.strokeStyle = rgb(dark, 1, 0.22); x.lineWidth = 3;
       for (let k = 0; k < 6; k++) {
         const y0 = (k + 0.5) * S / 6;
@@ -74,9 +85,9 @@ export class TerrainRenderer {
         for (let px = 0; px <= S; px += 8) x.lineTo(px, y0 + Math.sin((px / S) * Math.PI * 4 + k) * 6);
         x.stroke();
       }
-      for (let i = 0; i < (kind === 'soil' ? 70 : 45); i++) {
-        const px = rnd(i, 5) * S, py = rnd(i, 6) * S, r = 2 + rnd(i, 7) * (kind === 'soil' ? 5 : 8);
-        const stone: C3 = kind === 'soil' ? [118, 108, 98] : light;
+      for (let i = 0; i < (kind === 'soil' ? 54 : 45); i++) {
+        const px = rnd(i, 5) * S, py = rnd(i, 6) * S, r = 1.8 + rnd(i, 7) * (kind === 'soil' ? 3.5 : 8);
+        const stone: C3 = kind === 'soil' ? [142, 119, 99] : light;
         x.fillStyle = rgb(dark, 0.8, 0.5); x.beginPath(); x.ellipse(px + 1, py + 1.5, r, r * 0.75, 0, 0, 7); x.fill();
         x.fillStyle = rgb(stone, 0.95); x.beginPath(); x.ellipse(px, py, r, r * 0.75, 0, 0, 7); x.fill();
         x.fillStyle = rgb(stone, 1.35, 0.8); x.beginPath(); x.ellipse(px - r * 0.3, py - r * 0.3, r * 0.4, r * 0.25, 0, 0, 7); x.fill();
@@ -98,9 +109,9 @@ export class TerrainRenderer {
     const sd = SECTORS[this.world.gen.layer - 1];
     const r = MATERIALS[sd.rock];
     const L = this.world.gen.layer;
-    const base: C3 = L === 1 ? [150, 96, 60] : [r.top[0] * 1.25, r.top[1] * 1.25, r.top[2] * 1.25];
-    const dark: C3 = L === 1 ? [104, 62, 38] : [r.face[0] * 1.2, r.face[1] * 1.2, r.face[2] * 1.2];
-    const light: C3 = L === 1 ? [190, 132, 86] : [r.top[0] * 1.7, r.top[1] * 1.7, r.top[2] * 1.7];
+    const base: C3 = L === 1 ? [164, 92, 54] : [r.top[0] * 1.25, r.top[1] * 1.25, r.top[2] * 1.25];
+    const dark: C3 = L === 1 ? [105, 53, 33] : [r.face[0] * 1.2, r.face[1] * 1.2, r.face[2] * 1.2];
+    const light: C3 = L === 1 ? [218, 138, 83] : [r.top[0] * 1.7, r.top[1] * 1.7, r.top[2] * 1.7];
     return { base, dark, light, L };
   }
 
@@ -214,7 +225,7 @@ export class TerrainRenderer {
       const m = at(lx, ly); if (!IS_SOLID[m]) continue;
       const def = MATERIALS[m];
       const X = ox + lx, Y = oy + ly;
-      if (def.kind === 'ore') { ctx.fillStyle = rgb(def.face, 1.25, 0.55); ctx.fillRect(lx * RES - 1, ly * RES - 1, RES + 2, RES + 2); }
+      if (def.kind === 'ore') { ctx.fillStyle = rgb(def.face, 1.2, 0.8); ctx.fillRect(lx * RES - 1.2, ly * RES - 1.2, RES + 2.4, RES + 2.4); }
       else if (def.kind === 'edge') { ctx.fillStyle = 'rgba(22,18,24,0.94)'; ctx.fillRect(lx * RES - 1, ly * RES - 1, RES + 2, RES + 2); }
       else if (def.kind === 'ancient') { ctx.fillStyle = pat(ruin); ctx.fillRect(lx * RES - 1, ly * RES - 1, RES + 2, RES + 2); }
       else if (L === 1 && m !== MAT.R1) { ctx.fillStyle = 'rgba(70,60,70,0.35)'; ctx.fillRect(lx * RES, ly * RES, RES, RES); }
@@ -272,11 +283,15 @@ export class TerrainRenderer {
 
   /** gema facetada (minério) */
   private gem(ctx: CanvasRenderingContext2D, x: number, y: number, top: C3, face: C3, h: number) {
-    const s = RES * (1.6 + h * 1.4);
+    const s = RES * (2.15 + h * 1.6);
     ctx.save(); ctx.translate(x, y); ctx.rotate(h * 1.2 - 0.6);
+    const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 1.7);
+    halo.addColorStop(0, rgb(top, 1.5, 0.23)); halo.addColorStop(1, rgb(top, 1, 0));
+    ctx.fillStyle = halo; ctx.fillRect(-s * 1.7, -s * 1.7, s * 3.4, s * 3.4);
     ctx.fillStyle = rgb(face, 0.8); ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(s * 0.6, 0); ctx.lineTo(0, s * 0.9); ctx.lineTo(-s * 0.6, 0); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = 'rgba(10,10,16,0.75)'; ctx.lineWidth = 0.9; ctx.stroke();
     ctx.fillStyle = rgb(top, 1.15); ctx.beginPath(); ctx.moveTo(0, -s); ctx.lineTo(s * 0.6, 0); ctx.lineTo(0, s * 0.2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = rgb(top, 0.78); ctx.beginPath(); ctx.moveTo(-s * 0.6, 0); ctx.lineTo(0, -s); ctx.lineTo(0, s * 0.2); ctx.closePath(); ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.beginPath(); ctx.moveTo(-s * 0.1, -s * 0.7); ctx.lineTo(s * 0.18, -s * 0.2); ctx.lineTo(-s * 0.05, -s * 0.15); ctx.closePath(); ctx.fill();
     ctx.restore();
   }

@@ -381,7 +381,8 @@ export class Panels {
   private fabList() {
     const g = this.g;
     const fv = (n: number) => n < 100 ? String(Math.round(n * 100) / 100).replace('.', ',') : fmtShort(n);
-    const NW = 70, NH = 50, GX = 14, GY = 22, TOP = 26, LEFT = 8;
+    const stretch = Math.min(1.42, Math.max(1, (window.innerWidth - 230) / 850));
+    const NW = Math.round(70 * stretch), NH = 50, GX = Math.round(14 * stretch), GY = 22, TOP = 26, LEFT = 8;
     const cols: { u: FabUp; x: number }[] = [];
     let x = LEFT, heads = '';
     for (const br of FAB_BRANCHES) {
