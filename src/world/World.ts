@@ -27,6 +27,8 @@ export class World {
   readonly active = new Uint8Array(WORLD_CW * WORLD_CH);
   private nextActive = new Uint8Array(WORLD_CW * WORLD_CH);
   readonly dirty = new Set<number>();
+  /** Chunks alterados desde a última atualização da imagem do mapa. */
+  readonly overviewDirty = new Uint8Array(WORLD_CW * WORLD_CH);
   readonly dirtyRect = new Map<number, [number, number, number, number]>();
   readonly sectorTiles: Uint8Array;
   readonly explored = new Uint8Array(WORLD_TW * WORLD_TH);
@@ -57,6 +59,7 @@ export class World {
     this.sectorTiles = this.gen.buildSectorTiles(WORLD_TW, WORLD_TH);
     this.sectorTileTotal[layer] = this.sectorTiles.length;
     this.active.fill(1);
+    this.overviewDirty.fill(1);
     // assenta os líquidos em silêncio antes do primeiro quadro
     this.quiet = true;
     for (let k = 0; k < 110; k++) { this.simulate(); if (this.moving < 8) break; }
@@ -89,6 +92,7 @@ export class World {
     x = wrapX(x, WORLD_W);
     const cx = (x / CHUNK) | 0, cy = (y / CHUNK) | 0;
     const k = cy * WORLD_CW + cx;
+    this.overviewDirty[k] = 1;
     const lx = x - cx * CHUNK, ly = y - cy * CHUNK;
     // o sombreamento do terreno depende dos vizinhos: re-renderiza um raio ao redor
     const R = rad;
@@ -113,7 +117,7 @@ export class World {
     if (!r) return;
     r[0] = Math.min(r[0], x0); r[1] = Math.min(r[1], y0); r[2] = Math.max(r[2], x1); r[3] = Math.max(r[3], y1);
   }
-  dirtyFull(k: number) { this.dirty.add(k); this.dirtyRect.delete(k); }
+  dirtyFull(k: number) { this.dirty.add(k); this.dirtyRect.delete(k); this.overviewDirty[k] = 1; }
 
   // ---------------- simulação de areia ----------------
   /** Um passo: grãos caem/escorregam, blocos caem, líquidos escorrem. Só chunks acordados. */

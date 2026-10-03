@@ -36,12 +36,16 @@ export class UI {
   private mctx: CanvasRenderingContext2D;
   private sloganI = 0; private sloganT = 0;
   private hudT = 0;
+  private htmlCache = new Map<string, string>();
   private offlineEl: HTMLElement | null = null;
   private discoveryEl: HTMLElement | null = null;
   menuOpen = false;
   collapsed = false;
   quickCat = 2;
   quickOpen() { return this.el.quickBuild.classList.contains('show'); }
+  private setCachedHtml(id: string, html: string) {
+    if (this.htmlCache.get(id) !== html) { this.el[id].innerHTML = html; this.htmlCache.set(id, html); }
+  }
 
   constructor(private g: Game) {
     this.root = document.getElementById('ui')!;
@@ -76,7 +80,7 @@ export class UI {
       }
     });
     this.el.orbitBtn.addEventListener('click', () => {
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const dpr = g.camera.w / window.innerWidth;
       g.camera.targetZoom = g.camera.targetZoom <= 0.55 * dpr ? 2 * dpr : 0.25 * dpr;
       g.flags.userZoom = true;
       this.hideQuickBuild();
@@ -336,7 +340,7 @@ export class UI {
     this.tutorial.update();
     this.el.hud.classList.toggle('hidden', !!(g.flags.intro || g.flags.ending));
     document.body.classList.toggle('building', g.build.active);
-    const orbiting = g.camera.targetZoom <= 0.55 * Math.min(2, window.devicePixelRatio || 1);
+    const orbiting = g.camera.targetZoom <= 0.55 * (g.camera.w / window.innerWidth);
     document.body.classList.toggle('orbiting', orbiting);
     if (this.el.orbitBtn.dataset.mode !== String(orbiting)) {
       this.el.orbitBtn.dataset.mode = String(orbiting);
@@ -370,10 +374,10 @@ export class UI {
     const cs = g.sectors.s[g.planet.layer]?.counters ?? {}, burned = cs.burned ?? 0, shipped = cs.shipped ?? 0;
     const leftT = Math.max(0, (g.planet.target() - g.planet.units[g.planet.layer]) * 2 / 1000);
     const recs = compOf(g.planet.layer).minerals.map(mm => { const r = g.machines.recovery(mm.k); const ok = r === null || r >= RECOVERY_GOAL; return `<span style="color:${r === null ? '#9bb' : ok ? '#7aff8a' : '#ff8a6a'}">${(ITEM[mm.k]?.name ?? mm.k).slice(0, 4)} ${r === null ? '—' : Math.round(r * 100) + '%'}</span>`; }).join(' · ');
-    this.el.lyObj.innerHTML = `<b>DESTRUIR O PLANETA</b> · faltam ${fmtShort(leftT)} t nesta camada<br>🔥 ${fmtShort(burned)} kg queimados · 🚀 ${fmtShort(shipped)} kg na Nave<br>♻ Recuperação: ${recs} <i>(meta ${Math.round(RECOVERY_GOAL * 100)}%)</i>`;
+    this.setCachedHtml('lyObj', `<b>DESTRUIR O PLANETA</b> · faltam ${fmtShort(leftT)} t nesta camada<br>🔥 ${fmtShort(burned)} kg queimados · 🚀 ${fmtShort(shipped)} kg na Nave<br>♻ Recuperação: ${recs} <i>(meta ${Math.round(RECOVERY_GOAL * 100)}%)</i>`);
     this.el.descendBtn.style.display = g.canDescend() && !g.descendBlocked() ? 'block' : 'none';
     const warn = this.bottleneck();
-    this.el.lyWarn.innerHTML = warn ? esc(warn) : '';
+    this.setCachedHtml('lyWarn', warn ? esc(warn) : '');
     this.el.lyWarn.style.display = warn ? 'block' : 'none';
     // o cartão de meta/tutorial fica logo abaixo do cartão da camada (que muda de altura)
     document.body.style.setProperty('--lyH', Math.round(this.el.layerCard.getBoundingClientRect().bottom) + 'px');
@@ -385,11 +389,11 @@ export class UI {
     const mins = compOf(g.planet.layer).minerals.map(x => x.k);
     const tops = [...mins, ...TOP_BAR_ITEMS.filter(k => !mins.includes(k) && g.upHave(k) >= 1).sort((a, b) => g.upHave(b) - g.upHave(a)).slice(0, 1)];
     const yu = g.machines.yardUsed(), yc = g.machines.yardCap();
-    this.el.res.innerHTML = tops.map(k => {
+    this.setCachedHtml('res', tops.map(k => {
       const rt = g.stock.rate(k);
       return `<div class="ri" title="${ITEM[k].name}"><img src="${g.sprites.itemUrl(k)}"><b>${fmtShort(g.upHave(k))}</b>${rt > 1 ? `<em>+${fmtShort(rt)}</em>` : ''}</div>`;
     }).join('') + (yu >= 1 ? `<div class="ri yard ${yu >= yc * 0.9 ? 'bad' : ''}" title="Pátio de resíduo"><img src="${g.sprites.itemUrl('residuo')}"><b>${Math.round(yu / yc * 100)}%</b></div>` : '')
-      + `<div class="ri cr" title="Créditos"><span class="cico">◆</span><b>${fmtShort(g.stock.credits)}</b></div>`;
+      + `<div class="ri cr" title="Créditos"><span class="cico">◆</span><b>${fmtShort(g.stock.credits)}</b></div>`);
     // vitais
     (this.el.hpBar as HTMLElement).style.width = (p.hp / p.maxHp) * 100 + '%';
     this.el.hpTxt.textContent = `${Math.ceil(p.hp)}`;
@@ -409,7 +413,7 @@ export class UI {
     } else this.el.hz.style.display = 'none';
     // hotbar
     const LBL: Record<string, string> = { drill: 'Perfurar', scanner: 'Scanner', explosivo: 'Explosivo', sinalizador: 'Luz', kit_reparo: 'Reparo', medkit: 'Curar', plataforma_kit: 'Plataforma' };
-    this.el.hotbar.innerHTML = g.hotbar.map((s, i) => {
+    this.setCachedHtml('hotbar', g.hotbar.map((s, i) => {
       // no celular a barra mostra só ferramentas e consumíveis; construções ficam no MENU
       if (g.input.touch && (!s || s.type === 'build')) return '';
       if (!s) return `<div class="hs" data-slot="${i}"><em>${(i + 1) % 10}</em></div>`;
@@ -420,7 +424,7 @@ export class UI {
       const title = s.type === 'tool' ? (s.key === 'drill' ? g.mining.drill.name : 'Scanner') : s.type === 'item' ? ITEM[s.key]?.name : MACHINE[s.key]?.name;
       const lbl = LBL[s.key] ?? (s.type === 'build' ? (MACHINE[s.key]?.name.split(' ')[0] ?? '') : '');
       return `<div class="hs ${i === g.selected ? 'sel' : ''}" data-slot="${i}" title="${esc(title ?? '')}">${img}${cnt}<em>${g.input.touch ? '' : (i + 1) % 10}</em><u>${esc(lbl)}</u></div>`;
-    }).join('');
+    }).join(''));
     // meta atual (tutorial, camada ou final)
     this.updateMeta();
     const bad = g.machines.list.filter(m => m.broken || m.buried > 0).length + g.robots.list.filter(r => r.stuck || r.broken).length;
@@ -539,7 +543,7 @@ export class UI {
     // fora do tutorial, o cartão de meta só aparece para avisos (camada esgotada, operação final); o objetivo fixo fica no cartão da camada
     (this.el.meta as HTMLElement).style.display = tut || g.flags.finalReady || g.canDescend() ? '' : 'none';
     this.el.metaTitle.textContent = title;
-    this.el.metaText.innerHTML = text;
+    this.setCachedHtml('metaText', text);
     (this.el.metaBar as HTMLElement).style.width = prog >= 0 ? Math.min(100, prog * 100) + '%' : '0';
     (this.el.metaBar.parentElement as HTMLElement).style.display = prog >= 0 ? 'block' : 'none';
     this.el.meta.classList.toggle('tut', !!tut);
@@ -580,9 +584,9 @@ export class UI {
     const g = this.g, c = this.mctx;
     const W = this.minimap.width, H = this.minimap.height;
     const p = g.player;
-    const ov = g.terrain.overview(performance.now());
     // 1 px do minimapa = 2 células; centrado no jogador
     const sx = p.x / CELL / 2 - W / 2, sy = p.y / CELL / 2 - H / 2;
+    const ov = g.terrain.overview(performance.now(), { x: sx, y: sy, w: W, h: H });
     // céu de verdade no minimapa: azul perto do chão escurecendo até o espaço
     const surfPx = SURFACE_Y / 2 - sy, spacePx = surfPx - 237;
     const sk = c.createLinearGradient(0, spacePx, 0, surfPx);

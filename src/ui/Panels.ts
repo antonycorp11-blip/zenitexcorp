@@ -190,7 +190,7 @@ export class Panels {
     lore: (a) => { this.st.loreSel = a; this.render(); },
     secsel: (a) => { this.st.secSel = Number(a); this.render(); },
     mapTab: (a) => { this.st.mapTab = a; this.render(); },
-    zoom: (a) => { this.g.camera.targetZoom = Number(a) * Math.min(2, window.devicePixelRatio || 1); this.g.flags.userZoom = true; },
+    zoom: (a) => { this.g.camera.targetZoom = Number(a) * (this.g.camera.w / window.innerWidth); this.g.flags.userZoom = true; },
   };
 
   private onClick(e: Event) {

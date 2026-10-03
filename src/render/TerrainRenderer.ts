@@ -24,9 +24,25 @@ const rgb = (c: C3, k = 1, a = 1) => `rgba(${Math.min(255, c[0] * k) | 0},${Math
 export class TerrainRenderer {
   private cache = new Map<number, ChunkRender>();
   private pats = new Map<string, HTMLCanvasElement>();
+  private grainSprites = new Map<number, HTMLCanvasElement[]>();
   frame = 0;
 
   constructor(private world: World, _sprites: Sprites) {}
+
+  private grainSprite(m: number, shade: number, glint: boolean): HTMLCanvasElement {
+    let variants = this.grainSprites.get(m);
+    if (!variants) { variants = []; this.grainSprites.set(m, variants); }
+    const index = shade * 2 + Number(glint);
+    if (variants[index]) return variants[index];
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 8;
+    const ctx = canvas.getContext('2d')!;
+    const c = MATERIALS[m].top, k = 0.82 + (shade + 0.5) / 8 * 0.36;
+    ctx.fillStyle = rgb(c, k * 0.7); ctx.beginPath(); ctx.arc(4, 4.4, RES * 0.62, 0, 7); ctx.fill();
+    ctx.fillStyle = rgb(c, k); ctx.beginPath(); ctx.arc(3.8, 3.8, RES * 0.5, 0, 7); ctx.fill();
+    if (glint) { ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.arc(4 - RES * 0.18, 4 - RES * 0.2, RES * 0.16, 0, 7); ctx.fill(); }
+    variants[index] = canvas;
+    return canvas;
+  }
 
   invalidate(k: number) { const c = this.cache.get(k); if (c) c.used = -1; }
 
@@ -242,17 +258,14 @@ export class TerrainRenderer {
     for (let ly = y0; ly < y1; ly++) for (let lx = x0; lx < x1; lx++) {
       const m = at(lx, ly); if (!IS_LOOSE[m]) continue;
       const X = ox + lx, Y = oy + ly;
-      const def = MATERIALS[m], h = hash2(X, Y, 5);
-      const px = (lx + 0.5) * RES, py = (ly + 0.5) * RES;
+      const h = hash2(X, Y, 5);
       if (m === GRAIN.bloco_massa) {
         ctx.fillStyle = '#6e5c4a'; ctx.fillRect(lx * RES, ly * RES, RES, RES);
         ctx.fillStyle = '#a88e70'; ctx.fillRect(lx * RES + 0.6, ly * RES + 0.6, RES - 1.4, RES - 1.4);
         continue;
       }
-      const k = 0.82 + h * 0.36;
-      ctx.fillStyle = rgb(def.top, k * 0.7); ctx.beginPath(); ctx.arc(px, py + 0.4, RES * 0.62, 0, 7); ctx.fill();
-      ctx.fillStyle = rgb(def.top, k); ctx.beginPath(); ctx.arc(px - 0.2, py - 0.2, RES * 0.5, 0, 7); ctx.fill();
-      if (def.glow || h > 0.85 || w.aux[Y * WORLD_W + X] > 70) { ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.arc(px - RES * 0.18, py - RES * 0.2, RES * 0.16, 0, 7); ctx.fill(); }
+      const glint = !!MATERIALS[m].glow || h > 0.85 || w.aux[Y * WORLD_W + X] > 70;
+      ctx.drawImage(this.grainSprite(m, Math.min(7, (h * 8) | 0), glint), lx * RES - 2, ly * RES - 2);
     }
     ctx.restore();
   }
@@ -268,25 +281,46 @@ export class TerrainRenderer {
     ctx.restore();
   }
 
-  /** Visão geral do corte da camada (1 px a cada 2 células), refeita no máximo a cada 1,5 s. */
-  private ov: HTMLCanvasElement | null = null; private ovT = -1e9;
-  overview(now: number): HTMLCanvasElement {
-    const S = 2, W = WORLD_W / S, H = WORLD_H / S;
-    if (this.ov && now - this.ovT < 1500) return this.ov;
-    this.ovT = now;
-    const c = this.ov ?? document.createElement('canvas');
-    c.width = W; c.height = H;
-    const ctx = c.getContext('2d')!, img = ctx.createImageData(W, H), d = img.data;
-    const gen = this.world.gen, mat = this.world.mat, sky = SECTORS[gen.layer - 1].floor;
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const m = mat[(y * S) * WORLD_W + x * S], o = (y * W + x) * 4;
-      let r = 0, g = 0, b = 0;
-      if (m === MAT.AIR) { const alt = gen.surfaceAt(x * S) - y * S; if (alt > 0) { const k = Math.min(1, alt / 520); r = 110 * (1 - k) + 4 * k; g = 165 * (1 - k) + 8 * k; b = 220 * (1 - k) + 22 * k; } else { r = sky[0] * 0.3; g = sky[1] * 0.3; b = sky[2] * 0.3; } }
-      else { const t = MATERIALS[m].top; r = t[0]; g = t[1]; b = t[2]; if (IS_SOLID[m] && MATERIALS[m].kind === 'rock') { r *= 0.8; g *= 0.8; b *= 0.8; } }
-      d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = 255;
+  /** Imagem do planeta amostrada por chunk; o minimapa atualiza só a região visível. */
+  private ov: HTMLCanvasElement | null = null;
+  private ovImg: ImageData | null = null;
+  overview(_now: number, region?: { x: number; y: number; w: number; h: number }): HTMLCanvasElement {
+    const S = 2, tile = CHUNK / S;
+    if (!this.ov) {
+      this.ov = document.createElement('canvas');
+      this.ov.width = WORLD_W / S; this.ov.height = WORLD_H / S;
+      this.ovImg = this.ov.getContext('2d')!.createImageData(tile, tile);
     }
-    ctx.putImageData(img, 0, 0);
-    this.ov = c;
-    return c;
+    const ctx = this.ov.getContext('2d')!, img = this.ovImg!, d = img.data;
+    const x0 = region ? Math.max(0, Math.floor(region.x / tile)) : 0;
+    const y0 = region ? Math.max(0, Math.floor(region.y / tile)) : 0;
+    const x1 = region ? Math.min(WORLD_CW, Math.ceil((region.x + region.w) / tile)) : WORLD_CW;
+    const y1 = region ? Math.min(WORLD_CH, Math.ceil((region.y + region.h) / tile)) : WORLD_CH;
+    const gen = this.world.gen, mat = this.world.mat, sky = SECTORS[gen.layer - 1].floor;
+    for (let cy = y0; cy < y1; cy++) for (let cx = x0; cx < x1; cx++) {
+      const index = cy * WORLD_CW + cx;
+      if (!this.world.overviewDirty[index]) continue;
+      for (let lx = 0; lx < tile; lx++) {
+        const wx = cx * CHUNK + lx * S, surface = gen.surfaceAt(wx);
+        for (let ly = 0; ly < tile; ly++) {
+          const wy = cy * CHUNK + ly * S;
+          const m = mat[wy * WORLD_W + wx], o = (ly * tile + lx) * 4;
+          let r = 0, g = 0, b = 0;
+          if (m === MAT.AIR) {
+            const alt = surface - wy;
+            if (alt > 0) { const k = Math.min(1, alt / 520); r = 110 * (1 - k) + 4 * k; g = 165 * (1 - k) + 8 * k; b = 220 * (1 - k) + 22 * k; }
+            else { r = sky[0] * 0.3; g = sky[1] * 0.3; b = sky[2] * 0.3; }
+          } else {
+            const def = MATERIALS[m], t = def.top;
+            r = t[0]; g = t[1]; b = t[2];
+            if (IS_SOLID[m] && def.kind === 'rock') { r *= 0.8; g *= 0.8; b *= 0.8; }
+          }
+          d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = 255;
+        }
+      }
+      ctx.putImageData(img, cx * tile, cy * tile);
+      this.world.overviewDirty[index] = 0;
+    }
+    return this.ov;
   }
 }

@@ -22,6 +22,9 @@ export class Renderer {
   private time = 0;
   private orbitCache: { canvas: HTMLCanvasElement; time: number; layer: number } | null = null;
   private dtR = 0.016; private walkPh = 0; private stride = 0; private lean = 0; private armA = 0;
+  private resolutionScale = 1;
+  private actualDpr = 0;
+  private qualityTime = 0; private qualityFrames = 0; private qualityBusy = 0; private qualityGap = 0;
   prof: Record<string, number> = {};
   private pt = 0;
   private mark(k: string) { const n = performance.now(); this.prof[k] = (this.prof[k] ?? 0) * 0.9 + (n - this.pt) * 0.1; this.pt = n; }
@@ -34,17 +37,39 @@ export class Renderer {
     this.ctx = canvas.getContext('2d', { alpha: false })!;
     this.fog = document.createElement('canvas');
     this.fctx = this.fog.getContext('2d')!;
+    const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+    if ((memory && memory <= 4) || navigator.hardwareConcurrency <= 4) this.resolutionScale = window.devicePixelRatio > 1 ? 0.85 : 1;
   }
 
   resize() {
-    const dpr = Math.min(2, window.devicePixelRatio || 1); // HD: resolução real da tela
+    const dpr = Math.min(2, window.devicePixelRatio || 1) * this.resolutionScale;
+    const oldDpr = this.actualDpr;
+    this.actualDpr = dpr;
     const w = window.innerWidth, h = window.innerHeight;
     this.canvas.width = Math.floor(w * dpr); this.canvas.height = Math.floor(h * dpr);
     this.canvas.style.width = w + 'px'; this.canvas.style.height = h + 'px';
     this.g.camera.w = this.canvas.width; this.g.camera.h = this.canvas.height;
+    this.g.lighting.scale = this.resolutionScale < 0.85 ? 0.4 : this.resolutionScale < 1 ? 0.45 : 0.5;
     this.g.lighting.resize(this.canvas.width, this.canvas.height);
     const z = Math.max(1.8, Math.min(3, h / 200)) * dpr;   // vista lateral: perto o bastante para ver os grãos
     if (!this.g.flags.userZoom) { this.g.camera.targetZoom = z; this.g.camera.zoom = z; }
+    else if (oldDpr && oldDpr !== dpr) { this.g.camera.zoom *= dpr / oldDpr; this.g.camera.targetZoom *= dpr / oldDpr; }
+  }
+
+  /** Reduz pixels processados só após lentidão persistente; recupera nitidez quando sobra tempo. */
+  recordFrame(gap: number, busyMs: number) {
+    if (document.hidden || this.g.offline || gap <= 0 || gap > 5) return;
+    const frameGap = Math.min(gap, 0.25);
+    this.qualityTime += frameGap;
+    this.qualityGap += frameGap;
+    this.qualityBusy += busyMs;
+    this.qualityFrames++;
+    if (this.qualityTime < (this.resolutionScale < 1 ? 6 : 3)) return;
+    const avgGap = this.qualityGap / this.qualityFrames, avgBusy = this.qualityBusy / this.qualityFrames;
+    this.qualityTime = this.qualityGap = this.qualityBusy = this.qualityFrames = 0;
+    const next = avgGap > 0.038 || avgBusy > 24 ? (this.resolutionScale === 1 ? 0.85 : 0.7)
+      : avgGap < 0.021 && avgBusy < 12 ? (this.resolutionScale === 0.7 ? 0.85 : 1) : this.resolutionScale;
+    if (next !== this.resolutionScale) { this.resolutionScale = next; this.resize(); }
   }
 
   draw(dt: number) {
@@ -52,7 +77,7 @@ export class Renderer {
     this.time += dt; this.dtR = Math.min(0.05, dt);
     g.terrain.frame++;
     const W = this.canvas.width, H = this.canvas.height;
-    if (cam.targetZoom <= 0.55 * Math.min(2, window.devicePixelRatio || 1)) { this.drawOrbit(W, H); return; }
+    if (cam.targetZoom <= 0.55 * this.actualDpr) { this.drawOrbit(W, H); return; }
     const z = cam.zoom;
     const L = Math.round(cam.left() * z) / z, T = Math.round(cam.top() * z) / z;
     const R = L + W / z, B = T + H / z;

@@ -128,11 +128,14 @@ function start(opts: GameOptions, save: any) {
   const frame = (now: number) => {
     requestAnimationFrame(frame);
     if (document.hidden) { last = now; return; }
-    const dt = Math.min(0.1, (now - last) / 1000);
+    const gap = (now - last) / 1000;
+    const dt = Math.min(0.1, gap);
     last = now;
+    const started = performance.now();
     safe(() => g.update(dt), 'update');
     safe(() => g.renderer.draw(dt), 'draw');
     safe(() => g.ui.update(dt), 'ui');
+    safe(() => g.renderer.recordFrame(gap, performance.now() - started), 'quality');
   };
   requestAnimationFrame(frame);
 }
