@@ -991,3 +991,10 @@ body.touch .hud .geocard { left: 50% !important; right: auto !important; top: 46
 .ft-detail { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 8px; margin-top: 4px; border-top: 1px solid #24465c; }
 .ft-detail > div:first-child { display: flex; flex-direction: column; gap: 2px; min-width: 200px; flex: 1; }
 .ft-detail small { color: #9bc; font-size: 11px; } .ft-detail .ft-req { color: #ffd04a; } .ft-val { font-size: 13px; } .ft-val em { color: #7aff8a; font-style: normal; font-weight: 800; }
+
+.offline-progress { position: fixed; right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); z-index: 45; width: min(280px, calc(100vw - 24px)); padding: 9px 12px; border: 1px solid #5b9faf; border-radius: 10px; background: rgba(5,20,30,.96); box-shadow: 0 4px 24px #0009, 0 0 15px #4dcfff33; color: #dff8ff; display: grid; gap: 4px; pointer-events: none; font-size: 11px; }
+.offline-progress b { color: #93ebff; font-size: 10px; letter-spacing: .08em; }
+.offline-progress small { color: #a7c7ce; font-size: 10px; }
+.offline-progress > div { height: 5px; background: #263947; border-radius: 5px; overflow: hidden; }
+.offline-progress i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg,#2c91b9,#9cebc6); }
+body.touch .offline-progress { top: calc(130px + env(safe-area-inset-top)); bottom: auto; width: min(214px, calc(100vw - 24px)); }

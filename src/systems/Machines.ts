@@ -1025,7 +1025,14 @@ export class Machines {
         this.tubeVacuum(t);
         if (!t.q?.length) continue;
         const rate = t.key === 'tubo_gigante' ? 3 : t.key === 'reforcador' ? 2 : 1;
-        for (let r = 0; r < rate && t.q.length; r++) if (!this.tubeStep(t, tick)) break;
+        for (let r = 0; r < rate && t.q.length; r++) {
+          if (!this.tubeStep(t, tick)) break;
+          if (!this.g.offline) {
+            const [px, py] = this.centerPx(t);
+            const dx = nearestX(px, this.g.player.x) - this.g.player.x;
+            this.g.audio.tubePass(Math.hypot(dx, py - this.g.player.y));
+          }
+        }
       }
     }
     for (const t of this.list) if (t.def.behavior === 'tube') t.fin = Math.max(0, t.fin - dt * 1.5);

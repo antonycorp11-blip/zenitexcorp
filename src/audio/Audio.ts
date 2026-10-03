@@ -8,11 +8,12 @@ export class Audio {
   ctx: AudioContext | null = null;
   master!: GainNode; sfx!: GainNode; music!: GainNode;
   private noiseBuf!: AudioBuffer;
-  private drill: { osc: OscillatorNode; n: AudioBufferSourceNode; g: GainNode; f: BiquadFilterNode } | null = null;
+  private drill: { osc: OscillatorNode; laser: OscillatorNode; n: AudioBufferSourceNode; g: GainNode; f: BiquadFilterNode } | null = null;
   private hum: { g: GainNode; o: OscillatorNode } | null = null;
-  volume = { master: 0.8, sfx: 0.9, music: 0.55 };
+  volume = { master: 0.8, sfx: 0.9, music: 0.32 };
   mood: Mood = 'calmo';
   private musicT = 0; private chordI = 0; private duck = 0;
+  private lastGrain = 0; private lastTube = 0;
 
   init() {
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
@@ -39,7 +40,7 @@ export class Audio {
     if (!this.ctx) return;
     this.master.gain.value = this.volume.master;
     this.sfx.gain.value = this.volume.sfx;
-    this.music.gain.value = this.volume.music * 0.35;
+    this.music.gain.value = this.volume.music * 0.22;
   }
 
   private env(g: GainNode, a: number, peak: number, d: number) {
@@ -89,19 +90,45 @@ export class Audio {
     const c = this.ctx; if (!c) return;
     if (on && !this.drill) {
       const osc = c.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 85;
+      const laser = c.createOscillator(); laser.type = 'triangle'; laser.frequency.value = 520;
       const n = c.createBufferSource(); n.buffer = this.noiseBuf; n.loop = true;
-      const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = 0.7;
+      const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1250; f.Q.value = 1.4;
       const g = c.createGain(); g.gain.value = 0;
-      osc.connect(f); n.connect(f); f.connect(g); g.connect(this.sfx);
-      osc.start(); n.start();
-      g.gain.linearRampToValueAtTime(0.07 * intensity, c.currentTime + 0.08);
-      this.drill = { osc, n, g, f };
+      const lg = c.createGain(); lg.gain.value = 0.18;
+      osc.connect(f); n.connect(f); f.connect(g); laser.connect(lg); lg.connect(g); g.connect(this.sfx);
+      osc.start(); laser.start(); n.start();
+      g.gain.linearRampToValueAtTime(0.048 * intensity, c.currentTime + 0.06);
+      this.drill = { osc, laser, n, g, f };
     } else if (!on && this.drill) {
       const d = this.drill; this.drill = null;
-      d.g.gain.linearRampToValueAtTime(0, c.currentTime + 0.1);
-      d.osc.stop(c.currentTime + 0.15); d.n.stop(c.currentTime + 0.15);
+      d.g.gain.linearRampToValueAtTime(0, c.currentTime + 0.12);
+      d.osc.stop(c.currentTime + 0.16); d.laser.stop(c.currentTime + 0.16); d.n.stop(c.currentTime + 0.16);
     }
-    if (this.drill) { this.drill.osc.frequency.value = 80 + Math.random() * 12; this.drill.f.frequency.value = 700 + Math.random() * 500; }
+    if (this.drill) {
+      this.drill.osc.frequency.setTargetAtTime(85 + Math.random() * 10, c.currentTime, 0.04);
+      this.drill.laser.frequency.setTargetAtTime(480 + Math.random() * 190, c.currentTime, 0.035);
+      this.drill.f.frequency.setTargetAtTime(1050 + Math.random() * 500, c.currentTime, 0.04);
+    }
+  }
+
+  /** Batidas granuladas das pilhas próximas; limita vozes quando muitos grãos caem juntos. */
+  grainFall(moving: number) {
+    const c = this.ctx;
+    if (!c || c.state !== 'running' || moving < 3 || c.currentTime - this.lastGrain < 0.18) return;
+    this.lastGrain = c.currentTime;
+    const strength = Math.min(1, Math.sqrt(moving) / 13);
+    this.noise(0.09, 'lowpass', 480 + Math.random() * 380, 0.8, 0.05 * strength);
+    this.noise(0.035, 'bandpass', 1300 + Math.random() * 800, 0.8, 0.022 * strength);
+  }
+
+  /** Estalo e sopro curto quando um grão cruza o tubo perto do jogador. */
+  tubePass(distance: number) {
+    const c = this.ctx;
+    if (!c || c.state !== 'running' || distance > 280 || c.currentTime - this.lastTube < 0.11) return;
+    this.lastTube = c.currentTime;
+    const v = (1 - distance / 280) * 0.06;
+    this.noise(0.055, 'bandpass', 1100 + Math.random() * 500, 1.8, v);
+    this.tone(390 + Math.random() * 170, 0.08, 'sine', v * 0.5);
   }
 
   machinesHum(level: number) { if (this.hum && this.ctx) this.hum.g.gain.setTargetAtTime(Math.min(0.06, level * 0.004), this.ctx.currentTime, 0.5); }
@@ -136,7 +163,7 @@ export class Audio {
     this.mood = mood;
     this.duck = Math.max(0, this.duck - dt);
     const target = silent || this.duck > 0 ? 0.15 : 1;
-    this.music.gain.setTargetAtTime(this.volume.music * 0.35 * target, c.currentTime, 0.8);
+    this.music.gain.setTargetAtTime(this.volume.music * 0.22 * target, c.currentTime, 0.8);
     this.musicT -= dt;
     if (this.musicT > 0) return;
     const prog: Record<Mood, number[][]> = {
@@ -169,6 +196,13 @@ export class Audio {
     }
     if (mood === 'industrial' || mood === 'tenso') {
       for (let i = 0; i < dur * 2; i++) this.tone(root[mood] / 2, 0.15, 'square', 0.03, i * 0.5, this.music);
+    }
+    // Motivo espaçado sobre os acordes, audível como trilha mesmo em áreas sem máquinas.
+    if (mood !== 'tenso' && mood !== 'nucleo') {
+      for (let i = 0; i < 4; i++) {
+        const semi = ch[(i * 3 + this.chordI) % ch.length] + 24;
+        this.tone(root[mood] * Math.pow(2, semi / 12), 0.8, 'sine', 0.022, 0.6 + i * dur / 5, this.music);
+      }
     }
   }
 }

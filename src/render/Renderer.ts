@@ -244,7 +244,7 @@ export class Renderer {
       if (left) ctx.scale(-1, 1);
       ctx.translate(-8, 0);
       ctx.imageSmoothingEnabled = true;
-      const bob = paintPlayer(ctx, { phase: this.walkPh, stride: this.stride, jet: p.jet > 0, flying, lean: this.lean, suitTier: p.suit.termico ?? 0, t: this.time });
+      const bob = paintPlayer(ctx, { phase: this.walkPh, stride: this.stride, jet: p.jet > 0, jetDX: p.jetDX * (left ? -1 : 1), jetDY: p.jetDY, jetPower: p.jetPower, flying, lean: this.lean, suitTier: p.suit.termico ?? 0, t: this.time });
       ctx.restore();
       // braço: mira no alvo (laser / soprar / joystick direito); parado, fica abaixado e balança com o passo
       const sx = p.x + (left ? -1.5 : 1.5), sy = p.y - 12.6 - bob;
@@ -266,7 +266,7 @@ export class Renderer {
       ctx.beginPath(); ctx.arc(sx, sy, 2.1, 0, 7); ctx.fill(); ctx.stroke();
       ctx.fillStyle = '#ec9628'; ctx.beginPath(); ctx.arc(sx, sy, 0.8, 0, 7); ctx.fill();
       ctx.imageSmoothingEnabled = true;
-      if (p.jet > 0) { if (Math.random() < 0.5) g.fx.ember(p.x + (p.facing === 2 ? 5 : -5), p.y - 3, [130, 220, 255]); g.lighting.add(p.x, p.y - 2, 30, [120, 210, 255], 0.75); }
+      if (p.jet > 0) g.lighting.add(p.x + (left ? 5 : -5), p.y - 5, 24 + p.jetPower * 16, [120, 210, 255], 0.55 + p.jetPower * 0.35);
     }) });
     objs.sort((a, b) => a.y - b.y);
     for (const o of objs) o.draw();

@@ -49,6 +49,13 @@ export class Particles {
   ember(x: number, y: number, c: C3) {
     this.add({ x, y, vx: (Math.random() - 0.5) * 8, vy: -8 - Math.random() * 14, life: 0, max: 1.5 + Math.random() * 1.5, size: 1, c, g: -3, glow: true });
   }
+  jetExhaust(x: number, y: number, dx: number, dy: number, power: number) {
+    const spread = (Math.random() - 0.5) * 0.55;
+    const speed = (30 + Math.random() * 42) * (0.6 + power);
+    this.add({ x: x + (Math.random() - 0.5) * 3, y, vx: (dx + spread) * speed, vy: (dy + spread) * speed,
+      life: 0, max: 0.22 + Math.random() * 0.22, size: 1 + Math.random() * 1.4,
+      c: Math.random() < 0.3 ? [255, 225, 165] : [35, 130, 245], g: 15, glow: true });
+  }
   flashScreen(c: C3, a: number) { this.screenFlash = { c, a }; }
 
   /** Agrupa coletas próximas num único número "+12 Lumenita". */

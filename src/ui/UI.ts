@@ -17,6 +17,7 @@ import { Minigames } from './Minigames';
 import { Cinematics } from './Cinematics';
 import { esc, h } from './dom';
 import { Tutorial } from './Tutorial';
+import type { OfflineProgress } from '../systems/Offline';
 
 const PCT = (f: number) => {
   const p = f * 100;
@@ -35,6 +36,7 @@ export class UI {
   private mctx: CanvasRenderingContext2D;
   private sloganI = 0; private sloganT = 0;
   private hudT = 0;
+  private offlineEl: HTMLElement | null = null;
   private discoveryEl: HTMLElement | null = null;
   menuOpen = false;
   collapsed = false;
@@ -172,6 +174,30 @@ export class UI {
 
   get modal() { return this.el.modal; }
   get cineLayer() { return this.el.cine; }
+
+  showOffline(progress: OfflineProgress) {
+    if (!this.offlineEl) {
+      this.offlineEl = document.createElement('div');
+      this.offlineEl.className = 'offline-progress';
+      this.offlineEl.innerHTML = '<b>⛏ FÁBRICA TRABALHANDO</b><span></span><div><i></i></div><small></small>';
+      this.root.appendChild(this.offlineEl);
+    }
+    this.updateOffline(progress);
+  }
+
+  updateOffline(progress: OfflineProgress) {
+    if (!this.offlineEl) return;
+    const done = progress.total - progress.remaining;
+    this.offlineEl.querySelector('span')!.textContent = `${fmtTime(done)} / ${fmtTime(progress.total)} de produção offline`;
+    (this.offlineEl.querySelector('i') as HTMLElement).style.width = `${Math.min(100, done / progress.total * 100)}%`;
+    this.offlineEl.querySelector('small')!.textContent = `${fmtInt(progress.loose)} grãos soltos restantes · +${fmtInt(progress.gainedUnits())} unidades extraídas`;
+  }
+
+  finishOffline(progress: OfflineProgress) {
+    this.offlineEl?.remove();
+    this.offlineEl = null;
+    this.g.toast(`Fábrica offline: ${fmtTime(progress.elapsed)} · +${fmtInt(progress.gainedUnits())} unidades extraídas`, '#9cebb9');
+  }
 
   private hideQuickBuild() {
     this.el.quickBuild.classList.remove('show');

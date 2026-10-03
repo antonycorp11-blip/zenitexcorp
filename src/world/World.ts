@@ -41,6 +41,15 @@ export class World {
   onFed: ((machineId: number, mat: number) => void) | null = null;
   private quiet = false;
   moving = 0;           // grãos que se moveram no último passo (telemetria)
+  private motion = new Uint16Array(WORLD_CW * WORLD_CH);
+
+  motionNear(px: number, py: number): number {
+    const cx = Math.floor(px / (CELL * CHUNK)), cy = Math.floor(py / (CELL * CHUNK));
+    let n = 0;
+    for (let y = Math.max(0, cy - 2); y <= Math.min(WORLD_CH - 1, cy + 2); y++)
+      for (let x = -2; x <= 2; x++) n += this.motion[y * WORLD_CW + wrapX(cx + x, WORLD_CW)];
+    return n;
+  }
 
   constructor(seed: number, layer = 1) {
     this.gen = new WorldGen(seed, layer);
@@ -113,6 +122,7 @@ export class World {
     const T = this.tick;
     const mat = this.mat, aux = this.aux, st = this.stamp;
     this.nextActive.fill(0);
+    this.motion.fill(0);
     let moved = 0;
     const flip = T & 1;
     for (let cy = WORLD_CH - 1; cy >= 0; cy--) {
@@ -133,14 +143,19 @@ export class World {
             const below = i + WORLD_W;
             if (this.canEnter(below, m, x, y + 1)) to = below;
             else if (loose !== 2) {
-              const d = (Math.random() < 0.5) ? 1 : -1;
+              // Alterna a preferência por direção sem sorteios por célula: pilhas não tremem aleatoriamente.
+              const d = ((x * 17 + y * 31 + T) & 1) ? 1 : -1;
               const a = wrapX(x + d, WORLD_W), b = wrapX(x - d, WORLD_W);
               if (this.canEnter((y + 1) * WORLD_W + a, m, a, y + 1) && this.free(y * WORLD_W + a)) to = (y + 1) * WORLD_W + a;
               else if (this.canEnter((y + 1) * WORLD_W + b, m, b, y + 1) && this.free(y * WORLD_W + b)) to = (y + 1) * WORLD_W + b;
               else if (liq) {
-                // líquido só escorre de lado se houver um degrau para descer por perto (assim as poças assentam)
-                const fl = this.flowDir(x, y, d) || this.flowDir(x, y, -d);
+                // Líquido procura uma queda; sem ela, se espalha para nivelar a poça.
+                const fl = this.flowDir(x, y, d) || this.flowDir(x, y, -d) || this.levelDir(x, y, d);
                 if (fl) to = y * WORLD_W + wrapX(x + fl, WORLD_W);
+              } else if (loose === 1) {
+                // Um grão apoiado rola até uma borda a até 2 células, formando avalanches curtas.
+                const roll = this.rollDir(x, y, d) || this.rollDir(x, y, -d);
+                if (roll) to = y * WORLD_W + wrapX(x + roll, WORLD_W);
               }
             }
             if (to < 0) {
@@ -155,6 +170,7 @@ export class World {
             const tm = mat[to], ta = aux[to];
             mat[to] = m; aux[to] = aux[i]; mat[i] = tm; aux[i] = ta;
             st[to] = T; st[i] = T;
+            if (loose && !this.quiet) this.motion[cy * WORLD_CW + cx]++;
             this.dmg[i] = 0;
             const tx = to % WORLD_W, ty = (to / WORLD_W) | 0;
             if (this.quiet) { this.nextActive[((ty / CHUNK) | 0) * WORLD_CW + ((tx / CHUNK) | 0)] = 1; if (cy > 0) this.nextActive[(cy - 1) * WORLD_CW + cx] = 1; }
@@ -221,6 +237,31 @@ export class World {
       if (this.mat[j + WORLD_W] === MAT.AIR) return d;
     }
     return 0;
+  }
+  /** Faz a pilha escoar por uma borda próxima sem deslizar sobre um piso plano infinito. */
+  private rollDir(x: number, y: number, d: number): number {
+    for (let k = 1; k <= 2; k++) {
+      const wx = wrapX(x + d * k, WORLD_W), i = y * WORLD_W + wx;
+      if (this.mat[i] !== MAT.AIR || this.occ[(y >> TS) * WORLD_TW + (wx >> TS)]) return 0;
+      if (this.mat[i + WORLD_W] === MAT.AIR && !this.occ[((y + 1) >> TS) * WORLD_TW + (wx >> TS)]) return d;
+    }
+    return 0;
+  }
+  /** Compara o espaço disponível à esquerda e à direita para o líquido nivelar uma poça. */
+  private levelDir(x: number, y: number, preferred: number): number {
+    // Sem pressão de outra célula por cima, a borda da poça deve repousar.
+    if (y <= 0 || !IS_LIQUID[this.mat[(y - 1) * WORLD_W + x]]) return 0;
+    const room = (d: number) => {
+      let n = 0;
+      for (let k = 1; k <= 4; k++) {
+        const wx = wrapX(x + d * k, WORLD_W);
+        if (this.mat[y * WORLD_W + wx] !== MAT.AIR || this.occ[(y >> TS) * WORLD_TW + (wx >> TS)]) break;
+        n++;
+      }
+      return n;
+    };
+    const left = room(-1), right = room(1);
+    return right > left ? 1 : left > right ? -1 : left ? preferred : 0;
   }
   private free(i: number) { const m = this.mat[i]; return m === MAT.AIR || IS_LIQUID[m] === 1; }
   /** pode entrar na célula i? (vazia, ou líquido para um grão afundar) */

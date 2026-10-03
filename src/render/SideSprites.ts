@@ -643,7 +643,7 @@ export function drawPlayer(frame: number, suitTier: number, jet: boolean): HTMLC
   return c;
 }
 
-export interface PlayerPose { phase: number; stride: number; jet: boolean; flying: boolean; lean: number; suitTier: number; t: number; }
+export interface PlayerPose { phase: number; stride: number; jet: boolean; jetDX: number; jetDY: number; jetPower: number; flying: boolean; lean: number; suitTier: number; t: number; }
 /**
  * Personagem desenhado a cada quadro (sem quadros fixos): traje de compósito branco/grafite com detalhes laranja,
  * capacete com visor emissivo, jetpack de plasma. Coordenadas lógicas: caixa 16×22 com os pés em (8,22). Olhando para +x.
@@ -657,11 +657,18 @@ export function paintPlayer(x: CanvasRenderingContext2D, o: PlayerPose) {
   x.save();
   x.translate(8, 22); x.rotate(o.lean); x.translate(-8, -22 - bob);
   // chamas de plasma do jetpack (duas tubeiras)
-  if (o.jet) for (const tx of [1.6, 3.8]) {
-    const len = 5 + Math.random() * 3;
-    const g = x.createLinearGradient(0, 15.5, 0, 15.5 + len);
-    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.3, 'rgba(140,230,255,0.95)'); g.addColorStop(1, 'rgba(120,90,255,0)');
-    x.fillStyle = g; x.beginPath(); x.moveTo(tx - 1, 15.5); x.quadraticCurveTo(tx, 15.5 + len * 1.3, tx + 1, 15.5); x.closePath(); x.fill();
+  if (o.jet) for (const [i, tx] of [1.6, 3.8].entries()) {
+    const len = (5 + o.jetPower * 10) * (0.88 + 0.12 * Math.sin(o.t * 48 + i * 2));
+    const bx = tx, by = 15.5, tipX = bx + o.jetDX * len, tipY = by + o.jetDY * len;
+    const g = x.createLinearGradient(bx, by, tipX, tipY);
+    g.addColorStop(0, 'rgba(255,246,210,1)'); g.addColorStop(0.2, 'rgba(255,255,255,1)'); g.addColorStop(0.65, 'rgba(15,135,245,0.95)'); g.addColorStop(1, 'rgba(20,72,235,0)');
+    x.save();
+    x.shadowColor = '#297dff'; x.shadowBlur = 8;
+    x.fillStyle = g; x.beginPath(); x.moveTo(bx - o.jetDY * 1.2, by + o.jetDX * 1.2);
+    x.quadraticCurveTo(bx + o.jetDX * len * 0.6 - o.jetDY * 1.5, by + o.jetDY * len * 0.6 + o.jetDX * 1.5, tipX, tipY);
+    x.quadraticCurveTo(bx + o.jetDX * len * 0.6 + o.jetDY * 1.5, by + o.jetDY * len * 0.6 - o.jetDX * 1.5, bx + o.jetDY * 1.2, by - o.jetDX * 1.2);
+    x.closePath(); x.fill();
+    x.shadowBlur = 0; x.strokeStyle = 'rgba(18,106,215,0.52)'; x.lineWidth = 0.8; x.stroke(); x.restore();
   }
   // jetpack: casco grafite com tubeiras e luz
   fill(() => x.roundRect(0.4, 7.2, 5, 8.6, 1.6), vg(7.2, 8.6, dark));

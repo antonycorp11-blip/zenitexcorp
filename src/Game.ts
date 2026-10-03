@@ -29,6 +29,7 @@ import { Blueprint } from './systems/Blueprint';
 import { Mining } from './systems/Mining';
 import { Hazards } from './systems/Hazards';
 import { Stats } from './systems/Stats';
+import { OfflineProgress } from './systems/Offline';
 import { saveSlot, packBytes, unpackBytes } from './systems/Save';
 import { cloudSave } from './core/athg';
 import { MACHINE, nextDir } from './data/machines';
@@ -96,6 +97,17 @@ export class Game {
   private acc = 0;
   private saveT = 0;
   private lastSectorMusic = 1;
+  offline: OfflineProgress | null = null;
+
+  beginOffline(savedAt: number, backlog = 0) {
+    const away = Number.isFinite(savedAt) ? Math.max(0, Math.floor((Date.now() - savedAt) / 1000)) : 0;
+    const seconds = Math.max(0, Number(backlog) || 0) + away;
+    if (seconds < 5) return;
+    if (this.offline) this.offline.addSeconds(seconds);
+    else this.offline = new OfflineProgress(this, seconds);
+    if (this.audio.ctx) this.audio.master.gain.value = 0;
+    this.ui?.showOffline(this.offline);
+  }
 
   constructor(canvas: HTMLCanvasElement, opts: GameOptions) {
     this.opts = opts;
@@ -336,6 +348,17 @@ export class Game {
 
   // ------------------------------------------------------------------
   update(dt: number) {
+    if (this.offline) {
+      const progress = this.offline;
+      if (progress.advance()) {
+        this.offline = null;
+        this.audio.applyVolume();
+        this.ui?.finishOffline(progress);
+        this.save();
+      } else this.ui?.updateOffline(progress);
+      this.input.endFrame();
+      return;
+    }
     if (this.paused) {
       if (this.input.pressed('Escape')) this.ui.closeTop();
       this.input.endFrame();
@@ -889,6 +912,7 @@ export class Game {
     const a = this.audio;
     a.setDrilling(this.mining.hitting, 1);
     const p = this.player;
+    a.grainFall(this.world.motionNear(p.x, p.y));
     let near = 0;
     for (const m of this.machines.list) if (m.working && Math.abs(nearestX(m.tx * TILE, p.x) - p.x) < 300 && Math.abs(m.ty * TILE - p.y) < 300) near++;
     a.machinesHum(near);
@@ -903,7 +927,7 @@ export class Game {
   // ---------------- save ----------------
   serialize() {
     return {
-      v: 5, savedAt: Date.now(), opts: this.opts, time: this.time, flags: this.flags, selected: this.selected, hotbar: this.hotbar,
+      v: 5, savedAt: Date.now(), offlineRemaining: this.offline?.remaining ?? 0, opts: this.opts, time: this.time, flags: this.flags, selected: this.selected, hotbar: this.hotbar,
       chunks: this.world.serializeChunks(), explored: packBytes(this.world.explored),
       regrow: this.world.regrowQueue,
       player: this.player.serialize(), pack: { items: this.pack.items, level: this.pack.level, g: this.pack.g },

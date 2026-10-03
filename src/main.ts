@@ -77,6 +77,7 @@ function start(opts: GameOptions, save: any) {
   }
   if (save) {
     g.load(save);
+    g.beginOffline(save.savedAt, save.offlineRemaining);
     g.flags.intro = false;
     g.dialogue.line('zena', 'Bem-vindo de volta. O planeta esperou por você. Ele não tinha escolha.');
     g.flags.briefed = true;
@@ -100,7 +101,6 @@ function start(opts: GameOptions, save: any) {
     if (DEV && new URLSearchParams(location.search).has('auto')) afterIntro(); else g.ui.cine.intro(afterIntro);
   }
   canvas.addEventListener('mousedown', () => g.audio.init());
-  document.addEventListener('visibilitychange', () => { if (document.hidden && !g.flags.intro) g.save(); });
   window.addEventListener('beforeunload', () => { if (!g.flags.intro) g.save(); });
 
   (window as any).zenitexNewGame = async () => {
@@ -117,11 +117,17 @@ function start(opts: GameOptions, save: any) {
   if (DEV) devTools(g);
 
   let last = performance.now();
+  let hiddenAt = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { hiddenAt = Date.now(); if (!g.flags.intro) g.save(); }
+    else if (hiddenAt) { g.beginOffline(hiddenAt); hiddenAt = 0; last = performance.now(); }
+  });
   // um erro num quadro nunca pode congelar o jogo: agenda o próximo quadro antes e isola cada etapa
   let errs = 0;
   const safe = (f: () => void, what: string) => { try { f(); } catch (e) { if (errs++ < 20) console.error(`[zenitex] erro em ${what}:`, e); } };
   const frame = (now: number) => {
     requestAnimationFrame(frame);
+    if (document.hidden) { last = now; return; }
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     safe(() => g.update(dt), 'update');
