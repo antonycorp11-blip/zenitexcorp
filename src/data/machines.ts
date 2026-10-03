@@ -45,6 +45,8 @@ export interface MachineDef {
   outMode?: 'side' | 'bottom' | 'sieve';
   /** separador fixo: estes grãos são puxados para o lado da seta; o resto cai por baixo */
   pick?: string[];
+  /** esteira vazada: os grãos caem pelos furos na máquina logo abaixo (se ela aceitar); o resto segue */
+  leaky?: boolean;
 }
 
 const D: MachineDef[] = [];
@@ -52,6 +54,7 @@ const m = (d: MachineDef) => D.push(d);
 
 // ---------------- LOGÍSTICA ----------------
 m({ key: 'esteira', name: 'Esteira Mk I', cat: 'logistica', behavior: 'belt', look: 'belt', w: 1, h: 1, rotatable: true, cost: { ferronox: 2 }, power: 0, speed: 1.4, wear: 0.02, desc: 'Leva grãos para a direita ou esquerda. Arraste no sentido desejado; GIRAR/R inverte a direção, inclusive de uma linha pronta.' });
+m({ key: 'esteira_vazada', name: 'Esteira Vazada', cat: 'logistica', behavior: 'belt', look: 'belt', w: 1, h: 1, rotatable: true, leaky: true, cost: { ferronox: 4 }, power: 0, speed: 1.4, wear: 0.02, desc: 'Esteira com furos: ponha POR CIMA de uma fileira de Incineradores. A terra cai pelos furos no Incinerador logo abaixo; se ele estiver cheio, segue para o próximo. Assim todos recebem, e o que sobrar acumula na ponta.' });
 m({ key: 'esteira2', name: 'Esteira Mk II', cat: 'logistica', behavior: 'belt', look: 'belt', w: 1, h: 1, rotatable: true, cost: { placa_ferronox: 1, ferronox: 1 }, power: 0, speed: 2.8, wear: 0.02, research: 'esteira2', desc: 'Dobro da velocidade. Dobro dos gargalos em outros lugares.' });
 m({ key: 'esteira3', name: 'Esteira Mk III', cat: 'logistica', behavior: 'belt', look: 'belt', w: 1, h: 1, rotatable: true, cost: { placa_ferronox: 1, polimero_solvex: 1 }, power: 0, speed: 5.5, wear: 0.02, research: 'esteira3', desc: 'Transporte de alta vazão.' });
 m({ key: 'tubo', name: 'Tubo de Vácuo', cat: 'logistica', behavior: 'tube', look: 'belt', w: 1, h: 1, rotatable: true, cost: { ferronox: 2 }, power: 0, speed: 6, desc: 'Pode ser instalado dentro de grãos soltos. Aspira o entorno e leva material em qualquer direção, inclusive para cima, sem limite de distância.' });

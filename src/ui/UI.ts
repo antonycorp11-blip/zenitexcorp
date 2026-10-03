@@ -461,12 +461,16 @@ export class UI {
     const full = drills.filter(m => m.state.startsWith('Saída cheia')).length;
     if (full) return `⚠ ${full} perfuradora(s) PARADA(S) com a saída cheia: ligue uma esteira saindo dela até o armazém da base.`;
     const jam = M.list.filter(m => m.belt && m.state.startsWith('Travada')).length;
-    if (jam) return `⚠ Esteira travada: a ponta dela aponta para algo que não aceita minério. Aponte para um armazém.`;
+    if (jam) {
+      const burners = M.list.filter(m => m.def.behavior === 'compactor');
+      if (burners.some(m => Object.values(m.inb).reduce((a, b) => a + (b ?? 0), 0) >= 78)) return `⚠ Incinerador lotado: chega mais terra do que ele queima e a esteira parou. Encoste mais Incineradores nele (eles dividem a carga).`;
+      return `⚠ Esteira parada: a terra empilhou na ponta da linha. Encoste a última esteira no Incinerador (ou deixe no máximo 1 espaço até ele).`;
+    }
     const D = [[1, 0], [0, 1], [-1, 0], [0, -1]];
     const facing = M.list.some(m => { if (!m.belt || !m.belt.length) return false; const n = M.at(m.tx + D[m.dir][0], m.ty + D[m.dir][1]); return !!n?.belt && (n.dir + 2) % 4 === m.dir; });
-    if (facing) return '⚠ Duas esteiras apontando uma contra a outra: redesenhe o trecho até o armazém.';
+    if (facing) return '⚠ Duas esteiras apontando uma contra a outra: redesenhe o trecho até o Incinerador.';
     const lost = M.list.filter(m => m.belt && m.state === 'Sem destino' && m.belt.length).length;
-    if (lost) return `⚠ Esteira sem destino: a última esteira não está encostada no armazém.`;
+    if (lost) return `⚠ Esteira sem destino: a última esteira não está encostada no Incinerador.`;
     const total = Object.values(rt.buffer).reduce((a, b) => a + b, 0);
     if (rt.bufCap > 0 && total >= rt.bufCap * 0.97) return '⚠ Armazéns cheios: construa outro Armazém ou um Elevador de Carga (+1.500 kg/min).';
     if (rt.linkCap > 0 && total > 200 && rt.linkFlow >= rt.linkCap * 0.95) return `Base no limite (${fmtShort(rt.linkCap)} kg/min): um Elevador de Carga acelera a entrega.`;

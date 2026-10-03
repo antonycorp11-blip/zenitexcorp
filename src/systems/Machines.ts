@@ -60,7 +60,9 @@ export interface Machine {
   scan?: number;
   stepN?: number;        // esteiras: quantos passos já deu (extratores avaliam cada grão uma vez por passo)
   lastStep?: number;     // extratores: último passo da esteira avaliado
-  prevOcc?: Set<number>; // extratores: grãos na área no passo anterior (para avaliar cada grão uma vez)
+  prevOcc?: Set<number>; // extratores no começo da linha: grãos na área no passo anterior
+  passN?: number;        // esteiras: quantos grãos já passaram para o tile seguinte
+  lastPass?: number;     // extratores: passN da esteira de trás na última avaliação
   fly?: { x: number; y: number; t: number; k: string }[];   // extratores: grãos subindo (só visual)
   beam?: { x: number; y: number; t: number };              // nave: último ponto de onde puxou (raio trator)         // sopradores e tubos: varredura incremental do raio
 }
@@ -687,6 +689,20 @@ export class Machines {
   }
 
   // ---- entrada/saída ----
+  /** Incinerador com espaço no grupo de incineradores encostados neste (o mais perto primeiro) */
+  private burnerWithRoom(m: Machine, q: number): Machine | undefined {
+    const group = [m], seen = new Set<Machine>([m]);
+    for (let gi = 0; gi < group.length && gi < 48; gi++) {
+      const e = group[gi];
+      for (let j = -1; j <= e.def.h; j++) for (let i = -1; i <= e.def.w; i++) {
+        const o = this.at(e.tx + i, e.ty + j);
+        if (!o || seen.has(o) || o.def.behavior !== 'compactor' || o.broken || o.buried > 0) continue;
+        seen.add(o); group.push(o);
+        if (bagTotal(o.inb) + q <= IN_CAP) return o;
+      }
+    }
+    return undefined;
+  }
   /** Uma máquina aceita um lote? Retorna true se consumiu. */
   accept(m: Machine, k: string, q: number, grade?: number): boolean {
     if (m.broken || m.buried > 0) return false;
@@ -718,8 +734,12 @@ export class Machines {
       }
       case 'separator': case 'prep': case 'compactor': {
         if (d.behavior === 'compactor' ? !(k === 'residuo' || k === 'bruto_sm' || k === 'bruto_sc' || k === 'fragmentado' || RAW_BY_LAYER.includes(k) || SILO_KEYS.has(k)) : d.takes?.[k] === undefined) return false;
-        if (d.behavior === 'compactor') this.countLost(k, q, grade ?? 1);
-        if (d.behavior === 'compactor' && k !== 'residuo') k = 'residuo';
+        if (d.behavior === 'compactor') {
+          // Incineradores ENCOSTADOS dividem a carga: cheio, passa para o vizinho com espaço
+          if (bagTotal(m.inb) + q > IN_CAP) { const o = this.burnerWithRoom(m, q); if (!o) return false; m = o; }
+          this.countLost(k, q, grade ?? 1);
+          k = 'residuo';
+        }
         if (bagTotal(m.inb) + q > IN_CAP) return false;
         gradeMix(m.g, m.inb[k] ?? 0, k, q, grade);
         bagAdd(m.inb, k, q); return true;
@@ -907,6 +927,14 @@ export class Machines {
       const y = b.ty * TILE_CELLS - 1;
       if (y < 0) continue;
       let moved = 0, stuck = false;
+      // esteira vazada: a terra cai pelos furos na máquina logo abaixo (Incinerador); cheia, o grão segue adiante
+      const under = b.def.leaky ? this.at(b.tx, b.ty + 1) : undefined;
+      if (under && under.def.behavior !== 'belt') for (let k = 0; k < TILE_CELLS; k++) {
+        const x = b.tx * TILE_CELLS + k, i = y * WORLD_W + x, m = w.mat[i];
+        if (!IS_LOOSE[m]) continue;
+        this.lastAux = w.aux[i];
+        if (this.sinkGrain(under.id, m)) { w.set(x, y, MAT.AIR); moved++; } else break;
+      }
       for (let k = 0; k < TILE_CELLS; k++) {
         const x = d > 0 ? b.tx * TILE_CELLS + TILE_CELLS - 1 - k : b.tx * TILE_CELLS + k;
         const i = y * WORLD_W + x;
@@ -922,8 +950,17 @@ export class Machines {
             stuck = true; continue;
           }
         }
+        // ponta da linha com 1 tile de folga até a máquina (ex.: Incinerador): a esteira joga o grão direto nela,
+        // senão a terra empilha no vão, a esteira para e os extratores ficam sem nada passando
+        if (k === 0 && !occ) {
+          const o = this.byId.get(w.occAtCell(wrapX(x + d * (TILE_CELLS + 1), WORLD_W), y) ?? -1);
+          if (o && o.def.behavior !== 'belt') {
+            this.lastAux = w.aux[i];
+            if (this.sinkGrain(o.id, m)) { w.set(x, y, MAT.AIR); moved++; continue; }
+          }
+        }
         const t = w.mat[ni];
-        if (t === MAT.AIR || IS_LIQUID[t]) { const a = w.aux[i]; w.set(x, y, t); w.set(nx, y, m, a); moved++; }
+        if (t === MAT.AIR || IS_LIQUID[t]) { const a = w.aux[i]; w.set(x, y, t); w.set(nx, y, m, a); moved++; if (k === 0) b.passN = (b.passN ?? 0) + 1; }
         else stuck = true;
       }
       b.state = stuck && !moved ? 'Travada: a ponta não tem para onde ir' : moved ? 'ok' : 'Vazia';
@@ -1093,19 +1130,39 @@ export class Machines {
     // cada grão é avaliado UMA vez, quando entra embaixo do extrator (coluna de entrada, um passo da esteira por vez)
     const belt = [0, 1].map(i => this.at(m.tx + i, m.ty + 2)).find(b => b?.def.behavior === 'belt');
     const eff = fabVal(this.g.flags, 'extrator') / 100;
-    const cx0 = x0, cx1 = x1, bd = belt?.dir === 2 ? -1 : 1;
-    // grão "novo" = um que no passo anterior da esteira NÃO estava nesta área (nem na célula de onde a esteira o trouxe)
-    const prev = m.prevOcc ?? new Set<number>(), now = new Set<number>();
-    const stepped = !!belt && belt.stepN !== m.lastStep;
-    if (!belt || !stepped) budget = 0;
-    else m.lastStep = belt.stepN;
-    for (let y = y0; y < y1 && budget > 0; y++) for (let x = cx0; x < cx1 && budget > 0; x++) {
+    const bd = belt?.dir === 2 ? -1 : 1;
+    // quais grãos avaliar agora: a esteira de TRÁS conta quantos grãos passou para dentro da área (passN);
+    // o extrator avalia esse tanto a partir da coluna de entrada — funciona com terra esparsa ou em fluxo contínuo
+    const cells: number[] = [];
+    let prev: Set<number> | undefined, now: Set<number> | undefined, stepped = false;
+    if (belt) {
+      const etx = bd > 0 ? m.tx : m.tx + d.w - 1, up = this.at(etx - bd, belt.ty);
+      if (up?.def.behavior === 'belt' && up.dir === belt.dir) {
+        const yb = belt.ty * TILE_CELLS - 1, pass = up.passN ?? 0;
+        let n = m.lastPass === undefined ? 0 : Math.min(d.w * TILE_CELLS, pass - m.lastPass);
+        m.lastPass = pass;
+        for (let x = bd > 0 ? x0 : x1 - 1; n > 0 && x >= x0 && x < x1; x += bd) if (IS_LOOSE[w.get(x, yb)]) { cells.push(yb * WORLD_W + x); n--; }
+      } else {
+        // começo da linha (nada vem de trás): grão "novo" = um que no passo anterior não estava na área
+        prev = m.prevOcc ?? new Set<number>(); now = new Set<number>();
+        stepped = belt.stepN !== m.lastStep;
+        if (stepped) {
+          m.lastStep = belt.stepN;
+          for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+            if (!IS_LOOSE[w.get(x, y)]) continue;
+            const i = y * WORLD_W + x; now.add(i);
+            if (!(prev.has(i - bd) || prev.has(i) || prev.has(i - WORLD_W) || prev.has(i - WORLD_W - bd))) cells.push(i);
+          }
+        }
+      }
+    }
+    for (const ci of cells) {
+      if (budget <= 0) break;
+      const x = ci % WORLD_W, y = Math.floor(ci / WORLD_W);
       const mat = w.get(x, y);
       if (!IS_LOOSE[mat]) continue;
       const k = GRAIN_ITEM[mat];
       if (k !== raw && k !== 'fragmentado' && k !== other) continue;
-      now.add(y * WORLD_W + x);
-      if (prev.has(y * WORLD_W + x - bd) || prev.has(y * WORLD_W + x) || prev.has((y - 1) * WORLD_W + x) || prev.has((y - 1) * WORLD_W + x - bd)) continue;   // já foi avaliado neste extrator
       seen++; budget--;
       if (Math.random() >= eff) continue;   // escapou desta passada (outro extrator mais à frente pode pegar)
       const grade = w.aux[y * WORLD_W + wrapX(x, WORLD_W)] / 40 || 1;
@@ -1127,7 +1184,7 @@ export class Machines {
         w.set(x, y, GRAIN[k === other ? 'residuo' : done], w.aux[y * WORLD_W + wrapX(x, WORLD_W)]);
       }
     }
-    if (stepped) m.prevOcc = now;
+    if (stepped && now) m.prevOcc = now;
     m.fin *= 0.97; this.flow(m, 'fin', got, dt);
     // o que puxou vai para o Tubo de Vácuo encostado (qualquer lado); sem tubo, empilha em cima
     // extratores ENCOSTADOS formam um grupo: todos usam o(s) tubo(s) ligado(s) a qualquer um deles
@@ -1158,7 +1215,7 @@ export class Machines {
       }
     }
     const name = magnet ? 'metal' : 'cristais';
-    m.state = !belt ? 'Precisa de uma ESTEIRA embaixo (1 espaço livre)' : bagTotal(m.out) >= OUT_CAP ? 'Tubo cheio: a saída está travada' : got > 0 ? `Puxando ${name}` + (tubes.length ? ' → tubo' : ' → estoque') : seen ? 'Terra passando' : 'Esperando terra na esteira embaixo';
+    m.state = !belt ? 'Precisa de uma ESTEIRA embaixo (1 espaço livre)' : belt.state.startsWith('Travada') && !got ? 'Esteira parada: a terra não sai na ponta (Incinerador lotado ou longe)' : bagTotal(m.out) >= OUT_CAP ? 'Tubo cheio: a saída está travada' : got > 0 ? `Puxando ${name}` + (tubes.length ? ' → tubo' : ' → estoque') : seen ? 'Terra passando' : 'Esperando terra na esteira embaixo';
   }
 
   // ---- elevador de grãos: coluna vertical que leva grãos até o topo e solta para o lado ----

@@ -391,6 +391,7 @@ export class Renderer {
     ctx.fillStyle = '#4a4e58';
     for (let k = -4; k < 20; k += 4) { const o = k + off; if (o >= 0 && o < 15) ctx.fillRect(x + o, y + 1, 1, 4); }
     ctx.fillStyle = '#6a6e78'; ctx.fillRect(x, y, 16, 1);
+    if (m.def.leaky) { ctx.fillStyle = '#05060a'; for (const hx of [2, 6, 10, 14]) ctx.fillRect(x + hx - 1, y + 1, 2, 4); ctx.fillStyle = '#ff9a3a'; ctx.globalAlpha = 0.35 + 0.2 * Math.sin(this.time * 6); ctx.fillRect(x + 1, y + 8, 14, 1); ctx.globalAlpha = 1; }
     // roletes, marcação industrial e seta legível nas duas direções
     for (const rx of [3, 8, 13]) {
       ctx.fillStyle = '#0d1118'; ctx.beginPath(); ctx.arc(x + rx, y + 10, 1.8, 0, 7); ctx.fill();
