@@ -895,3 +895,57 @@ body:not(.touch) .hud .meta { top: 101px; }
 .brief .bt { min-width: 0; overflow-wrap: anywhere; }
 .popup { background: linear-gradient(150deg, #21343c, #0b1822) !important; border-color: #8acbd1 !important; box-shadow: 0 10px 26px #000a, inset 0 1px 0 #b7e8eb55 !important; }
 @media (max-width: 760px) { .pnl-b { padding: 9px !important; } .pnl-h:not(.nav) { min-height: 52px; } .pnl-h:not(.nav)::before { width: 32px; height: 33px; background-size: 100px 33px; } .pnl-h.nav::before { display: none; } .pnl .bd-card { width: 100px; min-height: 108px; } .pnl .bd-card img { width: 54px; height: 43px; } }
+
+/* Acesso direto à construção junto do minimapa. A lista não pausa nem cobre o jogo inteiro. */
+.quick-build-btn { position: absolute; top: 76px; right: 278px; width: 70px; height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; color: #ffe0a8; border: 1px solid #dca757; border-radius: 8px; background: linear-gradient(145deg, #33444b, #14242e); box-shadow: 0 5px 18px #0009, inset 0 1px #fff5; cursor: pointer; pointer-events: auto; z-index: 4; }
+.quick-build-btn span { font-size: 27px; line-height: 1; }
+.quick-build-btn small { font-size: 9px; font-weight: 800; letter-spacing: .04em; }
+.quick-build-btn[aria-expanded="true"] { background: linear-gradient(#e9ae57, #93501b); color: #180f07; }
+.orbit-btn { width: 27px; height: 23px; flex: none; pointer-events: auto; cursor: pointer; color: #bce8f8; border: 1px solid #64919f; border-radius: 4px; background: linear-gradient(#263e4b, #0c1d28); font-size: 20px; line-height: 18px; }
+.orbiting .orbit-btn { color: #ffd18b; border-color: #dca757; }
+body.orbiting #mobile, body.orbiting .hud .quick-build-btn, body.orbiting .hud .quick-build, body.orbiting .hud .hotbar, body.orbiting .hud .build-controls, body.orbiting .hud .build-hint { display: none !important; }
+.quick-build { display: none; position: absolute; top: 74px; right: 12px; width: min(380px, calc(100vw - 270px)); height: 106px; flex-direction: column; border: 1px solid #dca757; border-radius: 9px; background: #0b1b25f5; box-shadow: 0 16px 35px #000d; pointer-events: auto; z-index: 8; overflow: hidden; }
+.quick-build.show { display: flex; }
+.qb-head { display: flex; align-items: center; gap: 3px; flex: none; padding: 3px; border-bottom: 1px solid #6f91a080; background: #20333d; }
+.qb-head b { flex: 1; text-align: center; color: #ffd18b; font-size: 11px; letter-spacing: .07em; }
+.qb-head button { width: 30px; height: 25px; flex: none; border: 1px solid #6c8a98; border-radius: 5px; background: #102631; color: #e2f8ff; font-size: 20px; line-height: 1; cursor: pointer; }
+.qb-head button:last-child { border-color: #b58558; margin-left: 3px; }
+.qb-items { display: flex; gap: 4px; padding: 4px; min-height: 0; flex: 1; overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; touch-action: pan-x; scrollbar-width: thin; }
+.qb-item { flex: 0 0 68px; min-width: 0; height: 63px; padding: 2px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: 1px solid #698490; border-radius: 6px; color: #edfaff; background: linear-gradient(145deg, #273c46, #10202a); cursor: pointer; }
+.qb-item:hover, .qb-item:focus-visible { border-color: #ffd08a; background: #354653; }
+.qb-item.locked { opacity: .53; }
+.qb-item .qb-art { width: 28px; height: 27px; object-fit: contain; }
+.qb-item b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; }
+.qb-item small { min-height: 11px; max-width: 100%; display: flex; justify-content: center; flex-wrap: wrap; gap: 1px 2px; color: #b8d5dc; font-size: 8px; }
+.qb-item small span { display: inline-flex; align-items: center; gap: 1px; }
+.qb-item small span.short { color: #ff9478; }
+.qb-item small img { width: 9px; height: 9px; object-fit: contain; }
+
+@media (orientation: landscape) and (max-height: 600px) {
+  #title { overflow-y: auto; align-items: safe center; padding: max(5px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(5px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); box-sizing: border-box; }
+  #title .tbox { width: min(620px, 94vw); max-width: 100%; box-sizing: border-box; gap: 4px; padding: 10px 16px; margin: auto; }
+  #title .tlogo { font-size: clamp(28px, 6vh, 42px); gap: 7px; }
+  #title .tlogo::before { width: 36px; height: 36px; }
+  #title .tsub { font-size: 11px; margin-top: -3px; letter-spacing: .22em; }
+  #title .ttag { font-size: 13px; margin: 2px 0; }
+  #title .tcontract { font-size: 10px; line-height: 1.2; margin: 3px 0; }
+  #title .tbtn { width: min(290px, 100%); min-height: 36px; padding: 4px 10px; font-size: 15px; }
+  #title .thelp { margin-top: 3px; font-size: 10px; }
+  body.touch #title .thelp { font-size: 0; }
+  body.touch #title .thelp::after { content: 'Toque para começar · controles de toque na tela'; font-size: 10px; }
+}
+body.touch .hud .hcard.mm { display: block !important; top: 42px !important; right: max(6px, env(safe-area-inset-right)) !important; left: auto !important; width: 118px !important; padding: 3px !important; }
+body.touch .hud .hcard.mm canvas { width: 110px !important; height: 76px !important; }
+body.touch .hud .hcard.mm .mmcap { font-size: 9px !important; padding-top: 1px; }
+body.touch .hud .hcard.mm .mmcap > span:first-child { display: none; }
+body.touch .hud .hcard.mm .orbit-btn { position: absolute; top: 5px; right: 5px; width: 34px; height: 30px; font-size: 23px; line-height: 24px; box-shadow: 0 2px 8px #000b; }
+body.touch .hud .quick-build-btn { top: 47px; right: calc(max(6px, env(safe-area-inset-right)) + 124px); width: 60px; height: 47px; }
+body.touch .hud .quick-build-btn span { font-size: 21px; }
+body.touch .hud .quick-build-btn small { font-size: 8px; }
+body.touch .hud .quick-build { top: 41px; right: max(6px, env(safe-area-inset-right)); width: min(302px, calc(100vw - 268px)); height: 100px; }
+body.touch .hud .toasts { right: calc(max(6px, env(safe-area-inset-right)) + 124px) !important; top: 46px !important; }
+@media (orientation: landscape) and (max-height: 430px) {
+  body.touch .hud .hcard.meta .mx { max-height: 62px !important; }
+  body.touch .hud .geocard { max-height: 110px; overflow-y: auto; }
+  .modal-layer .pnl { max-height: calc(100dvh - 12px) !important; }
+}

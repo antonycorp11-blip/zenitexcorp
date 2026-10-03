@@ -1,6 +1,6 @@
 import { fabVal, SILO_KEYS } from '../data/factory';
 import { LAYER_COUNT } from '../data/sectors';
-import { CELL, TILE, TILE_CELLS, WORLD_TW, WORLD_TH, WORLD_W, wrapX, nearestX } from '../core/constants';
+import { CELL, TILE, TILE_CELLS, WORLD_TW, WORLD_TH, WORLD_W, WORLD_H, wrapX, nearestX } from '../core/constants';
 import { DIRS } from '../core/math';
 import { MACHINE, COMPLEX_LEVELS, TECTONIC_RATE, MANTLE_RATE, COLLECTOR_RATE, type MachineDef } from '../data/machines';
 import { MAT, IS_SOLID, IS_LIQUID, IS_LOOSE, GRAIN, GRAIN_ITEM, GRAIN_KG, matById } from '../data/materials';
@@ -56,8 +56,8 @@ export interface Machine {
   mix: Bag;              // tudo o que a máquina já separou (para a composição na interface)
   lg?: number;           // perfuradoras: teor do último material
   kr?: number;           // rodízio de itens na saída
-  q?: { m: number; a: number; d: number; t?: number }[];   // tubos: grãos em trânsito (d = tiles desde a última pressão)
-  scan?: number;         // sopradores: varredura incremental do raio
+  q?: { m: number; a: number; d: number; t?: number }[];   // tubos: grãos em trânsito (d mantido para saves antigos)
+  scan?: number;         // sopradores e tubos: varredura incremental do raio
 }
 
 export interface SectorRT {
@@ -130,7 +130,7 @@ export class Machines {
       g: {}, fin: 0, fout: 0, fres: 0, mix: {},
     };
     if (def.behavior === 'belt') m.belt = [];
-    // construir em cima de grãos soltos: eles vão para o estoque
+    // O material deslocado pela construção é recuperado; tubos também aspiram o entorno depois de instalados.
     for (let y = 0; y < def.h; y++) for (let x = 0; x < def.w; x++) for (const gr of this.g.world.clearTile(tx + x, ty + y)) {
       const k = GRAIN_ITEM[gr.m]; if (k) this.g.stock.add(k, k === 'bloco_massa' ? 1 : GRAIN_KG, false, gr.a / 40);
     }
@@ -928,40 +928,63 @@ export class Machines {
     }
   }
 
-  // ---- tubos pneumáticos: pacotes andam de tubo em tubo; pressão acaba após 14 tiles sem reforçador ----
+  // ---- tubos pneumáticos: linha contínua sem limite artificial de distância ----
   private tubeAcc = 0;
   private tubeTick = 0;
   private updateTubes(dt: number) {
-    this.tubeAcc += dt * 10;
+    this.tubeAcc += dt * 10 * fabVal(this.g.flags, 'pressao');
     while (this.tubeAcc >= 1) {
       this.tubeAcc -= 1;
       const tick = ++this.tubeTick;
-      const pmax = fabVal(this.g.flags, 'pressao');
       for (const t of this.list) {
-        if (t.def.behavior !== 'tube' || !t.q || !t.q.length) continue;
+        if (t.def.behavior !== 'tube') continue;
         if (t.broken) { t.state = 'QUEBRADO'; continue; }
-        const rate = t.key === 'tubo_gigante' ? 3 : 1;
-        for (let r = 0; r < rate && t.q.length; r++) if (!this.tubeStep(t, tick, pmax)) break;
+        this.tubeVacuum(t);
+        if (!t.q?.length) continue;
+        const rate = t.key === 'tubo_gigante' ? 3 : t.key === 'reforcador' ? 2 : 1;
+        for (let r = 0; r < rate && t.q.length; r++) if (!this.tubeStep(t, tick)) break;
       }
     }
+    for (const t of this.list) if (t.def.behavior === 'tube') t.fin = Math.max(0, t.fin - dt * 1.5);
+  }
+  /** Cada tubo livre aspira grãos soltos até 1 tile da boca; a busca gira para não custar um raio inteiro por quadro. */
+  private tubeVacuum(t: Machine) {
+    const q = t.q ?? (t.q = []);
+    if (q.length >= this.tubeCap(t)) return;
+    const w = this.g.world, cx = t.tx * TILE_CELLS + TILE_CELLS / 2, cy = t.ty * TILE_CELLS + TILE_CELLS / 2;
+    const radius = t.key === 'tubo_gigante' ? 16 : 11;
+    const width = radius * 2 + 1, total = width * width;
+    let scan = t.scan ?? 0;
+    for (let n = 0; n < 96 && q.length < this.tubeCap(t); n++) {
+      const s = scan++ % total, dx = s % width - radius, dy = Math.floor(s / width) - radius;
+      if (dx * dx + dy * dy > radius * radius || (Math.abs(dx) < 4 && Math.abs(dy) < 4)) continue;
+      const x = cx + dx, y = cy + dy;
+      if (y < 0 || y >= WORLD_H || w.occAtCell(x, y)) continue;
+      const mat = w.get(x, y);
+      if (!IS_LOOSE[mat]) continue;
+      this.lastAux = w.aux[y * WORLD_W + wrapX(x, WORLD_W)];
+      this.lastDist = 0;
+      if (this.sinkGrain(t.id, mat)) {
+        w.set(x, y, MAT.AIR);
+        t.fin = 1;
+        t.state = 'Aspirando';
+      }
+    }
+    t.scan = scan % total;
   }
   /** capacidade de cada tubo (pacotes em trânsito) */
   tubeCap(t: Machine) { return t.key === 'tubo_gigante' ? 12 : 4; }
   /** move o pacote da frente de um tubo; false = travou */
-  private tubeStep(t: Machine, tick: number, pmax: number): boolean {
+  private tubeStep(t: Machine, tick: number): boolean {
     const p = t.q![0];
     if (p.t === tick) return false;          // já andou neste passo (um tile por passo)
-    const booster = t.key === 'reforcador', limit = t.key === 'tubo_gigante' ? pmax * 3 : pmax;
-    if (!booster && p.d >= limit) { t.state = 'Sem pressão: ponha um Reforçador aqui'; return false; }
     const [dx, dy] = DIRS[t.dir];
     const n = this.at(t.tx + dx, t.ty + dy);
     if (n && n.def.behavior === 'tube') {
       const nq = n.q ?? (n.q = []);
       if (nq.length >= this.tubeCap(n)) { t.state = 'Fila'; return false; }
       t.q!.shift();
-      // o gigante conta 1/3 de pressão por tile
-      const step = n.key === 'tubo_gigante' ? 1 / 3 : 1;
-      nq.push({ m: p.m, a: p.a, d: n.key === 'reforcador' ? 0 : (booster ? 0 : p.d) + step, t: tick });
+      nq.push({ m: p.m, a: p.a, d: 0, t: tick });
       t.state = 'ok';
       return true;
     }

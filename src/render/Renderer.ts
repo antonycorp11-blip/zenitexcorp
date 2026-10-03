@@ -10,6 +10,7 @@ import { ioSpec } from '../data/howto';
 import { SPRITE_K, paintPlayer } from './SideSprites';
 import type { Game } from '../Game';
 import { BASE_RADIUS, type Machine } from '../systems/Machines';
+import { renderPlanet } from '../ui/Orbital';
 
 type C3 = readonly number[];
 const rgba = (c: C3, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
@@ -19,6 +20,7 @@ export class Renderer {
   private fog: HTMLCanvasElement; private fctx: CanvasRenderingContext2D;
   private fogImg: ImageData | null = null;
   private time = 0;
+  private orbitCache: { canvas: HTMLCanvasElement; time: number; layer: number } | null = null;
   private dtR = 0.016; private walkPh = 0; private stride = 0; private lean = 0; private armA = 0;
   prof: Record<string, number> = {};
   private pt = 0;
@@ -50,6 +52,7 @@ export class Renderer {
     this.time += dt; this.dtR = Math.min(0.05, dt);
     g.terrain.frame++;
     const W = this.canvas.width, H = this.canvas.height;
+    if (cam.targetZoom <= 0.55 * Math.min(2, window.devicePixelRatio || 1)) { this.drawOrbit(W, H); return; }
     const z = cam.zoom;
     const L = Math.round(cam.left() * z) / z, T = Math.round(cam.top() * z) / z;
     const R = L + W / z, B = T + H / z;
@@ -348,6 +351,32 @@ export class Renderer {
     if (g.fx.screenFlash) { ctx.fillStyle = rgba(g.fx.screenFlash.c, g.fx.screenFlash.a); ctx.fillRect(0, 0, W, H); }
   }
 
+  /** O último nível do zoom mostra o corpo planetário inteiro no espaço. */
+  private drawOrbit(W: number, H: number) {
+    const ctx = this.ctx, g = this.g;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#020914'; ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 140; i++) {
+      const x = hash2(i, 7, 19) * W, y = hash2(i, 13, 19) * H;
+      ctx.fillStyle = `rgba(185,220,255,${0.12 + hash2(i, 4, 19) * 0.55})`;
+      ctx.fillRect(x, y, i % 11 === 0 ? 2 : 1, i % 11 === 0 ? 2 : 1);
+    }
+    const size = Math.min(H * 0.82, W * 0.48, 540), cx = W / 2, cy = H / 2;
+    const halo = ctx.createRadialGradient(cx, cy, size * 0.3, cx, cy, size * 0.65);
+    halo.addColorStop(0, '#bc603b32'); halo.addColorStop(1, '#bc603b00');
+    ctx.fillStyle = halo; ctx.fillRect(cx - size, cy - size, size * 2, size * 2);
+    if (!this.orbitCache || this.orbitCache.layer !== g.planet.layer || this.time - this.orbitCache.time > 3) {
+      this.orbitCache = { canvas: renderPlanet(g, 420, undefined, this.time), time: this.time, layer: g.planet.layer };
+    }
+    ctx.drawImage(this.orbitCache.canvas, cx - size / 2, cy - size / 2, size, size);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#d6e8ed';
+    ctx.font = `bold ${Math.max(12, H * 0.033)}px Rajdhani, sans-serif`;
+    ctx.fillText('ZENITEX · VISÃO ORBITAL', cx, cy - size / 2 - 9);
+    ctx.font = `${Math.max(10, H * 0.026)}px Rajdhani, sans-serif`;
+    ctx.fillText(`${SECTORS[g.planet.layer - 1].name} · ${((g.planet.fraction() || 0) * 100).toFixed(3)}% extraído`, cx, cy + size / 2 + 17);
+    ctx.textAlign = 'start';
+  }
+
   /** Esteira vista de lado: estrutura, roletes girando e lona; os grãos andam por cima (são terreno). */
   private drawBelt(m: Machine, x: number, y: number) {
     const ctx = this.ctx;
@@ -514,7 +543,7 @@ export class Renderer {
     ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
   }
 
-  /** Tubo pneumático: cano que liga nos vizinhos (entrada de tubos/soprador apontando para ele), pacotes andando e reforçador. */
+  /** Tubo pneumático: liga vizinhos, mostra a sucção e os grãos transportados. */
   private drawTube(m: Machine) {
     const g = this.g, ctx = this.ctx;
     const cx = m.tx * TILE + TILE / 2, cy = m.ty * TILE + TILE / 2;
@@ -556,12 +585,27 @@ export class Renderer {
       ctx.fillStyle = 'rgba(140,230,255,0.35)'; ctx.fillRect(px - 2, py - 2, 4, 4);
       ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.fillRect(px - 1.2, py - 1.2, 2.4, 2.4);
     });
+    // Correntes de ar em espiral entram pela boca do tubo; intensificam durante a sucção.
+    if (!m.broken) {
+      const alpha = 0.25 + 0.65 * m.fin;
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 4; i++) {
+        const a = i * Math.PI / 2 + this.time * 2.4 + m.id * 0.7;
+        const pull = (this.time * 13 + i * 5) % 11;
+        const r = 16 - pull;
+        ctx.strokeStyle = `rgba(150,235,255,${alpha * (0.35 + pull / 18)})`;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a) * (r + 5), cy + Math.sin(a) * (r + 5));
+        ctx.quadraticCurveTo(cx + Math.cos(a + 0.3) * r, cy + Math.sin(a + 0.3) * r, cx + Math.cos(a + 0.7) * Math.max(3, r - 5), cy + Math.sin(a + 0.7) * Math.max(3, r - 5));
+        ctx.stroke();
+      }
+    }
     if (m.q?.length) g.lighting.add(cx, cy, 16, [110, 210, 255], 0.25);
     // seta discreta (chevron) da direção
     ctx.strokeStyle = 'rgba(255,208,74,0.75)'; ctx.lineWidth = 0.7;
     ctx.beginPath(); ctx.moveTo(cx - ox * 1 + oy * 1.6, cy - oy * 1 + ox * 1.6); ctx.lineTo(cx + ox * 1.4, cy + oy * 1.4); ctx.lineTo(cx - ox * 1 - oy * 1.6, cy - oy * 1 - ox * 1.6); ctx.stroke();
     if (m.key === 'reforcador') {
-      // colar de pressão laranja com manômetro
+      // colar do reforçador de vazão
       ctx.fillStyle = '#14161c'; ctx.fillRect(cx - 6.5, cy - 6.5, 13, 13);
       ctx.fillStyle = '#e8862a'; ctx.fillRect(cx - 6, cy - 6, 12, 12);
       ctx.fillStyle = '#ffb04a'; ctx.fillRect(cx - 6, cy - 6, 12, 2);
@@ -570,7 +614,6 @@ export class Renderer {
       ctx.beginPath(); ctx.moveTo(cx, cy + 1); ctx.lineTo(cx + Math.cos(a) * 2.8, cy + 1 + Math.sin(a) * 2.8); ctx.stroke();
       g.lighting.add(cx, cy, 14, [255, 170, 80], 0.3);
     }
-    if (m.state.startsWith('Sem pressão')) this.alert(cx, cy - 10, '#ff5a3a');
   }
 
   private drawMachine(m: Machine) {

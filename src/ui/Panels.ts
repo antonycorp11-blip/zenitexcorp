@@ -188,7 +188,7 @@ export class Panels {
     lore: (a) => { this.st.loreSel = a; this.render(); },
     secsel: (a) => { this.st.secSel = Number(a); this.render(); },
     mapTab: (a) => { this.st.mapTab = a; this.render(); },
-    zoom: (a) => { this.g.camera.targetZoom = Number(a); },
+    zoom: (a) => { this.g.camera.targetZoom = Number(a) * Math.min(2, window.devicePixelRatio || 1); this.g.flags.userZoom = true; },
   };
 
   private onClick(e: Event) {
@@ -687,7 +687,7 @@ export class Panels {
   r_settings() {
     const v = this.g.audio.volume;
     return `<div class="menu"><h3>ÁUDIO</h3>${(['master', 'sfx', 'music'] as const).map(k => `<div class="kv"><span>${k === 'master' ? 'Geral' : k === 'sfx' ? 'Efeitos' : 'Música'}</span><input type="range" min="0" max="100" value="${Math.round(v[k] * 100)}" data-set="vol_${k}"></div>`).join('')}
-      <h3>CÂMERA</h3><div class="row">${[1.5, 2, 2.5, 3].map(z => `<button class="btn ghost" data-act="zoom" data-arg="${z}">${z}×</button>`).join('')}</div>
+      <h3>CÂMERA</h3><div class="row"><button class="btn ghost" data-act="zoom" data-arg="0.25">◉ Planeta</button>${[1.5, 2, 2.5, 3].map(z => `<button class="btn ghost" data-act="zoom" data-arg="${z}">${z}×</button>`).join('')}</div>
       <h3>INTERFACE</h3><button class="btn ghost" data-act="collapse">Recolher/expandir HUD</button><button class="btn" data-act="resume">VOLTAR</button></div>`;
   }
   r_help() {

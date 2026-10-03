@@ -1,5 +1,6 @@
 import './data/economy';
-import { CELL, TILE, SIM_DT, WORLD_TW, WORLD_W, WORLD_H, LEGACY_WORLD_W, SURFACE_Y, wrapX, nearestX } from './core/constants';
+import { CELL, TILE, TILE_CELLS, SIM_DT, WORLD_TW, WORLD_TH, WORLD_W, WORLD_H, LEGACY_WORLD_W, SURFACE_Y, wrapX, nearestX } from './core/constants';
+import { MAT, IS_SOLID } from './data/materials';
 import { bus, EventBus } from './core/events';
 import { World } from './world/World';
 import { Sprites } from './render/Sprites';
@@ -79,7 +80,7 @@ export class Game {
 
   time = 0;
   paused = false;
-  flags: Record<string, any> = { intro: true, tutorial: 0 };
+  flags: Record<string, any> = { intro: true, tutorial: 0, cavesDense: true };
   hover: Hover | null = null;
   hold: { t: number; dur: number; label: string; key: string; done: () => void } | null = null;
   build = { active: false, key: null as string | null, dir: 0, reverse: false, deconstruct: false, tx: 0, ty: 0, anchor: null as [number, number] | null, dragging: false };
@@ -346,7 +347,7 @@ export class Game {
         if (inp.mouseMoved && (!line || !b.anchor || b.dragging)) { b.tx = Math.floor(inp.worldX / TILE); b.ty = Math.floor(inp.worldY / TILE); if (!line) this.snapBuild(); }
       }
     }
-    if (inp.wheel && !inp.uiCapture && !inp.down('Control')) { cam.targetZoom = Math.max(dpr, Math.min(4 * dpr, cam.targetZoom - inp.wheel * 0.25 * dpr)); this.flags.userZoom = true; }
+    if (inp.wheel && !inp.uiCapture && !inp.down('Control')) { cam.targetZoom = Math.max(0.25 * dpr, Math.min(4 * dpr, cam.targetZoom - inp.wheel * 0.25 * dpr)); this.flags.userZoom = true; }
 
     if (!this.flags.intro && !this.flags.ending) this.controls(dt);
 
@@ -886,6 +887,8 @@ export class Game {
       for (const a of s.regrow ?? []) a.x += cells;
     }
     this.time = s.time; this.flags = s.flags; this.selected = s.selected ?? 0; if (s.hotbar) this.hotbar = s.hotbar;
+    // Saves antigos conservam áreas exploradas. Nas áreas ainda ocultas, aplica a nova geração de cavernas.
+    const denseTerrain = !legacy && !this.flags.cavesDense && s.chunks?.mat ? new Uint8Array(this.world.mat) : null;
     this.world.loadChunks(s.chunks, legacy);
     if (legacy) {
       const gen = this.world.gen, old = gen.legacySites(), left = (WORLD_W - LEGACY_WORLD_W) / 2, right = left + LEGACY_WORLD_W;
@@ -909,6 +912,23 @@ export class Game {
     this.player.load(s.player); this.player.x = wrapX(this.player.x, WORLD_W * CELL); this.pack.items = s.pack.items; this.pack.level = s.pack.level; this.pack.g = s.pack.g ?? {};
     this.stock.items = s.stock.items; this.stock.credits = s.stock.credits; this.stock.g = s.stock.g ?? {};
     this.machines.load(s.machines); this.robots.load(s.robots); this.sectors.load(s.sectors);
+    if (denseTerrain) {
+      const px = Math.floor(s.player.x / TILE), py = Math.floor(s.player.y / TILE);
+      const aroundMachines = new Uint8Array(WORLD_TW * WORLD_TH);
+      for (const m of this.machines.list) for (let y = -2; y < m.def.h + 2; y++) for (let x = -2; x < m.def.w + 2; x++) {
+        const ty = m.ty + y;
+        if (ty >= 0 && ty < WORLD_TH) aroundMachines[ty * WORLD_TW + wrapX(m.tx + x, WORLD_TW)] = 1;
+      }
+      for (let ty = 0; ty < WORLD_TH; ty++) for (let tx = 0; tx < WORLD_TW; tx++) {
+        const tile = ty * WORLD_TW + tx;
+        if (this.world.explored[tile] || aroundMachines[tile] || Math.hypot(tx - px, ty - py) < 16) continue;
+        for (let cy = 0; cy < TILE_CELLS; cy++) for (let cx = 0; cx < TILE_CELLS; cx++) {
+          const i = (ty * TILE_CELLS + cy) * WORLD_W + tx * TILE_CELLS + cx;
+          if (this.world.mat[i] === MAT.AIR && IS_SOLID[denseTerrain[i]]) this.world.mat[i] = denseTerrain[i];
+        }
+      }
+    }
+    this.flags.cavesDense = true;
     this.planet.load(s.planet); this.research.load(s.research); this.crafting.load(s.crafting);
     this.contracts.load(s.contracts); this.lore.load(s.lore); this.chests.load(s.chests); this.events.load(s.events); this.stats.load(s.stats);
     this.scanner.mapMarkers = s.markers ?? []; this.final = s.final ?? this.final; this.flares = s.flares ?? []; this.mining.drops = s.drops ?? [];

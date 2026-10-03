@@ -11,6 +11,7 @@ import { SECTORS } from './data/sectors';
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const DEV = new URLSearchParams(location.search).has('dev');
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window || (DEV && new URLSearchParams(location.search).has('touch'));
+if (isTouch) document.body.classList.add('touch');
 
 async function boot() {
   let save = await loadSlot('slot1');

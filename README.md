@@ -51,7 +51,7 @@ Modo de teste: `http://localhost:5280/?dev` (atalhos F2–F8) e `?dev&auto=new` 
 | Construção | selecione a peça, mova a prévia com o mouse e clique em CONFIRMAR (ou Enter) |
 | Esteiras | clique no início e arraste à esquerda ou à direita; R/GIRAR inverte o fluxo, inclusive em uma linha pronta; CONFIRMAR instala a linha |
 | Elevador de Grãos | arraste uma coluna do fundo ao topo; alimente a peça inferior com esteira e ligue a saída superior a uma esteira ou coletor |
-| Tubos de Vácuo | arraste uma rota vertical/horizontal para transportar grãos até a superfície; use soprador na entrada e reforçadores em rotas longas |
+| Tubos de Vácuo | instale no meio de grãos soltos ou arraste uma rota vertical/horizontal; cada tubo aspira grãos próximos e transporta sem limite de distância |
 | Roda | zoom · Espaço pula fala · Esc menu |
 
 Mobile (paisagem): joystick esquerdo move, joystick direito mira e usa a ferramenta. Os botões à direita

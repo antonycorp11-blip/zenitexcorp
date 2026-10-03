@@ -165,12 +165,33 @@ export class Sprites {
     const k = 'M' + def.key;
     let u = this.iconUrls.get(k);
     if (!u) {
-      const { img } = this.machine(def, 0);
       const s = 80;
       const [c, x] = cv(s, s);
-      x.imageSmoothingEnabled = true;
-      const k2 = Math.min(s / img.width, s / img.height);
-      x.drawImage(img, (s - img.width * k2) / 2, (s - img.height * k2) / 2, img.width * k2, img.height * k2);
+      if (def.behavior === 'tube') {
+        const giant = def.key === 'tubo_gigante', booster = def.key === 'reforcador';
+        const rad = giant ? 17 : 13;
+        x.fillStyle = '#111b25'; x.fillRect(9, 40 - rad, 62, rad * 2);
+        x.fillStyle = '#556b7a'; x.fillRect(12, 43 - rad, 56, rad * 2 - 6);
+        x.fillStyle = '#123b52'; x.fillRect(15, 34, 50, 12);
+        x.fillStyle = '#79dce9'; x.fillRect(15, 35, 50, 3);
+        for (const end of [12, 61]) {
+          x.fillStyle = '#15232b'; x.fillRect(end, 25, 7, 30);
+          x.fillStyle = booster ? '#e7a65a' : '#b2c4ce'; x.fillRect(end + 1, 27, 2, 26);
+        }
+        x.fillStyle = booster ? '#b86c2b' : '#243d4b';
+        x.beginPath(); x.arc(40, 40, giant ? 20 : 17, 0, Math.PI * 2); x.fill();
+        x.strokeStyle = booster ? '#ffd08a' : '#8cecff'; x.lineWidth = 3; x.stroke();
+        x.fillStyle = '#071c29'; x.beginPath(); x.arc(40, 40, giant ? 12 : 10, 0, Math.PI * 2); x.fill();
+        x.fillStyle = booster ? '#ffd088' : '#91edff';
+        x.beginPath(); x.moveTo(35, 35); x.lineTo(46, 40); x.lineTo(35, 45); x.closePath(); x.fill();
+        x.strokeStyle = '#bdf4ff'; x.lineWidth = 2;
+        for (let i = 0; i < 3; i++) { const y = 30 + i * 10; x.beginPath(); x.moveTo(3, y - 3); x.quadraticCurveTo(8, y - 5, 11, y); x.stroke(); }
+      } else {
+        const { img } = this.machine(def, 0);
+        x.imageSmoothingEnabled = true;
+        const k2 = Math.min(s / img.width, s / img.height);
+        x.drawImage(img, (s - img.width * k2) / 2, (s - img.height * k2) / 2, img.width * k2, img.height * k2);
+      }
       u = c.toDataURL(); this.iconUrls.set(k, u);
     }
     return u;

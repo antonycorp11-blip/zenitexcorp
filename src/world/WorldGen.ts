@@ -140,12 +140,12 @@ export class WorldGen {
     }
     // sob a base o chão é firme por um bom trecho
     const underBase = Math.abs(x - WORLD_W / 2) < PLATEAU - 12 && depth < 80;
-    if (!underBase && depth > 28) {
+    if (!underBase && depth > 52) {
       // cavernas: câmaras alongadas na horizontal + túneis
       const c = seam(u => fbm(u * 0.006, y * 0.01, S + sec * 13, 4));
-      const thr = 0.6 - (sd.openness - 0.36) * 0.6 - Math.min(0.04, depth * 0.0002);
+      const thr = 0.68 - (sd.openness - 0.36) * 0.4 - Math.min(0.025, depth * 0.0001);
       const tun = seam(u => ridged(u * 0.007, y * 0.011, S + 41, 2));
-      if (c > thr || tun > 0.93) {
+      if (c > thr || tun > 0.97) {
         if (sd.liquid && sd.liquid.mat !== MAT.CHASM) {
           const l = seam(u => fbm(u * 0.01, y * 0.01, S + 500 + sec, 3));
           if (l < 0.24 + sd.liquid.amount * 0.7 && c > thr + 0.03) return sd.liquid.mat;

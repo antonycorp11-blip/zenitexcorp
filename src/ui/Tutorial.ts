@@ -119,7 +119,7 @@ const STEPS: Step[] = [
     done: g => g.machines.siloCount('ferronox') >= 20 && g.machines.siloCount('lumenita') >= 10 },
   { title: 'Melhorias', text: () => 'Toque <b>✚ MELHORIAS</b> (no topo): <b>Laser</b> (alcance e força), <b>Soprador</b> (alcance e vazão), <b>Tubos</b> e <b>Silos</b>.<br>São pagas com o que está nos <b>silos</b>. <b>Toque aqui.</b>',
     target: () => '.up-btn', done: () => false, manual: true },
-  { title: 'Mais frentes', text: () => 'Pilha acabou? Toque no Soprador → <b>RECOLHER</b> e leve para outro ponto.<br>Tubo longo: <b>Reforçador</b> a cada 14 peças.<br><b>Toque aqui.</b>',
+  { title: 'Mais frentes', text: () => 'Pilha acabou? Toque no Soprador → <b>RECOLHER</b> e leve para outro ponto.<br>O <b>Tubo de Vácuo</b> aspira grãos próximos e leva para qualquer distância.<br><b>Toque aqui.</b>',
     target: () => '.hcard.meta', done: () => false, manual: true },
   { title: 'Scanner', text: t => `${t ? 'Toque <b>SCANNER</b>' : 'Aperte <b>F</b>'}: mostra o <b>teor</b> da região.<br>Cave onde o teor é ALTO.`,
     target: (_g, t) => t ? '#mobile [data-b="scan"]' : null, done: g => (g.sectors.s[g.planet.layer]?.counters.scans ?? 0) > 0 },

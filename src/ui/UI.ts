@@ -7,7 +7,7 @@ import { SECTORS, HAZARD_NAMES, type HazardKey } from '../data/sectors';
 import { SPEAKERS } from '../data/dialogue';
 import { ITEM, TOP_BAR_ITEMS, itemName } from '../data/items';
 import { SLOGANS } from '../data/slogans';
-import { MACHINE, MACHINES } from '../data/machines';
+import { MACHINE, MACHINES, MACHINE_CATS } from '../data/machines';
 import { rawOf, compOf } from '../data/composition';
 import type { LoreDef } from '../data/lore';
 import type { Game } from '../Game';
@@ -38,6 +38,7 @@ export class UI {
   private discoveryEl: HTMLElement | null = null;
   menuOpen = false;
   collapsed = false;
+  private quickCat = 2;
 
   constructor(private g: Game) {
     this.root = document.getElementById('ui')!;
@@ -50,6 +51,37 @@ export class UI {
     this.cine = new Cinematics(g, this);
     this.tutorial = new Tutorial(g, this.el.hud);
     this.el.menuBtn.addEventListener('click', () => { g.audio.click(); this.open(this.panels.lastTab); });
+    this.el.quickBuildBtn.addEventListener('click', () => {
+      g.audio.click();
+      if (this.panels.isOpen()) this.panels.close();
+      this.el.quickBuild.classList.toggle('show');
+      this.el.quickBuildBtn.setAttribute('aria-expanded', String(this.el.quickBuild.classList.contains('show')));
+      if (this.el.quickBuild.classList.contains('show')) this.renderQuickBuild();
+    });
+    this.el.quickBuild.addEventListener('click', e => {
+      const button = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
+      if (!button) return;
+      if (button.dataset.quick === 'close') { this.hideQuickBuild(); return; }
+      if (button.dataset.quick === 'prev' || button.dataset.quick === 'next') {
+        this.quickCat = (this.quickCat + (button.dataset.quick === 'next' ? 1 : -1) + MACHINE_CATS.length) % MACHINE_CATS.length;
+        this.renderQuickBuild();
+        return;
+      }
+      if (button.dataset.quick === 'item') {
+        const key = button.dataset.key!;
+        if (!g.canBuildKey(key)) { g.toast('Desbloqueie esta peça em Melhorias', '#ffb86a'); return; }
+        this.hideQuickBuild();
+        g.startBuild(key);
+        g.audio.click();
+      }
+    });
+    this.el.orbitBtn.addEventListener('click', () => {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      g.camera.targetZoom = g.camera.targetZoom <= 0.55 * dpr ? 2 * dpr : 0.25 * dpr;
+      g.flags.userZoom = true;
+      this.hideQuickBuild();
+      g.audio.click();
+    });
     this.el.upBtn.addEventListener('click', () => { g.audio.click(); this.panels.st.upBr = 'fab'; this.open('upgrades'); if (this.tutorial.active) this.tutorial.tap(this.el.meta as HTMLElement); });
     this.el.descendBtn.addEventListener('click', () => this.descendPrompt());
     // hotbar
@@ -112,7 +144,9 @@ export class UI {
       <button class="ui-block up-btn" data-id="upBtn"><span>✚</span><b>MELHORIAS</b><i class="dot" data-id="upDot"></i></button>
       <div class="ui-block hcard meta" data-id="meta"><div class="mt" data-id="metaTitle"></div><div class="mx" data-id="metaText"></div><div class="mb"><i data-id="metaBar"></i></div></div>
       <div class="ui-block res" data-id="res"></div>
-      <div class="ui-block hcard mm"><canvas data-id="minimap" width="240" height="170"></canvas><div class="mmcap"><span data-id="mmName"></span><span>MAPA ›</span></div></div>
+      <div class="ui-block hcard mm"><canvas data-id="minimap" width="240" height="170"></canvas><div class="mmcap"><span data-id="mmName"></span><span>MAPA ›</span><button class="orbit-btn" data-id="orbitBtn" aria-label="Afastar zoom até o planeta" title="Afastar zoom até o planeta">−</button></div></div>
+      <button class="ui-block quick-build-btn" data-id="quickBuildBtn" aria-label="Construir" aria-expanded="false" title="Construir"><span>▦</span><small>CONSTRUIR</small></button>
+      <div class="ui-block quick-build" data-id="quickBuild"></div>
       <div class="ui-block hcard vitals">
         <div class="vb hp"><span>❤</span><div class="bar"><i data-id="hpBar"></i><em data-id="hpTxt"></em></div></div>
         <div class="vb en"><span>⚡</span><div class="bar"><i data-id="enBar"></i><em data-id="enTxt"></em></div></div>
@@ -140,11 +174,28 @@ export class UI {
   get modal() { return this.el.modal; }
   get cineLayer() { return this.el.cine; }
 
+  private hideQuickBuild() {
+    this.el.quickBuild.classList.remove('show');
+    this.el.quickBuildBtn.setAttribute('aria-expanded', 'false');
+  }
+  private renderQuickBuild() {
+    const g = this.g, cat = MACHINE_CATS[this.quickCat];
+    const list = MACHINES.filter(d => d.cat === cat.key && !d.hidden && !['command', 'analyzer'].includes(d.behavior) && (d.minLayer ?? 1) <= g.planet.layer)
+      .sort((a, b) => (a.key === 'tubo' ? -1 : b.key === 'tubo' ? 1 : 0) || Number(g.canBuildKey(b.key)) - Number(g.canBuildKey(a.key)));
+    this.el.quickBuild.innerHTML = `<div class="qb-head"><button data-quick="prev" aria-label="Categoria anterior">‹</button><b>${esc(cat.name.toUpperCase())}</b><button data-quick="next" aria-label="Próxima categoria">›</button><button data-quick="close" aria-label="Fechar">×</button></div><div class="qb-items">${list.map(d => {
+      const locked = !g.canBuildKey(d.key);
+      const cost = Object.entries(d.cost).map(([k, n]) => `<span class="${g.stock.count(k) + g.pack.count(k) < n ? 'short' : ''}"><img src="${g.sprites.itemUrl(k)}" alt="">${fmtShort(n)}</span>`).join('');
+      const label = d.key === 'tubo' ? 'Tubo Vácuo' : d.key === 'tubo_gigante' ? 'Tubo Gigante' : d.key === 'reforcador' ? 'Reforçador' : d.name;
+      return `<button class="qb-item ${locked ? 'locked' : ''}" data-quick="item" data-key="${d.key}" title="${esc(d.desc)}"><img class="qb-art" src="${g.sprites.machineUrl(d)}" alt=""><b>${esc(label)}</b><small>${locked ? '🔒 Melhoria' : cost}</small></button>`;
+    }).join('')}</div>`;
+  }
+
   modalOpen() { return this.panels.isOpen() || this.mini.isOpen() || this.menuOpen || this.cine.active; }
   discoveryOpen() { return !!this.discoveryEl; }
-  open(id: PanelId) { if (this.mini.isOpen() || this.cine.active) return; this.menuOpen = false; this.panels.open(id); }
+  open(id: PanelId) { if (this.mini.isOpen() || this.cine.active) return; this.hideQuickBuild(); this.menuOpen = false; this.panels.open(id); }
   openMachine(m: Machine) { this.panels.openMachine(m); }
   closeTop(): boolean {
+    if (this.el.quickBuild.classList.contains('show')) { this.hideQuickBuild(); return true; }
     if (this.discoveryEl) { this.discoveryEl.remove(); this.discoveryEl = null; return true; }
     if (this.mini.isOpen()) { this.mini.close(); return true; }
     if (this.panels.isOpen()) { this.panels.close(); return true; }
@@ -259,6 +310,13 @@ export class UI {
     this.tutorial.update();
     this.el.hud.classList.toggle('hidden', !!(g.flags.intro || g.flags.ending));
     document.body.classList.toggle('building', g.build.active);
+    const orbiting = g.camera.targetZoom <= 0.55 * Math.min(2, window.devicePixelRatio || 1);
+    document.body.classList.toggle('orbiting', orbiting);
+    if (this.el.orbitBtn.dataset.mode !== String(orbiting)) {
+      this.el.orbitBtn.dataset.mode = String(orbiting);
+      this.el.orbitBtn.textContent = orbiting ? '+' : '−';
+      this.el.orbitBtn.title = orbiting ? 'Voltar ao jogo' : 'Afastar zoom até o planeta';
+    }
     // o joystick direito diz o que ele faz agora: usar o que está perto, cavar ou soprar
     if (g.input.touch) {
       const span = document.querySelector<HTMLElement>('#mobile .stick.right span');
