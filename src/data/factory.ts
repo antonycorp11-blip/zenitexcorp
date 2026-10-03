@@ -1,7 +1,12 @@
 /** Melhorias da fábrica (pagas com os SILOS). Cada uma tem 4 níveis: valor atual → próximos. */
 export interface FabUp { key: string; name: string; unit: string; vals: number[]; costs: Record<string, number>[]; desc: string; }
 
+/** recuperação mínima de cada minério (minério extraído ÷ minério que existia na terra processada) para liberar a descida */
+export const RECOVERY_GOAL = 0.8;
+
 export const FAB_UPS: FabUp[] = [
+  { key: 'extrator', name: 'Extratores · Eficiência', unit: '%', vals: [62, 70, 78, 86], desc: 'Quanto do minério da terra que passa embaixo cada Ímã/Ressonador consegue puxar numa passada.',
+    costs: [{ ferronox: 80, lumenita: 30 }, { ferronox: 200, lumenita: 90 }, { ferronox: 450, lumenita: 200, lumenita_pura: 8 }] },
   { key: 'laser', name: 'Laser · Alcance', unit: '×', vals: [1, 1.35, 1.7, 2.1], desc: 'Até onde o feixe do laser alcança (a força do laser fica na aba Laser).',
     costs: [{ ferronox: 30, lumenita: 10 }, { ferronox: 100, lumenita: 40 }, { ferronox: 260, lumenita: 100, lumenita_pura: 5 }] },
   { key: 'alcance', name: 'Soprador · Alcance', unit: 'tiles', vals: [7, 9, 11, 14], desc: 'Raio em que cada soprador aspira as pilhas.',

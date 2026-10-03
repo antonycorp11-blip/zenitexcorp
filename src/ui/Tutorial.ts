@@ -1,3 +1,4 @@
+import { RECOVERY_GOAL } from '../data/factory';
 import { siloHelp } from '../systems/SiloHelp';
 import { TILE, CELL } from '../core/constants';
 import { IS_SOLID } from '../data/materials';
@@ -88,9 +89,20 @@ const STEPS: Step[] = [
   { title: 'Saldo e camada', text: (_t, g) => `No topo, seu <b>saldo</b>: Ferronox ${Math.floor(g.upHave('ferronox'))} · Lumenita ${Math.floor(g.upHave('lumenita'))}.<br>A terra <b>queimada</b> sai do planeta e diminui o que <b>falta da camada</b> (cartão à esquerda). Continue cavando.`,
     target: g => () => { const m = g.machines.list.find(x => x.key === 'compactador'); return m ? [(m.tx + 0.5) * TILE, m.ty * TILE] : null; },
     done: g => (g.sectors.s[g.planet.layer]?.counters.burned ?? 0) > 60 },
-  { title: 'A Nave em órbita', text: () => 'Os minérios só <b>saem do planeta</b> quando chegam na <b>Nave</b>, lá no alto (voe com <b>JATO</b> para ver).<br>Vamos ligar o Ímã a ela.',
+  { title: 'Examine o solo', text: t => `${t ? 'Toque <b>SCANNER</b>' : 'Aperte <b>F</b>'}: ele mostra <b>quanto de cada minério</b> tem nesta terra.`,
+    target: (_g, t) => t ? '#mobile [data-b="scan"]' : null, done: g => (g.sectors.s[g.planet.layer]?.counters.scans ?? 0) > 0 },
+  { title: 'A meta: não desperdiçar', text: () => `Você precisa <b>recuperar ${Math.round(RECOVERY_GOAL * 100)}%</b> de cada minério da terra que processa (♻ no cartão da camada).<br>Um extrator pega só <b>~60%</b> numa passada; o que escapa é <b>queimado e perdido</b>. <b>Toque aqui.</b>`,
     target: g => g.ui.panels.isOpen() ? '.pnl .x' : '.hcard.meta', done: () => false, manual: true },
-  { title: 'Tubo até a Nave', bp: 'tuboNave', text: () => '<b>CONSTRUIR → Logística → Tubo de Vácuo</b>: o caminho já está marcado, de cima do Ímã até a porta de carga.<br><b>CONFIRMAR</b>.',
+  { title: 'Mais um Ímã', bp: 'ima2', text: () => '<b>CONSTRUIR → Processamento → Ímã Extrator</b> no quadrado verde, sobre a mesma esteira.<br>O metal que escapou do primeiro, o segundo pega.',
+    target: g => bpTarget(g, 'processamento', 'ima2'), done: g => g.blueprint.placed('ima2') },
+  { title: 'Mais um Ressonador', bp: 'res2', text: () => '<b>CONSTRUIR → Processamento → Ressonador Extrator</b> no quadrado verde.<br>Dois de cada: ~80% de recuperação.',
+    target: g => bpTarget(g, 'processamento', 'res2'), done: g => g.blueprint.placed('res2') },
+  { title: 'Meta batida?', text: (_t, g) => { const f = (k: string) => { const r = g.machines.recovery(k); return r === null ? '—' : Math.round(r * 100) + '%'; }; return `Cave mais perto do Soprador e acompanhe ♻: Ferronox <b>${f('ferronox')}</b> · Lumenita <b>${f('lumenita')}</b> (meta ${Math.round(RECOVERY_GOAL * 100)}%).<br>Abaixo da meta, a camada não libera a descida.`; },
+    target: g => () => { const m = g.machines.list.find(x => x.def.behavior === 'blower'); return m ? [(m.tx + 0.5) * TILE, (m.ty + 1.5) * TILE] : null; },
+    done: g => ['ferronox', 'lumenita'].every(k => { const r = g.machines.recovery(k); return r !== null && r >= RECOVERY_GOAL * 0.95; }) },
+  { title: 'A Nave em órbita', text: () => 'Os minérios só <b>saem do planeta</b> quando chegam na <b>Nave</b>, lá no alto (voe com <b>JATO</b> para ver).<br>Os extratores encostados dividem o mesmo tubo: <b>um tubo</b> serve a linha toda.',
+    target: g => g.ui.panels.isOpen() ? '.pnl .x' : '.hcard.meta', done: () => false, manual: true },
+  { title: 'Tubo até a Nave', bp: 'tuboNave', text: () => '<b>CONSTRUIR → Logística → Tubo de Vácuo</b>: o caminho está marcado, saindo de cima do Ímã.<br>Não precisa encostar: o <b>raio trator</b> da Nave puxa o que sai perto dela. <b>CONFIRMAR</b>.',
     target: g => buildFlow(g, 'logistica', 'tubo'), done: g => g.blueprint.placed('tuboNave') },
   { title: 'Primeira entrega', text: (_t, g) => `Cave mais: o Ferronox do Ímã agora sobe pelo tubo até a Nave.<br>Enviado: <b>${Math.floor(g.sectors.s[g.planet.layer]?.counters.shipped ?? 0)} kg</b>.`,
     target: g => () => { const m = g.machines.list.find(x => x.def.behavior === 'blower'); return m ? [(m.tx + 0.5) * TILE, (m.ty + 1.5) * TILE] : null; },

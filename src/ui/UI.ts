@@ -1,4 +1,4 @@
-import { FAB_UPS, fabLevel } from '../data/factory';
+import { FAB_UPS, fabLevel, RECOVERY_GOAL } from '../data/factory';
 import { siloHelp } from '../systems/SiloHelp';
 import { METAS } from '../data/metas';
 import { fmtInt, fmtShort, fmtMass, fmtTime } from '../core/math';
@@ -224,7 +224,7 @@ export class UI {
         </div>
         <ol class="lsteps">
           <li><i class="k d-dirt0"></i>O <b>Soprador</b> manda a terra pelo <b>Tubo de Vácuo</b> até a <b>esteira</b>.</li>
-          <li><i class="k d-fe"></i>O <b>Ímã</b>, <b>por cima da esteira</b>, puxa o <b>Ferronox</b> (prateado) direto para o seu <b>saldo</b> (com um tubo encostado, você leva até a <b>Nave</b>).</li>
+          <li><i class="k d-fe"></i>O <b>Ímã</b>, <b>por cima da esteira</b>, puxa o <b>Ferronox</b> (prateado) direto para o seu <b>saldo</b>. Cada extrator pega <b>~60%</b> numa passada: ponha <b>mais de um</b> na mesma esteira para não desperdiçar.</li>
           <li><i class="k d-lu"></i>O <b>Ressonador</b> puxa a <b>Lumenita</b> (azul) do mesmo jeito.</li>
           <li><i class="k d-gray"></i>A terra muda de cor a cada extração. O que sobra (<b>cinza</b>) é <b>queimado no Incinerador</b> e sai do planeta.</li>
         </ol>
@@ -342,7 +342,8 @@ export class UI {
     // OBJETIVO fixo: esvaziar a camada (terra queimada + minérios entregues na Nave), camada por camada até o núcleo
     const cs = g.sectors.s[g.planet.layer]?.counters ?? {}, burned = cs.burned ?? 0, shipped = cs.shipped ?? 0;
     const leftT = Math.max(0, (L.target - g.planet.units[g.planet.layer]) * 2 / 1000);
-    this.el.lyObj.innerHTML = `<b>DESTRUIR O PLANETA</b> · faltam ${fmtShort(leftT)} t nesta camada<br>🔥 ${fmtShort(burned)} kg queimados · 🚀 ${fmtShort(shipped)} kg na Nave`;
+    const recs = compOf(g.planet.layer).minerals.map(mm => { const r = g.machines.recovery(mm.k); const ok = r === null || r >= RECOVERY_GOAL; return `<span style="color:${r === null ? '#9bb' : ok ? '#7aff8a' : '#ff8a6a'}">${(ITEM[mm.k]?.name ?? mm.k).slice(0, 4)} ${r === null ? '—' : Math.round(r * 100) + '%'}</span>`; }).join(' · ');
+    this.el.lyObj.innerHTML = `<b>DESTRUIR O PLANETA</b> · faltam ${fmtShort(leftT)} t nesta camada<br>🔥 ${fmtShort(burned)} kg queimados · 🚀 ${fmtShort(shipped)} kg na Nave<br>♻ Recuperação: ${recs} <i>(meta ${Math.round(RECOVERY_GOAL * 100)}%)</i>`;
     this.el.descendBtn.style.display = g.canDescend() && !g.descendBlocked() ? 'block' : 'none';
     const warn = this.bottleneck();
     this.el.lyWarn.innerHTML = warn ? esc(warn) : '';

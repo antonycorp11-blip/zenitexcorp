@@ -603,11 +603,11 @@ export class Renderer {
       if (dx) ctx.fillRect(dx > 0 ? cx : cx - h, cy - r, h, r * 2); else ctx.fillRect(cx - r, dy > 0 ? cy : cy - h, r * 2, h);
     };
     // tubo de vidro reforçado: carcaça grafite, canal de vidro com brilho ciano e anéis de contenção
-    for (const d of sides) seg(d, '#0a0d14', R + 0.9);
-    for (const d of sides) seg(d, '#2a3346', R);
-    for (const d of sides) seg(d, 'rgba(90,200,255,0.28)', R * 0.62);
-    ctx.fillStyle = '#2a3346'; ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
-    ctx.fillStyle = 'rgba(90,200,255,0.28)'; ctx.fillRect(cx - R * 0.62, cy - R * 0.62, R * 1.24, R * 1.24);
+    // TUBO TRANSPARENTE: vidro quase invisível com bordas claras; os grãos aparecem andando dentro
+    for (const d of sides) seg(d, 'rgba(170,230,255,0.55)', R + 0.5);
+    for (const d of sides) seg(d, 'rgba(120,200,255,0.10)', R - 0.5);
+    ctx.fillStyle = 'rgba(170,230,255,0.55)'; ctx.fillRect(cx - R - 0.5, cy - R - 0.5, R * 2 + 1, R * 2 + 1);
+    ctx.fillStyle = 'rgba(120,200,255,0.10)'; ctx.fillRect(cx - R + 0.5, cy - R + 0.5, R * 2 - 1, R * 2 - 1);
     // reflexo do vidro
     ctx.fillStyle = 'rgba(220,245,255,0.35)';
     for (const d of sides) { const [dx] = DIRS[d]; if (dx) ctx.fillRect(dx > 0 ? cx : cx - TILE / 2, cy - R * 0.5, TILE / 2, 0.6); else ctx.fillRect(cx - R * 0.5, DIRS[d][1] > 0 ? cy : cy - TILE / 2, 0.6, TILE / 2); }
@@ -765,17 +765,41 @@ export class Renderer {
       const cx = x + W / 2, by = y + H, pulse = 0.6 + 0.4 * Math.sin(t * 3);
       g.lighting.add(cx, by, 60, [120, 220, 255], 0.6 * pulse);
       g.lighting.add(x + 6, y + 20, 50, [120, 220, 255], 0.8);
-      ctx.save(); ctx.font = 'bold 7px sans-serif'; ctx.textAlign = 'center';
-      const lbl = '▲ PORTA DE CARGA: ligue um Tubo de Vácuo aqui';
-      const tw = ctx.measureText(lbl).width + 10;
-      ctx.fillStyle = 'rgba(6,14,24,0.85)'; ctx.fillRect(cx - tw / 2, by + 4, tw, 11);
-      ctx.fillStyle = `rgba(140,230,255,${0.7 + 0.3 * pulse})`; ctx.fillText(lbl, cx, by + 12);
-      ctx.restore();
+      // RAIO TRATOR: feixe da boca do tubo até a porta de carga enquanto entrega
+      if (m.beam && g.time - m.beam.t < 0.5) {
+        const a = 1 - (g.time - m.beam.t) / 0.5, bx = nearestX(m.beam.x, cx);
+        const gr = ctx.createLinearGradient(0, m.beam.y, 0, by);
+        gr.addColorStop(0, `rgba(140,230,255,${0.15 * a})`); gr.addColorStop(1, `rgba(140,230,255,${0.45 * a})`);
+        ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(bx - 3, m.beam.y); ctx.lineTo(bx + 3, m.beam.y); ctx.lineTo(cx + 12, by); ctx.lineTo(cx - 12, by); ctx.closePath(); ctx.fill();
+        for (let i = 0; i < 3; i++) { const f = (t * 2.5 + i / 3) % 1; ctx.fillStyle = `rgba(230,250,255,${0.8 * a})`; ctx.fillRect(bx + (cx - bx) * f - 1, m.beam.y + (by - m.beam.y) * f - 1, 2, 2); }
+      }
+      // só um brilho discreto na porta de carga (sem texto atrapalhando)
+      ctx.fillStyle = `rgba(140,230,255,${0.25 + 0.35 * pulse})`; ctx.beginPath(); ctx.ellipse(cx, by + 1, 14, 2.5, 0, 0, 7); ctx.fill();
       return;
     }
     if (d.behavior === 'extractor') {
       // campo puxando para CIMA a partir da esteira: ondas descendo e grãos subindo até o extrator
       const ima = d.key === 'ima', cx = x + W / 2, by = y + H, busy = m.state.startsWith('Puxando'), k = busy ? 1 : 0.4;
+      // cada grão puxado sobe BEM VISÍVEL: grão grande, colorido, com rastro e um feixe ligando à máquina
+      if (m.fly?.length) {
+        const live = m.fly.filter(f => g.time - f.t < 0.55);
+        if (live.length) {
+          const cg = ctx.createLinearGradient(0, by, 0, by + TILE * 1.9);
+          cg.addColorStop(0, ima ? 'rgba(255,120,100,0.28)' : 'rgba(110,220,255,0.28)'); cg.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = cg; ctx.beginPath(); ctx.moveTo(x + 2, by); ctx.lineTo(x + W - 2, by); ctx.lineTo(x + W + 3, by + TILE * 1.9); ctx.lineTo(x - 3, by + TILE * 1.9); ctx.closePath(); ctx.fill();
+        }
+        for (const f of live) {
+          const a = (g.time - f.t) / 0.55, e = a * a * (3 - 2 * a);
+          const fx0 = nearestX(f.x, cx), px = fx0 + (cx - fx0) * e, py = f.y + (by - 1 - f.y) * e;
+          const c = ITEM[f.k]?.color ?? [230, 230, 240];
+          ctx.strokeStyle = `rgba(${c[0]},${c[1]},${c[2]},${0.5 * (1 - a)})`; ctx.lineWidth = 1.2;
+          ctx.beginPath(); ctx.moveTo(fx0, f.y); ctx.lineTo(px, py); ctx.stroke();
+          ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; ctx.fillRect(px - 1.6, py - 1.6, 3.2, 3.2);
+          ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(px - 0.6, py - 1.2, 1.2, 1.2);
+          g.lighting.add(px, py, 10, c as [number, number, number], 0.6);
+        }
+        m.fly = m.fly.filter(f => g.time - f.t < 0.6);
+      }
       ctx.lineWidth = 0.6;
       for (let i = 0; i < 3; i++) {
         const ph = (t * (busy ? 1.4 : 0.5) + i / 3) % 1;

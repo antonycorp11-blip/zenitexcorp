@@ -142,7 +142,7 @@ export class Game {
     this.blueprint.layout();
     this.placeShip();
     if (withLine) for (const it of this.blueprint.items) {
-      if (it.id === 'tuboNave') continue;           // esse o jogador constrói (é a lição)
+      if (it.id === 'tuboNave' || it.id === 'ima2' || it.id === 'res2') continue;   // esses o jogador constrói (são as lições)
       if (it.key === 'tubo') { for (const [x, y, d] of this.blueprint.tubePath(it)) this.machines.place('tubo', x, y, d); continue; }
       if (it.tx2 !== undefined) { for (let x = Math.min(it.tx, it.tx2); x <= Math.max(it.tx, it.tx2); x++) this.machines.place(it.key, x, it.ty, it.dir); continue; }
       const m = this.machines.place(it.key, it.tx, it.ty, it.dir);
@@ -622,15 +622,19 @@ export class Game {
 
   private placeBeltLine() {
     const def = MACHINE[this.build.key!];
-    let placed = 0, turned = 0, blocked = 0, poor = false;
+    let placed = 0, turned = 0, blocked = 0, poor = false, joined = false;
     for (const [tx, ty, dir] of this.beltPath()) {
       const ex = this.machines.at(tx, ty);
+      // RAMAL: um tubo novo que chega num tubo existente se liga nele (sem girar a linha principal)
+      if (def.behavior === 'tube' && ex && ex.def.behavior === 'tube' && placed > 0) { joined = true; break; }
+      if (def.behavior === 'tube' && ex && ex.def.behavior === 'tube') continue;   // nunca gira um tubo que já existe
       if (ex && ex.key === def.key) { if (def.rotatable && ex.dir !== dir) { ex.dir = dir; turned++; } continue; } // reaproveita peça existente
       if (this.machines.canPlace(def, tx, ty)) { blocked++; continue; }
       if (!this.stock.pay(def.cost, this.pack.items)) { poor = true; break; }
       if (this.machines.place(def.key, tx, ty, dir)) { placed++; this.stats.built++; }
     }
     if (placed || turned) { this.audio.click(); this.toast(`${placed} ${def.behavior === 'tube' ? 'tubo(s)' : def.behavior === 'scaffold' ? 'peça(s) de piso' : def.behavior === 'riser' ? 'peça(s) de elevador' : 'esteira(s)'} instalada(s)${turned ? `, ${turned} girada(s)` : ''}`, '#9cff8a'); }
+    if (joined) this.toast('Ramal ligado ao tubo principal', '#9cff8a');
     if (blocked) this.toast(`${blocked} trecho(s) obstruído(s) foram pulados`, '#ffd04a');
     if (poor) { this.toast('Recursos acabaram no meio da linha', '#ff8a3a'); this.audio.error(); }
     // linha instalada: volta ao perfurador (ficar preso no modo construção parecia travamento)

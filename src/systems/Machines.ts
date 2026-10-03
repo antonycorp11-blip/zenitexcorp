@@ -57,7 +57,12 @@ export interface Machine {
   lg?: number;           // perfuradoras: teor do último material
   kr?: number;           // rodízio de itens na saída
   q?: { m: number; a: number; d: number; t?: number }[];   // tubos: grãos em trânsito (d mantido para saves antigos)
-  scan?: number;         // sopradores e tubos: varredura incremental do raio
+  scan?: number;
+  stepN?: number;        // esteiras: quantos passos já deu (extratores avaliam cada grão uma vez por passo)
+  lastStep?: number;     // extratores: último passo da esteira avaliado
+  prevOcc?: Set<number>; // extratores: grãos na área no passo anterior (para avaliar cada grão uma vez)
+  fly?: { x: number; y: number; t: number; k: string }[];   // extratores: grãos subindo (só visual)
+  beam?: { x: number; y: number; t: number };              // nave: último ponto de onde puxou (raio trator)         // sopradores e tubos: varredura incremental do raio
 }
 
 export interface SectorRT {
@@ -706,6 +711,7 @@ export class Machines {
       }
       case 'separator': case 'prep': case 'compactor': {
         if (d.behavior === 'compactor' ? !(k === 'residuo' || k === 'bruto_sm' || k === 'bruto_sc' || k === 'fragmentado' || RAW_BY_LAYER.includes(k) || SILO_KEYS.has(k)) : d.takes?.[k] === undefined) return false;
+        if (d.behavior === 'compactor') this.countLost(k, q, grade ?? 1);
         if (d.behavior === 'compactor' && k !== 'residuo') k = 'residuo';
         if (bagTotal(m.inb) + q > IN_CAP) return false;
         gradeMix(m.g, m.inb[k] ?? 0, k, q, grade);
@@ -856,6 +862,23 @@ export class Machines {
     m.state = ok ? 'Transbordando pelo lado ' + (m.dir === 2 ? '◀' : '▶') : 'Cheio e sem saída: libere o lado da seta';
     return ok;
   }
+  /** minério que se perdeu (foi queimado sem ser extraído): entra na conta da RECUPERAÇÃO da camada */
+  countLost(k: string, q: number, grade: number) {
+    const L = this.g.planet.layer, comp = compOf(L), magnetPick = MACHINE.ima.pick ?? [];
+    const add = (mk: string, kg: number) => { if (kg > 0) this.g.sectors.counter(L, 'lost_' + mk, kg); };
+    if (SILO_KEYS.has(k)) { add(k, q); return; }
+    const raw = k === 'fragmentado' || RAW_BY_LAYER.includes(k);
+    for (const m of comp.minerals) {
+      const metal = magnetPick.includes(m.k);
+      if (raw || (k === 'bruto_sm' && !metal) || (k === 'bruto_sc' && metal)) add(m.k, q * m.frac * grade);
+    }
+  }
+  /** recuperação de um minério na camada atual (0..1), ou null se ainda não há terra processada suficiente */
+  recovery(k: string, L = this.g.planet.layer): number | null {
+    const c = this.g.sectors.s[L]?.counters ?? {}, rec = c['rec_' + k] ?? 0, lost = c['lost_' + k] ?? 0;
+    return rec + lost < 6 ? null : rec / (rec + lost);
+  }
+
   siloCap() { return fabVal(this.g.flags, 'silo'); }
   /** total guardado em silos de um mineral */
   siloCount(k: string) { let n = 0; for (const m of this.list) if (m.def.behavior === 'silo') n += m.inb[k] ?? 0; return n; }
@@ -872,6 +895,7 @@ export class Machines {
       b.prog += dt * (b.def.speed ?? 1) * TILE_CELLS * 1.5;
       if (b.prog < 1) continue;
       b.prog -= Math.floor(b.prog);
+      b.stepN = (b.stepN ?? 0) + 1;
       const d = b.dir === 2 ? -1 : 1;
       const y = b.ty * TILE_CELLS - 1;
       if (y < 0) continue;
@@ -966,6 +990,14 @@ export class Machines {
   private tubeVacuum(t: Machine) {
     const q = t.q ?? (t.q = []);
     if (q.length >= this.tubeCap(t)) return;
+    // só a BOCA livre de uma linha aspira: tubo ligado a extrator, soprador ou a outro tubo não puxa terra do entorno
+    for (let d = 0; d < 4; d++) {
+      const [dx, dy] = DIRS[d], n = this.at(t.tx + dx, t.ty + dy);
+      if (!n || d === t.dir) continue;
+      if (n.def.behavior !== 'tube') return;
+      const [ndx, ndy] = DIRS[n.dir];
+      if (n.tx + ndx === t.tx && n.ty + ndy === t.ty) return;
+    }
     const w = this.g.world, cx = t.tx * TILE_CELLS + TILE_CELLS / 2, cy = t.ty * TILE_CELLS + TILE_CELLS / 2;
     const radius = t.key === 'tubo_gigante' ? 16 : 11;
     const width = radius * 2 + 1, total = width * width;
@@ -986,6 +1018,12 @@ export class Machines {
       }
     }
     t.scan = scan % total;
+  }
+  /** Nave cujo raio trator alcança este tile (até 14 tiles abaixo dela, na largura dela) */
+  shipNear(tx: number, ty: number): Machine | undefined {
+    const s = this.list.find(x => x.def.behavior === 'ship'); if (!s) return undefined;
+    const rx = nearestX(tx, s.tx + s.def.w / 2, WORLD_TW) - s.tx;
+    return rx >= -1 && rx <= s.def.w && ty >= s.ty + s.def.h - 1 && ty <= s.ty + s.def.h + 14 ? s : undefined;
   }
   /** capacidade de cada tubo (pacotes em trânsito) */
   tubeCap(t: Machine) { return t.key === 'tubo_gigante' ? 12 : 4; }
@@ -1013,6 +1051,10 @@ export class Machines {
       // saída encostada numa máquina: entra pelo funil/lateral dela
       this.lastAux = p.a;
       if (this.sinkGrain(n.id, p.m)) { t.q!.shift(); t.state = 'ok'; return true; }
+      if (n.def.behavior === 'ship') {
+        // a Nave não leva terra: o grão é jogado para fora do tubo (cai) e a linha continua andando
+        if (this.g.world.spawnGrain(t.tx * TILE_CELLS - 1, t.ty * TILE_CELLS + 4, p.m, p.a, true) || this.g.world.spawnGrain((t.tx + 1) * TILE_CELLS, t.ty * TILE_CELLS + 4, p.m, p.a, true)) { t.q!.shift(); t.state = 'Terra recusada pela Nave (caiu fora)'; return true; }
+      }
       t.state = 'Destino recusa: ' + (ITEM[GRAIN_ITEM[p.m]]?.name ?? ''); return false;
     }
     // boca do tubo em cima de um funil: cai direto dentro da máquina de baixo
@@ -1021,6 +1063,12 @@ export class Machines {
       this.lastAux = p.a;
       if (this.sinkGrain(below.id, p.m)) { t.q!.shift(); t.state = 'ok'; return true; }
       t.state = `${below.def.name} cheia: esperando`; return false;
+    }
+    // RAIO TRATOR: a Nave puxa sozinha o que sai de um tubo perto dela (não precisa encostar)
+    const ship = this.shipNear(t.tx + dx, t.ty + dy);
+    if (ship) {
+      this.lastAux = p.a;
+      if (this.sinkGrain(ship.id, p.m)) { t.q!.shift(); t.state = 'Entregando à Nave (raio trator)'; ship.beam = { x: (t.tx + 0.5) * TILE, y: (t.ty + 0.5) * TILE, t: this.g.time }; return true; }
     }
     // boca do tubo: o grão sai no ar, no meio do tile seguinte
     return drop((t.tx + 0.5 + dx) * TILE_CELLS, (t.ty + 0.5 + dy) * TILE_CELLS);
@@ -1033,14 +1081,26 @@ export class Machines {
     const mine = comp.minerals.filter((x: { k: string }) => d.pick!.includes(x.k));
     const rareOk = d.pick!.includes(comp.rare.k);
     const x0 = m.tx * TILE_CELLS, x1 = (m.tx + d.w) * TILE_CELLS, y0 = (m.ty + d.h) * TILE_CELLS, y1 = y0 + TILE_CELLS * 2;
-    let budget = bagTotal(m.out) >= OUT_CAP ? 0 : Math.max(1, Math.round(60 * dt * 6)), got = 0, seen = 0;   // cheio (sem tubo): deixa a terra passar
+    let budget = bagTotal(m.out) >= OUT_CAP ? 0 : 64, got = 0, seen = 0;   // cheio (tubo travado): deixa a terra passar
     const raw = RAW_BY_LAYER[L], done = magnet ? 'bruto_sm' : 'bruto_sc', other = magnet ? 'bruto_sc' : 'bruto_sm';
-    for (let y = y0; y < y1 && budget > 0; y++) for (let x = x0; x < x1 && budget > 0; x++) {
+    // cada grão é avaliado UMA vez, quando entra embaixo do extrator (coluna de entrada, um passo da esteira por vez)
+    const belt = [0, 1].map(i => this.at(m.tx + i, m.ty + 2)).find(b => b?.def.behavior === 'belt');
+    const eff = fabVal(this.g.flags, 'extrator') / 100;
+    const cx0 = x0, cx1 = x1, bd = belt?.dir === 2 ? -1 : 1;
+    // grão "novo" = um que no passo anterior da esteira NÃO estava nesta área (nem na célula de onde a esteira o trouxe)
+    const prev = m.prevOcc ?? new Set<number>(), now = new Set<number>();
+    const stepped = !!belt && belt.stepN !== m.lastStep;
+    if (!belt || !stepped) budget = 0;
+    else m.lastStep = belt.stepN;
+    for (let y = y0; y < y1 && budget > 0; y++) for (let x = cx0; x < cx1 && budget > 0; x++) {
       const mat = w.get(x, y);
       if (!IS_LOOSE[mat]) continue;
       const k = GRAIN_ITEM[mat];
       if (k !== raw && k !== 'fragmentado' && k !== other) continue;
+      now.add(y * WORLD_W + x);
+      if (prev.has(y * WORLD_W + x - bd) || prev.has(y * WORLD_W + x) || prev.has((y - 1) * WORLD_W + x) || prev.has((y - 1) * WORLD_W + x - bd)) continue;   // já foi avaliado neste extrator
       seen++; budget--;
+      if (Math.random() >= eff) continue;   // escapou desta passada (outro extrator mais à frente pode pegar)
       const grade = w.aux[y * WORLD_W + wrapX(x, WORLD_W)] / 40 || 1;
       // chance do grão inteiro ser do mineral (fração em massa × teor); a terra que sobra muda de cor
       let p = 0; for (const mm of mine) p += mm.frac * grade;
@@ -1051,18 +1111,31 @@ export class Machines {
         let kk = comp.rare.k;
         if (r < p) { const base = k === other ? p : 1; let acc = 0; for (const mm of mine) { acc += mm.frac * grade * (k === other ? p / Math.max(1e-9, mine.reduce((a2, b2) => a2 + b2.frac * grade, 0)) : base); if (r < acc) { kk = mm.k; break; } } if (kk === comp.rare.k) kk = mine[mine.length - 1]?.k ?? kk; }
         bagAdd(m.out, kk, GRAIN_KG); m.g[kk] = grade;
+        (m.fly ??= []).push({ x: x * CELL, y: y * CELL, t: this.g.time, k: kk }); if (m.fly.length > 24) m.fly.shift();
         w.set(x, y, MAT.AIR); got += GRAIN_KG;
         this.g.sectors.counter(L, 'separated', GRAIN_KG);
+        this.g.sectors.counter(L, 'rec_' + kk, GRAIN_KG);
         if (Math.random() < 0.5) this.g.fx.ember(x * CELL, y * CELL, magnet ? [230, 236, 250] : [90, 180, 255]);
       } else {
         w.set(x, y, GRAIN[k === other ? 'residuo' : done], w.aux[y * WORLD_W + wrapX(x, WORLD_W)]);
       }
     }
+    if (stepped) m.prevOcc = now;
     m.fin *= 0.97; this.flow(m, 'fin', got, dt);
     // o que puxou vai para o Tubo de Vácuo encostado (qualquer lado); sem tubo, empilha em cima
-    const tubes: Machine[] = [];
-    for (let i = -1; i <= d.w; i++) for (const [tx, ty] of [[m.tx + i, m.ty - 1], [m.tx + i, m.ty + d.h]] as [number, number][]) { const o = this.at(tx, ty); if (o && o.def.behavior === 'tube' && !tubes.includes(o)) tubes.push(o); }
-    for (const tx of [m.tx - 1, m.tx + d.w]) { const o = this.at(tx, m.ty); if (o && o.def.behavior === 'tube' && !tubes.includes(o)) tubes.push(o); }
+    // extratores ENCOSTADOS formam um grupo: todos usam o(s) tubo(s) ligado(s) a qualquer um deles
+    const tubes: Machine[] = [], group: Machine[] = [m], seenG = new Set<Machine>([m]);
+    for (let gi = 0; gi < group.length && gi < 24; gi++) {
+      const e = group[gi];
+      const around: [number, number][] = [];
+      for (let i = -1; i <= e.def.w; i++) around.push([e.tx + i, e.ty - 1], [e.tx + i, e.ty + e.def.h]);
+      for (let j = 0; j < e.def.h; j++) around.push([e.tx - 1, e.ty + j], [e.tx + e.def.w, e.ty + j]);
+      for (const [tx, ty] of around) {
+        const o = this.at(tx, ty); if (!o || seenG.has(o)) continue;
+        if (o.def.behavior === 'tube') { seenG.add(o); tubes.push(o); }
+        else if (o.def.behavior === 'extractor') { seenG.add(o); group.push(o); }
+      }
+    }
     let out = 0;
     if (!tubes.length) {
       // sem tubo: o que o extrator puxa vai direto para o SALDO (estoque da base); com tubo, vai para onde o tubo levar (ex.: a Nave)
@@ -1078,7 +1151,7 @@ export class Machines {
       }
     }
     const name = magnet ? 'metal' : 'cristais';
-    m.state = bagTotal(m.out) >= OUT_CAP ? 'Tubo cheio: a saída está travada' : got > 0 ? `Puxando ${name}` + (tubes.length ? ' → tubo' : ' → estoque') : seen ? 'Terra passando' : 'Esperando terra na esteira embaixo';
+    m.state = !belt ? 'Precisa de uma ESTEIRA embaixo (1 espaço livre)' : bagTotal(m.out) >= OUT_CAP ? 'Tubo cheio: a saída está travada' : got > 0 ? `Puxando ${name}` + (tubes.length ? ' → tubo' : ' → estoque') : seen ? 'Terra passando' : 'Esperando terra na esteira embaixo';
   }
 
   // ---- elevador de grãos: coluna vertical que leva grãos até o topo e solta para o lado ----

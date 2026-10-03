@@ -30,8 +30,11 @@ export class Blueprint {
       { id: 'tuboFeed', key: 'tubo', tx: X + 18, ty: gy - 1, tx2: X + 17, ty2: gy - 3, dir: 3, label: 'TUBO' },
       { id: 'ima', key: 'ima', tx: X + 14, ty: gy - 3, dir: 0, label: 'ÍMÃ' },
       { id: 'ressonador', key: 'ressonador', tx: X + 10, ty: gy - 3, dir: 0, label: 'RESSONADOR' },
+      // reforço da linha (a lição da recuperação): mais um Ímã e mais um Ressonador sobre a mesma esteira
+      { id: 'ima2', key: 'ima', tx: X + 12, ty: gy - 3, dir: 0, label: '2º ÍMÃ' },
+      { id: 'res2', key: 'ressonador', tx: X + 8, ty: gy - 3, dir: 0, label: '2º RESSONADOR' },
       // a lição: um Tubo de Vácuo reto, de cima do Ímã até a porta de carga da Nave (que fica bem em cima)
-      { id: 'tuboNave', key: 'tubo', tx: X + 14, ty: gy - 4, tx2: X + 14, ty2: gy - 40, dir: 3, label: 'TUBO ATÉ A NAVE' },
+      { id: 'tuboNave', key: 'tubo', tx: X + 14, ty: gy - 4, tx2: X + 14, ty2: gy - 28, dir: 3, label: 'TUBO PARA A NAVE' },
     ];
   }
 

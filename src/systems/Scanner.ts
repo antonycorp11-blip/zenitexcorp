@@ -1,3 +1,4 @@
+import { RECOVERY_GOAL } from '../data/factory';
 import { CELL, TILE, WORLD_W, WORLD_H, WORLD_PX_W, nearestX, wrapX } from '../core/constants';
 import { matById } from '../data/materials';
 import { SCANNERS } from '../data/equipment';
@@ -78,13 +79,11 @@ export class Scanner {
     const raw = ITEM[rawOf(L)]?.name ?? 'Material';
     const comp = compOf(L);
     let html = `<div class="gh">ANÁLISE GEOLÓGICA</div><div class="gm">${raw}</div>`;
-    if (lv >= 1) html += `<div class="gr"><span>Concentração mineral</span><b style="color:${gradeColor(here)}">${gradeLabel(here, true)}</b></div>`;
-    if (lv >= 2) {
-      for (const m of comp.minerals) html += `<div class="gr"><span>${ITEM[m.k]?.name}</span><b>${pctRange(m.frac, here)}</b></div>`;
-      html += `<div class="gr"><span>Desconhecido</span><b>&lt;1%</b></div>`;
-      html += `<div class="gr"><span>Pureza</span><b style="color:${gradeColor(here)}">${gradeLabel(here, true)}</b></div>`;
-    }
-    if (lv < 1) html += `<div class="gt">Composição desconhecida. Melhore o scanner para medir a concentração.</div>`;
+    // EXAME DO SOLO (sem máquina): quanto de cada minério tem aqui e quanto você precisa recuperar
+    let minPct = 0;
+    for (const m of comp.minerals) { const p = m.frac * here * 100; minPct += p; html += `<div class="gr"><span>${ITEM[m.k]?.name}</span><b>${p < 1 ? p.toFixed(1) : Math.round(p)}%</b></div>`; }
+    html += `<div class="gr"><span>Terra (queimar)</span><b>${Math.round(100 - minPct)}%</b></div>`;
+    html += `<div class="gt">Meta: recuperar <b>${Math.round(RECOVERY_GOAL * 100)}%</b> de cada minério da terra que você processar.</div>`;
     if (best > here * 1.15) {
       const ang = Math.atan2(by - py, bx - px);
       const arrow = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'][((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8];

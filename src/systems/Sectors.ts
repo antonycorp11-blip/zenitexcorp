@@ -1,3 +1,6 @@
+import { RECOVERY_GOAL } from '../data/factory';
+import { compOf } from '../data/composition';
+import { ITEM } from '../data/items';
 import { LAYER_COUNT, SECTORS } from '../data/sectors';
 import { METAS, type MetaDef } from '../data/metas';
 import { DRILLS } from '../data/equipment';
@@ -100,6 +103,11 @@ export class SectorSystem {
   descendBlock(): string | null {
     const next = SECTORS[this.g.planet.layer];
     if (!next) return null;
+    // recuperação mínima de cada minério da camada (não desperdiçar o que existia na terra)
+    for (const mm of compOf(this.g.planet.layer).minerals) {
+      const r = this.g.machines.recovery(mm.k);
+      if (r !== null && r < RECOVERY_GOAL) return `Recuperação de ${ITEM[mm.k]?.name ?? mm.k}: ${Math.round(r * 100)}% (meta ${Math.round(RECOVERY_GOAL * 100)}%). Ponha mais extratores sobre a esteira ou melhore a eficiência.`;
+    }
     const tier = DRILLS[this.g.player.drillLevel].tier;
     return tier < next.tier ? `Sua classe de perfurador (${tier}) não quebra a ${next.name} (classe ${next.tier}). Melhore o perfurador antes de descer.` : null;
   }
