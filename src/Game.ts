@@ -1,6 +1,6 @@
 import './data/economy';
 import { CELL, TILE, TILE_CELLS, SIM_DT, WORLD_TW, WORLD_TH, WORLD_W, WORLD_H, LEGACY_WORLD_W, LEGACY_WORLD_H, SURFACE_Y, wrapX, nearestX } from './core/constants';
-import { MAT, IS_SOLID } from './data/materials';
+import { MAT, IS_SOLID, IS_LOOSE } from './data/materials';
 import { bus, EventBus } from './core/events';
 import { World } from './world/World';
 import { Sprites } from './render/Sprites';
@@ -30,6 +30,7 @@ import { Mining } from './systems/Mining';
 import { Hazards } from './systems/Hazards';
 import { Stats } from './systems/Stats';
 import { saveSlot, packBytes, unpackBytes } from './systems/Save';
+import { cloudSave } from './core/athg';
 import { MACHINE, nextDir } from './data/machines';
 import { SECTORS, LAYER_COUNT } from './data/sectors';
 import { ITEM } from './data/items';
@@ -257,8 +258,18 @@ export class Game {
     return { kg, grade, out: res.out, residue: res.residue, pay };
   }
 
+  /** mede a massa REAL da camada: cada célula de terra/rocha (e grão solto) do mapa é 1 unidade (2 kg) */
+  measureLayer() {
+    const L = this.planet.layer;
+    if (this.planet.targets[L] > 0) return;
+    const m = this.world.mat; let n = 0;
+    for (let i = 0; i < m.length; i++) { const v = m[i]; if (v !== MAT.EDGE && (IS_SOLID[v] || IS_LOOSE[v])) n++; }
+    this.planet.targets[L] = n + this.planet.units[L];
+  }
+
   setupNew() {
     this.setupStart();
+    this.measureLayer();
     this.markLayerStart();
     this.stock.add('ferronox', 270, false); this.stock.add('lumenita', 120, false);   // kit inicial: a primeira fábrica vertical inteira, com folga
     this.pack.add('kit_soprador', 1);   // um soprador extra na mão (o outro já está na linha)
@@ -892,7 +903,7 @@ export class Game {
   // ---------------- save ----------------
   serialize() {
     return {
-      v: 5, opts: this.opts, time: this.time, flags: this.flags, selected: this.selected, hotbar: this.hotbar,
+      v: 5, savedAt: Date.now(), opts: this.opts, time: this.time, flags: this.flags, selected: this.selected, hotbar: this.hotbar,
       chunks: this.world.serializeChunks(), explored: packBytes(this.world.explored),
       regrow: this.world.regrowQueue,
       player: this.player.serialize(), pack: { items: this.pack.items, level: this.pack.level, g: this.pack.g },
@@ -985,6 +996,9 @@ export class Game {
     // camada nova (acabou de descer, mapa vazio): a Nave chega e o jogador desce embaixo dela
     if (!this.machines.list.length) this.setupBase();
     this.placeShip();
+    this.measureLayer();
+    // saves antigos marcavam a camada como esgotada com a meta de 16 t: desfaz se ainda não acabou de verdade
+    if (!this.planet.layerDone()) delete this.flags['layerDone' + this.planet.layer];
     this.blueprint.layout();
     this.camera.x = this.player.x; this.camera.y = this.player.y;
   }
@@ -1034,7 +1048,9 @@ export class Game {
   leaving = false;   // durante descida/NG+: nenhum autosave pode sobrescrever o save preparado
   async save() {
     if (this.leaving) return;
-    const ok = await saveSlot('slot1', this.serialize());
+    const s = this.serialize();
+    const ok = await saveSlot('slot1', s);
+    cloudSave(s);
     if (ok) this.ui?.savedIndicator();
   }
 }

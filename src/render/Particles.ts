@@ -83,7 +83,7 @@ export class Particles {
         // poeira/fumaça: nuvem macia que cresce e some
         ctx.globalAlpha = a * 0.35;
         ctx.fillStyle = col;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (0.6 + t * 1.6), 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(0.1, Math.abs(p.size) * (0.6 + Math.max(0, t) * 1.6)), 0, 7); ctx.fill();
       } else if (p.glow) {
         // faísca: risco na direção do movimento
         ctx.globalAlpha = a;

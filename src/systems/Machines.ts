@@ -369,7 +369,14 @@ export class Machines {
       case 'separator': this.separateRun(m, dt * k); break;
       case 'prep': this.prepRun(m, dt * k); break;
       case 'compactor': this.compactRun(m, dt * k); break;
-      case 'refinery': this.process(m, dt * k, (key) => REFINE_MAP[key] ? { in: { [key]: 2 }, out: { [REFINE_MAP[key]]: 1 } } : null); break;
+      case 'refinery': {
+        this.process(m, dt * k, (key) => REFINE_MAP[key] ? { in: { [key]: 2 }, out: { [REFINE_MAP[key]]: 1 } } : null);
+        // as barras vão direto para o SALDO (não precisa de armazém encostado)
+        const [cx, cy] = this.centerPx(m);
+        for (const o of Object.keys(m.out)) { const n = m.out[o] ?? 0; if (n > 0) { this.g.stock.add(o, n, false); this.g.fx.pickup(cx, cy - 10, o, n); m.out[o] = 0; } }
+        m.state = bagTotal(m.inb) > 0 ? 'Refinando: 2 kg de minério = 1 barra' : 'Sem minério: leve Ferronox/Lumenita por tubo até o funil';
+        break;
+      }
       case 'purifier': this.process(m, dt * k, (key) => { const rc = RECIPES.find(x => x.station === 'purificador' && x.in[key]); return rc ? { in: rc.in, out: rc.out } : null; }); break;
       case 'foundry': this.foundry(m, dt * k); break;
       case 'synth': this.synth(m, dt * k); break;
@@ -514,7 +521,7 @@ export class Machines {
 
   /** compactação: resíduo → blocos de 100 kg */
   private compactRun(m: Machine, dt: number) {
-    const q = Math.min(this.rate(m) * dt, m.inb.residuo ?? 0);
+    const q = Math.min(this.rate(m) * fabVal(this.g.flags, 'incinerador') * dt, m.inb.residuo ?? 0);
     if (q <= 0) return;
     bagAdd(m.inb, 'residuo', -q);
     // INCINERADOR: a terra/resíduo é queimada e sai do planeta (é isso que esvazia a camada)
@@ -892,7 +899,7 @@ export class Machines {
     const w = this.g.world;
     for (const b of this.belts) {
       if (b.broken) continue;
-      b.prog += dt * (b.def.speed ?? 1) * TILE_CELLS * 1.5;
+      b.prog += dt * (b.def.speed ?? 1) * fabVal(this.g.flags, 'esteira') * TILE_CELLS * 1.5;
       if (b.prog < 1) continue;
       b.prog -= Math.floor(b.prog);
       b.stepN = (b.stepN ?? 0) + 1;

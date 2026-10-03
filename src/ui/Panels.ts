@@ -1,3 +1,4 @@
+import { athgExit } from '../core/athg';
 import { fmtInt, fmtShort, fmtTime, fmtMass } from '../core/math';
 import { TILE, WORLD_TW, WORLD_TH, WORLD_PX_W, WORLD_PX_H, CELL } from '../core/constants';
 import { ITEM, ITEMS, itemName, type ItemCat } from '../data/items';
@@ -20,7 +21,7 @@ import { HIDDEN_RESEARCH } from '../data/economy';
 import { gradeLabel, gradeColor, compOf, RAW_BY_LAYER } from '../data/composition';
 import { SEP_EFF } from '../systems/Machines';
 import { ioSpec, howTo } from '../data/howto';
-import { FAB_UPS, SILO_KEYS, fabLevel } from '../data/factory';
+import { FAB_UPS, FAB_BRANCHES, SILO_KEYS, fabLevel, fabLocked, type FabUp } from '../data/factory';
 
 export type PanelId = 'inventory' | 'build' | 'upgrades' | 'research' | 'sectors' | 'robots' | 'contracts' | 'archive' | 'map' | 'help' | 'menu' | 'machine' | 'ops' | 'lifts' | 'settings' | 'missions';
 
@@ -143,6 +144,7 @@ export class Panels {
     pickup: () => { const m = this.machine; if (!m) return; this.g.machines.remove(m); this.g.pack.add('kit_soprador', 1); this.close(); this.g.toast('Soprador na mão: coloque em outra frente de escavação (Construir → Extração)', '#9cff8a'); },
     siloDump: () => { const m = this.machine; if (!m) return; let n = 0; for (const k in m.inb) { this.g.stock.add(k, m.inb[k], false, m.g[k]); n += m.inb[k]; m.inb[k] = 0; } this.g.toast(`${Math.round(n)} kg do silo foram para o Estoque (para construir). Melhorias só com o que fica no silo.`, '#ffd04a'); this.render(); },
     lesson: () => { this.close(); this.ui.showLesson(); },
+    exitAthg: async () => { await this.g.save(); athgExit(); },
     setFilter: (a) => { if (this.machine) this.machine.filter = a || undefined; this.render(); },
     pin: (a) => { this.g.hotbar[this.g.selected] = { type: 'build', key: a }; this.g.toast(`Fixado no slot ${(this.g.selected + 1) % 10}`, '#9cff8a'); },
     pinItem: (a) => { this.g.hotbar[this.g.selected] = { type: 'item', key: a }; this.g.toast(`Fixado no slot ${(this.g.selected + 1) % 10}`, '#9cff8a'); },
@@ -288,7 +290,7 @@ export class Panels {
   r_upgrades() {
     const g = this.g, p = g.player;
     // só o que serve para destruir o planeta: laser, soprador, tubos e as peças que se desbloqueiam
-    const BR: { key: string; name: string }[] = [{ key: 'fab', name: '⚡ Laser · Soprador · Tubos' }, { key: 'perf', name: '🔫 Força do Laser' },
+    const BR: { key: string; name: string }[] = [{ key: 'fab', name: '🌳 Árvore de Melhorias' }, { key: 'perf', name: '🔫 Classe do Laser (rocha dura)' },
       ...RESEARCH_CATS.filter(c => c.key === 'logistica' || c.key === 'processamento').map(c => ({ key: c.key, name: '🔓 ' + c.name }))];
     const br = this.st.upBr;
     let h = `<div class="tabs branches">${BR.map(b => {
@@ -375,21 +377,50 @@ export class Panels {
     return { title: m.name, rows: [['Proteção', lv ? m.levels[lv - 1].prot + '%' : '0%']], note: m.desc };
   }
 
-  /** melhorias da fábrica: pagas só com o que está nos SILOS */
+  /** ÁRVORE DE MELHORIAS: ramos em colunas, níveis em linhas, linhas ligando pré-requisitos (também entre ramos) */
   private fabList() {
     const g = this.g;
-    const silos = g.machines.list.filter(m => m.def.behavior === 'silo');
-    const tot: Record<string, number> = {};
-    for (const m of silos) for (const k in m.inb) if ((m.inb[k] ?? 0) > 0) tot[k] = (tot[k] ?? 0) + m.inb[k];
-    let h = `<p class="muted">Melhorias são pagas com o seu <b>saldo</b> de minérios (o que aparece no topo da tela).</p>`;
-    h += `<div class="ups scroll tall">`;
-    for (const u of FAB_UPS) {
-      const lv = fabLevel(g.flags, u.key), cost = u.costs[lv], next = u.vals[lv + 1];
-      h += `<div class="up"><div class="uh"><b>${esc(u.name)}</b><small>${esc(u.desc)}</small></div>
-        <div class="uv"><span>${fmtShort(u.vals[lv])} ${u.unit}</span>${next !== undefined ? `<span class="arr">➜</span><span class="nx">${fmtShort(next)} ${u.unit}</span>` : '<span class="max">MÁXIMO</span>'}</div>
-        ${cost ? `${this.costCells(cost, true)}<button class="btn orange" data-act="upgrade" data-arg="fab:${u.key}" ${!g.upHas(cost) ? 'disabled' : ''}>MELHORAR</button>` : ''}</div>`;
+    const fv = (n: number) => n < 100 ? String(Math.round(n * 100) / 100).replace('.', ',') : fmtShort(n);
+    const NW = 70, NH = 50, GX = 14, GY = 22, TOP = 26, LEFT = 8;
+    const cols: { u: FabUp; x: number }[] = [];
+    let x = LEFT, heads = '';
+    for (const br of FAB_BRANCHES) {
+      const us = FAB_UPS.filter(u => u.branch === br.key);
+      const x0 = x;
+      for (const u of us) { cols.push({ u, x }); x += NW + GX; }
+      heads += `<div class="ft-head" style="left:${x0}px;width:${x - x0 - GX}px;color:${br.color};border-color:${br.color}">${br.name}</div>`;
+      x += 10;
     }
-    return h + '</div>';
+    const maxLv = Math.max(...FAB_UPS.map(u => u.vals.length - 1));
+    const W = x, H = TOP + maxLv * (NH + GY) + 4;
+    const pos = (key: string, lv: number) => { const c = cols.find(c => c.u.key === key)!; return [c.x + NW / 2, TOP + (lv - 1) * (NH + GY) + NH / 2]; };
+    let lines = '', nodes = '';
+    for (const { u, x: cx } of cols) {
+      const cur = fabLevel(g.flags, u.key), br = FAB_BRANCHES.find(b => b.key === u.branch)!;
+      for (let lv = 1; lv < u.vals.length; lv++) {
+        const y = TOP + (lv - 1) * (NH + GY);
+        if (lv > 1) { const [ax, ay] = pos(u.key, lv - 1), [bx, by] = pos(u.key, lv); lines += `<line x1="${ax}" y1="${ay + NH / 2}" x2="${bx}" y2="${by - NH / 2}" class="${cur >= lv ? 'on' : ''}" stroke="${br.color}"/>`; }
+        for (const [rk, rl] of u.req?.[lv] ?? []) { const [ax, ay] = pos(rk, rl), [bx, by] = pos(u.key, lv); const ok = fabLevel(g.flags, rk) >= rl; lines += `<path d="M${ax} ${ay} C ${ax} ${(ay + by) / 2}, ${bx} ${(ay + by) / 2}, ${bx} ${by}" class="req ${ok ? 'on' : ''}"/>`; }
+        const owned = cur >= lv, next = cur + 1 === lv;
+        const locked = next ? fabLocked(g.flags, u) : null, afford = next && !locked && g.upHas(u.costs[lv - 1]);
+        const st = owned ? 'owned' : next ? (locked ? 'lock' : afford ? 'avail' : 'next') : 'future';
+        const sel = this.st.fabSel === `${u.key}|${lv}`;
+        nodes += `<button class="ft-node ${st} ${sel ? 'sel' : ''}" style="left:${cx}px;top:${y}px;width:${NW}px;height:${NH}px;--c:${br.color}" data-act="sel" data-arg="fabSel:${u.key}|${lv}"><small>${esc(u.name)}</small><b>${fv(u.vals[lv])}${u.unit === '%' ? '%' : u.unit === '×' ? '×' : ''}</b><i>Nv ${lv}</i></button>`;
+      }
+    }
+    let h = `<div class="ft-wrap scroll"><div class="ft" style="width:${W}px;height:${H}px">${heads}<svg width="${W}" height="${H}">${lines}</svg>${nodes}</div></div>`;
+    // detalhe do nó escolhido
+    const [sk, sl] = String(this.st.fabSel ?? '').split('|');
+    const u = FAB_UPS.find(x => x.key === sk) ?? FAB_UPS[0], lv = Number(sl) || fabLevel(g.flags, u.key) + 1;
+    const cur = fabLevel(g.flags, u.key);
+    if (lv < u.vals.length) {
+      const c = u.costs[lv - 1], lock = cur + 1 === lv ? fabLocked(g.flags, u) : null;
+      const reqs = (u.req?.[lv] ?? []).map(([k, l]) => `${FAB_UPS.find(x => x.key === k)?.name ?? k} nível ${l}`).join(', ');
+      h += `<div class="ft-detail"><div><b>${esc(u.name)} · nível ${lv}</b><small>${esc(u.desc)}</small><span class="ft-val">${fv(u.vals[lv - 1])} ➜ <em>${fv(u.vals[lv])}</em> ${u.unit}</span>${reqs ? `<small class="ft-req">Requer: ${esc(reqs)}</small>` : ''}</div>
+        ${this.costCells(c, true)}
+        ${cur >= lv ? '<p class="ok">✔ Comprado</p>' : cur + 1 < lv ? '<p class="muted">Compre os níveis anteriores primeiro.</p>' : `<button class="btn orange" data-act="upgrade" data-arg="fab:${u.key}" ${lock || !g.upHas(c) ? 'disabled' : ''}>${lock ? '🔒 ' + esc(lock) : 'MELHORAR'}</button>`}</div>`;
+    }
+    return h;
   }
 
   private doUpgrade(a: string) {
@@ -403,6 +434,8 @@ export class Panels {
     if (a.startsWith('fab:')) {
       const k = a.slice(4), u = FAB_UPS.find(x => x.key === k); const lv = fabLevel(g.flags, k); const c = u?.costs[lv];
       if (!u || !c) return;
+      const lk = fabLocked(g.flags, u); if (lk) { g.toast(lk, '#ffb86a'); g.audio.error(); return; }
+      this.st.fabSel = `${k}|${lv + 2}`;
       if (!g.upPay(c)) { g.toast('Faltam minerais nos SILOS', '#ff8a3a'); g.audio.error(); return; }
       g.flags.fab = { ...(g.flags.fab ?? {}), [k]: lv + 1 }; g.audio.success();
       g.toast(`${u.name}: ${fmtShort(u.vals[lv])} ➜ ${fmtShort(u.vals[lv + 1])} ${u.unit}`, '#9cff8a'); this.render(); return;
@@ -681,7 +714,7 @@ export class Panels {
   // =============== MENU / AJUDA / CONFIG ===============
   r_menu() {
     return `<div class="menu"><div class="logo-big">⬢ ZENITEX</div><div class="slogan">Transformando mundos em oportunidades.</div>
-      <button class="btn big" data-act="resume">CONTINUAR</button><button class="btn" data-act="save">SALVAR CONTRATO</button><button class="btn" data-act="help">MANUAL DO COLABORADOR</button><button class="btn" data-act="settings">CONFIGURAÇÕES</button><button class="btn ghost" data-act="quit">SALVAR E VOLTAR AO TÍTULO</button><button class="btn ghost danger" data-act="newgame">NOVO CONTRATO</button>
+      <button class="btn big" data-act="resume">CONTINUAR</button><button class="btn" data-act="save">SALVAR CONTRATO</button><button class="btn" data-act="help">MANUAL DO COLABORADOR</button><button class="btn" data-act="settings">CONFIGURAÇÕES</button><button class="btn ghost" data-act="exitAthg">SALVAR E SAIR DO JOGO</button><button class="btn ghost danger" data-act="newgame">NOVO CONTRATO</button>
       <p class="muted">Tempo de operação: ${fmtTime(this.g.time)} · Contrato ${this.g.opts.contract}</p></div>`;
   }
   r_settings() {
@@ -758,7 +791,7 @@ export class Panels {
     const c = g.machines.list.find(m => m.def.behavior === 'cannon' && m.charged && !m.broken);
     if (!c) return;
     if (g.sectors.rt[c.sector].ratio < 0.9) { g.toast('Energia insuficiente para o disparo', '#ff8a3a'); return; }
-    const got = g.planet.cannonHit(s, g.planet.def.target * CANNON_SHOT_FRAC);
+    const got = g.planet.cannonHit(s, g.planet.target() * CANNON_SHOT_FRAC);
     c.charged = false;
     g.audio.boom(); g.shake(10);
     g.fx.flashScreen([255, 120, 255], 0.4);

@@ -7,14 +7,29 @@ import { loadSlot, deleteSlot } from './systems/Save';
 import { RESEARCH_BY_KEY } from './data/research';
 import { ITEMS } from './data/items';
 import { SECTORS } from './data/sectors';
+import { inPortal, isLocalHost, PLAY_URL, transferLocalSave, cloudLoad, athgReady, athgOwnExit, athgGameStarted } from './core/athg';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
-const DEV = new URLSearchParams(location.search).has('dev');
+const DEV = new URLSearchParams(location.search).has('dev') && isLocalHost();   // atalhos de desenvolvedor só no computador de desenvolvimento
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window || (DEV && new URLSearchParams(location.search).has('touch'));
 if (isTouch) document.body.classList.add('touch');
 
 async function boot() {
+  // TRAVA: o jogo só roda dentro do ATHG. Link direto → leva o save local para o ATHG e redireciona.
+  if (!inPortal() && !isLocalHost() && !DEV) {
+    const title = document.getElementById('title');
+    if (title) title.innerHTML = '<div class="tbox"><div class="tlogo"><span class="hex">⬢</span> ZENITEX</div><div class="tsub">ABRINDO NO ATHG…</div></div>';
+    const local = await loadSlot('slot1').catch(() => null);
+    if (local) await transferLocalSave(local);
+    location.replace(PLAY_URL);
+    return;
+  }
+  athgReady();
+  athgOwnExit();
   let save = await loadSlot('slot1');
+  // dentro do portal: o save da conta (nuvem) vale se for mais novo que o deste aparelho
+  const cloud = await cloudLoad();
+  if (cloud && (cloud.v === 4 || cloud.v === 5) && (!save || (cloud.savedAt ?? 0) > (save.savedAt ?? 0))) save = cloud;
   // saves da versão por setores (v1) não são compatíveis com o mundo em camadas
   if (save && save.v !== 3 && save.v !== 4 && save.v !== 5) { await deleteSlot('slot1'); save = null; }
   let pendingNG: GameOptions | null = null;
@@ -38,6 +53,7 @@ async function boot() {
 }
 
 function start(opts: GameOptions, save: any) {
+  athgGameStarted();
   const g = new Game(canvas, opts);
   g.ui = new UI(g);
   (window as any).game = g;
@@ -101,13 +117,16 @@ function start(opts: GameOptions, save: any) {
   if (DEV) devTools(g);
 
   let last = performance.now();
+  // um erro num quadro nunca pode congelar o jogo: agenda o próximo quadro antes e isola cada etapa
+  let errs = 0;
+  const safe = (f: () => void, what: string) => { try { f(); } catch (e) { if (errs++ < 20) console.error(`[zenitex] erro em ${what}:`, e); } };
   const frame = (now: number) => {
+    requestAnimationFrame(frame);
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
-    g.update(dt);
-    g.renderer.draw(dt);
-    g.ui.update(dt);
-    requestAnimationFrame(frame);
+    safe(() => g.update(dt), 'update');
+    safe(() => g.renderer.draw(dt), 'draw');
+    safe(() => g.ui.update(dt), 'ui');
   };
   requestAnimationFrame(frame);
 }

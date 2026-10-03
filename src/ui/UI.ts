@@ -339,10 +339,10 @@ export class UI {
     (this.el.lyDug as HTMLElement).style.width = Math.max(0.6, g.planet.dugFraction() * 100) + '%';
     this.el.lyPlanet.textContent = `Escavado ${Math.floor(g.planet.dugFraction() * 100)}% · removido ${(lf * 100).toFixed(1).replace('.', ',')}% · planeta ${PCT(g.planet.fraction())}`;
     const ru = g.planet.rateUnits();
-    this.el.lyRate.textContent = ru > 0.05 ? `+${(ru / L.target * 100).toFixed(ru / L.target < 0.001 ? 3 : 2).replace('.', ',')}%/min` : '';
+    this.el.lyRate.textContent = ru > 0.05 ? `+${(ru / g.planet.target() * 100).toFixed(ru / g.planet.target() < 0.001 ? 3 : 2).replace('.', ',')}%/min` : '';
     // OBJETIVO fixo: esvaziar a camada (terra queimada + minérios entregues na Nave), camada por camada até o núcleo
     const cs = g.sectors.s[g.planet.layer]?.counters ?? {}, burned = cs.burned ?? 0, shipped = cs.shipped ?? 0;
-    const leftT = Math.max(0, (L.target - g.planet.units[g.planet.layer]) * 2 / 1000);
+    const leftT = Math.max(0, (g.planet.target() - g.planet.units[g.planet.layer]) * 2 / 1000);
     const recs = compOf(g.planet.layer).minerals.map(mm => { const r = g.machines.recovery(mm.k); const ok = r === null || r >= RECOVERY_GOAL; return `<span style="color:${r === null ? '#9bb' : ok ? '#7aff8a' : '#ff8a6a'}">${(ITEM[mm.k]?.name ?? mm.k).slice(0, 4)} ${r === null ? '—' : Math.round(r * 100) + '%'}</span>`; }).join(' · ');
     this.el.lyObj.innerHTML = `<b>DESTRUIR O PLANETA</b> · faltam ${fmtShort(leftT)} t nesta camada<br>🔥 ${fmtShort(burned)} kg queimados · 🚀 ${fmtShort(shipped)} kg na Nave<br>♻ Recuperação: ${recs} <i>(meta ${Math.round(RECOVERY_GOAL * 100)}%)</i>`;
     this.el.descendBtn.style.display = g.canDescend() && !g.descendBlocked() ? 'block' : 'none';

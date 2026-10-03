@@ -16,6 +16,9 @@ export class PlanetProgress {
   units: number[] = new Array(LAYER_COUNT + 1).fill(0);   // massa REMOVIDA do planeta (separada ou exportada)
   dug: number[] = new Array(LAYER_COUNT + 1).fill(0);     // massa ESCAVADA (ainda pode estar na base como bruto/resíduo)
   milestone = 0;
+  /** meta REAL de cada camada (unidades = células de terra do mapa da camada); 0 = ainda não medida */
+  targets: number[] = new Array(LAYER_COUNT + 1).fill(0);
+  target(l = this.layer) { return this.targets[l] > 0 ? this.targets[l] : SECTORS[l - 1].target; }
   finalDone = false;
   private history: { t: number; v: number }[] = [];
 
@@ -23,16 +26,16 @@ export class PlanetProgress {
     this.total = PLANET_MASS_T * massMult;
     this.layer = layer;
     // camadas acima da atual já foram esgotadas
-    for (let i = 1; i < layer; i++) { this.units[i] = SECTORS[i - 1].target; this.dug[i] = SECTORS[i - 1].target; }
+    for (let i = 1; i < layer; i++) { this.units[i] = this.target(i); this.dug[i] = this.target(i); }
   }
 
   get def() { return SECTORS[this.layer - 1]; }
   /** fração 0..1 da camada atual */
-  layerFraction(l = this.layer) { return Math.min(1, this.units[l] / SECTORS[l - 1].target); }
-  layerDone() { return this.units[this.layer] >= this.def.target - 1e-6; }
+  layerFraction(l = this.layer) { return Math.min(1, this.units[l] / this.target(l)); }
+  layerDone() { return this.units[this.layer] >= this.target() - 1e-6; }
   sectorFraction(s: number) { return this.layerFraction(s); }
   /** toneladas por unidade nesta camada */
-  tPerUnit(l = this.layer) { const d = SECTORS[l - 1]; return (d.share * this.total) / d.target; }
+  tPerUnit(l = this.layer) { const d = SECTORS[l - 1]; return (d.share * this.total) / this.target(l); }
 
   fraction() {
     if (this.finalDone) return 1;
@@ -44,16 +47,16 @@ export class PlanetProgress {
 
   /** Massa escavada (não move a barra: ela só conta quando sai do planeta). */
   dig(n: number) { if (n > 0) this.dug[this.layer] += n; }
-  dugFraction(l = this.layer) { return Math.min(1, this.dug[l] / SECTORS[l - 1].target); }
+  dugFraction(l = this.layer) { return Math.min(1, this.dug[l] / this.target(l)); }
 
   /** Adiciona unidades de extração à camada atual (respeita a meta e a trava final). */
   addUnits(n: number): number {
     if (this.finalDone || n <= 0) return 0;
     const d = this.def;
-    let room = d.target - this.units[this.layer];
+    let room = this.target() - this.units[this.layer];
     if (this.layer === LAYER_COUNT) {
       // no Núcleo, só até a trava de 99% do planeta
-      const lockUnits = ((FINAL_LOCK - (1 - d.share)) / d.share) * d.target;
+      const lockUnits = ((FINAL_LOCK - (1 - d.share)) / d.share) * this.target();
       room = Math.min(room, lockUnits - this.units[this.layer]);
     }
     const got = Math.max(0, Math.min(n, room));
@@ -92,8 +95,9 @@ export class PlanetProgress {
   /** t/min recentes (para contratos e HUD) */
   rate(): number { return this.rateUnits() * this.tPerUnit(); }
 
-  serialize() { return { layer: this.layer, units: this.units, dug: this.dug, milestone: this.milestone, finalDone: this.finalDone, total: this.total }; }
+  serialize() { return { layer: this.layer, units: this.units, dug: this.dug, milestone: this.milestone, finalDone: this.finalDone, total: this.total, targets: this.targets }; }
   load(s: any) {
     if (s.units) { this.units = s.units; this.dug = s.dug ?? s.units.slice(); this.milestone = s.milestone ?? 0; this.finalDone = !!s.finalDone; }
+    if (Array.isArray(s.targets)) this.targets = s.targets;
   }
 }

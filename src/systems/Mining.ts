@@ -50,7 +50,7 @@ export class Mining {
     this.hitX = hx; this.hitY = hy; this.hitting = true;
     p.energy = Math.max(0, p.energy - dr.energy * dt * (hit ? 0.25 : 0.05));
     // aspirador do traje: puxa os grãos soltos perto do ponto de impacto para a mochila
-    this.vacuum(dt, hx, hy, dr.radius * 1.8 + 6);
+    this.vacuum(dt, hx, hy, dr.radius * fabVal(g.flags, 'laserRaio') * 1.8 + 6);
     if (!hit || loose) return;
     const cx = Math.floor(hx / CELL), cy = Math.floor(hy / CELL);
     const mat = w.get(cx, cy);
@@ -66,8 +66,8 @@ export class Mining {
       g.audio.tick('metal', 0.3);
       return;
     }
-    const power = dr.power * 6 * (1 + g.research.eff('mineSpeed')) * dt;
-    const R = dr.radius * 1.6;   // em células (2 px)
+    const power = dr.power * fabVal(g.flags, 'laserForca') * 6 * (1 + g.research.eff('mineSpeed')) * dt;
+    const R = dr.radius * fabVal(g.flags, 'laserRaio') * 1.6;   // em células (2 px)
     const r0 = Math.ceil(R);
     for (let j = -r0; j <= r0; j++) for (let i = -r0; i <= r0; i++) {
       const d2 = i * i + j * j;
