@@ -7,6 +7,35 @@ import { fmtInt, fmtTime, fmtShort } from '../core/math';
 import { LORE } from '../data/lore';
 import { esc, h } from './dom';
 
+/** Cargueiro orbital: casco largo, módulos de carga e propulsores próprios. */
+function drawIntroShip(ctx: CanvasRenderingContext2D, x: number, y: number, t: number) {
+  ctx.save(); ctx.translate(x, y);
+  const hull = (points: number[], fill: string, stroke = '#6d8e9d') => {
+    ctx.beginPath(); ctx.moveTo(points[0], points[1]);
+    for (let i = 2; i < points.length; i += 2) ctx.lineTo(points[i], points[i + 1]);
+    ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke();
+  };
+  const flame = 13 + Math.sin(t * 17) * 4;
+  ctx.shadowColor = '#61d9ff'; ctx.shadowBlur = 15;
+  hull([-43,-10,-43,-4,-43-flame,-7], '#6ee7ff', '#9ff4ff');
+  hull([-43,4,-43,10,-43-flame,7], '#6ee7ff', '#9ff4ff');
+  ctx.shadowBlur = 0;
+  // Asas blindadas e compartimentos inferiores.
+  hull([-30,-7,-18,-19,7,-23,27,-12,18,-6], '#344e5f');
+  hull([-30,7,-18,19,7,23,27,12,18,6], '#344e5f');
+  hull([-36,-9,-27,-15,-19,-15,-17,-7], '#ca7834', '#ecaa65');
+  hull([-36,9,-27,15,-19,15,-17,7], '#ca7834', '#ecaa65');
+  // Fuselagem central e proa facetada.
+  hull([-47,-9,-31,-13,12,-11,33,-5,48,0,33,5,12,11,-31,13,-47,9], '#b6c5c9', '#dfeaf0');
+  hull([-17,-10,16,-9,33,-4,41,0,33,4,16,9,-17,10], '#57717d', '#9dbac5');
+  hull([14,-6,32,-4,43,0,32,4,14,6,21,0], '#123348', '#80e1ff');
+  ctx.fillStyle = '#f2b354'; ctx.fillRect(-31,-3,17,6);
+  ctx.fillStyle = '#192d39'; ctx.fillRect(-8,-13,13,4); ctx.fillRect(-8,9,13,4);
+  ctx.fillStyle = '#e5b15b'; for (const px of [-9, 0, 9]) { ctx.fillRect(px,-2,3,4); }
+  ctx.fillStyle = '#edf6f8'; ctx.font = 'bold 5px sans-serif'; ctx.fillText('ZX-07',-30,0);
+  ctx.restore();
+}
+
 /** Abertura (chegada ao planeta) e encerramento (planeta removido). */
 export class Cinematics {
   active = false;
@@ -43,9 +72,7 @@ export class Cinematics {
       x.drawImage(planet, px - size / 2, py - size / 2, size, size);
       // nave
       const sx = W * (0.05 + Math.min(1, t / 12) * 0.45), sy = H * (0.25 + Math.sin(t * 0.5) * 0.02 + Math.min(1, t / 12) * 0.12);
-      x.fillStyle = '#c8ccd6'; x.fillRect(sx - 30, sy - 6, 60, 12); x.fillStyle = '#e8962a'; x.fillRect(sx - 30, sy - 6, 14, 12); x.fillRect(sx + 18, sy - 3, 14, 6);
-      x.fillStyle = '#2a2e38'; x.fillRect(sx - 10, sy - 9, 24, 3);
-      x.fillStyle = `rgba(90,180,255,${0.6 + Math.random() * 0.4})`; x.fillRect(sx - 40, sy - 3, 10, 6);
+      drawIntroShip(x, sx, sy, t);
       // cápsula descendo
       if (t > 12.5) {
         const k = Math.min(1, (t - 12.5) / 3);

@@ -66,6 +66,9 @@ const DIRN = ['a DIREITA', 'BAIXO', 'a ESQUERDA', 'CIMA'];
 /** passo de construção guiada: o anel vai em GIRAR enquanto a rotação estiver errada, depois em CONFIRMAR */
 function bpTarget(g: Game, cat: string, id: string): Target {
   const it = g.blueprint.item(id);
+  if (g.build.active && it && g.build.key === it.key && !g.build.locked) {
+    return () => [((it.tx + (it.tx2 ?? it.tx)) / 2 + 0.5) * TILE, ((it.ty + (it.ty2 ?? it.ty)) / 2 + 0.5) * TILE];
+  }
   if (g.build.active && it && g.build.key === it.key && it.key !== 'esteira' && it.key !== 'tubo' && MACHINE[it.key]?.rotatable && g.build.dir !== it.dir) return '[data-build-action="rotate"]';
   return buildFlow(g, cat, it?.key ?? id);
 }
@@ -75,15 +78,25 @@ function rotHint(g: Game, id: string): string {
   return g.build.dir === it.dir ? '<br><b style="color:#7aff8a">✔ Girado certo: CONFIRMAR</b>' : `<br><b style="color:#ffd04a">↻ GIRAR até a seta ficar ${ARROW[it.dir]}</b>`;
 }
 const ARROW = ['▶', '▼', '◀', '▲'];
-const lineOk = (g: Game) => g.blueprint.checkLine().ok;
-
-// CAVAR → PROCESSAR À MÃO → VER O QUE EXISTE → MONTAR A PRIMEIRA INDÚSTRIA PEÇA POR PEÇA (projeto guiado)
+// A primeira indústria é construída peça por peça antes da extração.
 const STEPS: Step[] = [
   { title: 'Andar e voar', text: t => t ? '<b>Joystick esquerdo</b> anda.<br>Toque <b>JATO</b>: voo livre (toque de novo para pousar).' : '<b>A / D</b> anda. <b>W</b> ou <b>Espaço</b> voa.',
     target: (g, t) => t ? (g.flags.tutMoved0 ? '#mobile [data-b="jet"]' : '#mobile .stick.left .base') : null, done: g => !!g.flags.tutMoved },
-  { title: 'Cave perto do Soprador', text: t => 'A Nave largou uma <b>linha de extração</b> pronta.<br>' + (t ? '<b>Joystick direito</b> no chão perto do Soprador' : '<b>Segure o clique</b> no chão perto do Soprador') + ': ele aspira a terra solta.',
+  { title: 'Monte a esteira', bp: 'esteira', text: t => `<b>CONSTRUIR → Logística → Esteira</b>. A linha verde marca o lugar.<br>${t ? 'Toque no ponto 1 e arraste até o 2' : 'Clique no ponto 1 e arraste até o 2'}; a seta deve apontar ◀. Use <b>GIRAR</b> só se estiver ao contrário e então <b>CONFIRMAR</b>.`,
+    target: g => bpTarget(g, 'logistica', 'esteira'), done: g => g.blueprint.placed('esteira') },
+  { title: 'Instale o incinerador', bp: 'compactador', text: t => `<b>CONSTRUIR → Processamento → Incinerador</b>, no fim esquerdo da esteira.<br>${t ? 'Toque no quadrado verde' : 'Clique no terreno para fixar a peça'} e aperte <b>CONFIRMAR</b>.`,
+    target: g => bpTarget(g, 'processamento', 'compactador'), done: g => g.blueprint.placed('compactador') },
+  { title: 'Instale o soprador', bp: 'soprador', text: t => `<b>CONSTRUIR → Extração → Soprador</b> à direita da esteira.<br>${t ? 'Toque no local' : 'Clique para fixar'}; <b>GIRAR</b> até apontar ◀; depois <b>CONFIRMAR</b>.`,
+    target: g => bpTarget(g, 'extracao', 'soprador'), done: g => g.blueprint.placed('soprador') },
+  { title: 'Ligue o tubo', bp: 'tuboFeed', text: t => `<b>CONSTRUIR → Logística → Tubo de Vácuo</b>.<br>${t ? 'Toque no início e arraste' : 'Clique no início e arraste'} do soprador até o alto da esteira; <b>CONFIRMAR</b> instala o caminho inteiro.`,
+    target: g => bpTarget(g, 'logistica', 'tuboFeed'), done: g => g.blueprint.placed('tuboFeed') },
+  { title: 'Separe o metal', bp: 'ima', text: t => `<b>CONSTRUIR → Processamento → Ímã Extrator</b> acima da esteira.<br>${t ? 'Toque no quadrado verde' : 'Clique para fixar'} e <b>CONFIRMAR</b>. Ele retira Ferronox da terra.`,
+    target: g => bpTarget(g, 'processamento', 'ima'), done: g => g.blueprint.placed('ima') },
+  { title: 'Separe os cristais', bp: 'ressonador', text: t => `<b>CONSTRUIR → Processamento → Ressonador Extrator</b> acima da esteira.<br>${t ? 'Toque no quadrado verde' : 'Clique para fixar'} e <b>CONFIRMAR</b>. Agora a linha está pronta.`,
+    target: g => bpTarget(g, 'processamento', 'ressonador'), done: g => g.blueprint.placed('ressonador') },
+  { title: 'Cave perto do Soprador', text: t => (t ? '<b>Joystick direito</b>' : '<b>Segure o clique</b>') + ' no chão perto do Soprador: ele aspira a terra solta e alimenta a linha que você montou.',
     target: g => () => { const m = g.machines.list.find(x => x.def.behavior === 'blower'); return m ? [(m.tx + 0.5) * TILE, (m.ty + 1.5) * TILE] : null; },
-    done: g => g.machines.list.some(m => m.def.behavior === 'belt' && m.state === 'ok') },
+    done: g => (g.sectors.s[g.planet.layer]?.counters.burned ?? 0) > 0 },
   { title: 'Como a linha funciona', text: () => 'A terra sobe pelo tubo, anda na esteira, o <b>Ímã</b> e o <b>Ressonador</b> puxam os minérios e o resto <b>queima</b>.<br><b>Veja a animação.</b>',
     target: () => '.lesson .ok', done: g => !!g.flags.lessonSep },
   { title: 'Saldo e camada', text: (_t, g) => `No topo, seu <b>saldo</b>: Ferronox ${Math.floor(g.upHave('ferronox'))} · Lumenita ${Math.floor(g.upHave('lumenita'))}.<br>A terra <b>queimada</b> sai do planeta e diminui o que <b>falta da camada</b> (cartão à esquerda). Continue cavando.`,
@@ -136,6 +149,9 @@ export class Tutorial {
   private lockBuild() {
     const g = this.g, it = this.currentBp(), b = g.build;
     if (!it || !b.active || b.key !== it.key) return;
+    // As seis primeiras peças são posicionadas pelo jogador; as conexões tardias podem atravessar a tela.
+    if (this.index() <= 6) return;
+    b.locked = true;
     if (it.key === 'tubo') { b.anchor = [it.tx, it.ty]; b.tx = it.tx2!; b.ty = it.ty2!; return; }
     if (it.key === 'esteira' || (it.key === 'piso_orbital' && it.tx2 !== undefined)) { b.anchor = [it.tx, it.ty]; b.tx = it.tx2!; b.ty = it.ty; return; }
     if (it.key === 'piso_orbital') { b.anchor = [it.tx, it.ty]; b.tx = it.tx; b.ty = it.ty; return; }
@@ -149,6 +165,8 @@ export class Tutorial {
 
   private index(): number {
     const g = this.g;
+    // Saves anteriores tinham seis etapas a menos e começavam com a fábrica pronta.
+    if (!g.flags.tutVersion) { if (g.flags.tutStep > 0) g.flags.tutStep += 6; g.flags.tutVersion = 2; }
     let i = g.flags.tutStep ?? 0;
     while (i < STEPS.length && !STEPS[i].manual && STEPS[i].done(g)) i++;
     if (i !== (g.flags.tutStep ?? 0)) { g.flags.tutStep = i; g.audio.success(); }

@@ -454,7 +454,7 @@ export class UI {
           this.el.buildHint.innerHTML = `${esc(def.name)} · ${tool} · ${path.length} peça(s) · GIRAR/R muda a saída · CONFIRMAR instala`;
         } else this.el.buildHint.innerHTML = g.input.touch
           ? `${esc(def.name)} · ${costStr(g, def.cost)}${reason ? `<small>${esc(reason)}</small>` : ''}`
-          : `${esc(def.name)} · mova o mouse para posicionar · confirme para construir · custo: ${costStr(g, def.cost)}${reason ? `<small>${esc(reason)}</small>` : ''}`;
+          : `${esc(def.name)} · ${b.locked ? 'posição fixada; CONFIRMAR constrói ou clique em outro lugar' : 'mova o mouse e clique no terreno para fixar'} · custo: ${costStr(g, def.cost)}${reason ? `<small>${esc(reason)}</small>` : ''}`;
       }
     }
     this.drawMinimap();

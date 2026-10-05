@@ -1073,3 +1073,17 @@ body.touch .hud .quick-build .qb-item { display: flex; flex: 0 0 68px; width: 68
 /* ícones das categorias do painel CONSTRUIR */
 .qb-tabs button .qb-ico { font-style: normal; display: inline-block; width: 16px; margin-right: 5px; text-align: center; color: #ffc56b; font-size: 13px; }
 .qb-tabs button.on .qb-ico { color: #2a1404; }
+
+/* Controles do desktop agrupados na lateral, abaixo do cartão de missão. */
+body:not(.touch) .hud .quick-build-btn { left: 14px !important; top: 307px !important; bottom: auto !important; width: 102px !important; height: 48px !important; flex-direction: row; gap: 5px; }
+body:not(.touch) .hud .quick-build-btn span { font-size: 23px; }
+body:not(.touch) .hud .hotbar { left: 14px; top: 363px; bottom: auto; transform: none; display: grid; grid-template-columns: repeat(2, 46px); gap: 5px; max-height: calc(100vh - 475px); overflow-y: auto; overflow-x: visible; padding: 3px; border: 1px solid #66889899; border-radius: 9px; background: #0b1c28df; scrollbar-width: thin; }
+body:not(.touch) .hud .hotbar .hs { width: 46px; height: 46px; }
+body:not(.touch) .hud .hotbar .hs img, body:not(.touch) .hud .hotbar .hs svg { width: 31px; height: 31px; }
+body:not(.touch) .hud .hotbar .hs em { display: none; }
+body:not(.touch) .hud .quick-build { left: 124px !important; top: 307px !important; bottom: auto !important; height: min(454px, calc(100vh - 320px)) !important; }
+@media (max-height: 650px) {
+  body:not(.touch) .hud .quick-build-btn { top: 282px !important; }
+  body:not(.touch) .hud .hotbar { top: 338px; max-height: calc(100vh - 450px); }
+  body:not(.touch) .hud .quick-build { top: 282px !important; height: calc(100vh - 295px) !important; }
+}

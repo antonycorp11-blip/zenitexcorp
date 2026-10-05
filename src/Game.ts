@@ -46,6 +46,7 @@ export type HotSlot = { type: 'tool' | 'item' | 'build'; key: string } | null;
 export interface Hover { x: number; y: number; label: string; kind: 'machine' | 'artifact' | 'robot' | 'cargo' | 'anomaly' | 'stabilizer' | 'chest'; ref: any; hold?: number; }
 
 export interface GameOptions { seed: number; contract: number; massMult: number; keepResearch?: string[]; layer?: number; }
+const NOISY_BEHAVIORS = new Set(['blower', 'compactor', 'drill', 'generator', 'reactor', 'prep', 'separator', 'complex']);
 
 export class Game {
   bus: EventBus = bus;
@@ -85,7 +86,7 @@ export class Game {
   flags: Record<string, any> = { intro: true, tutorial: 0, cavesDense: true };
   hover: Hover | null = null;
   hold: { t: number; dur: number; label: string; key: string; done: () => void } | null = null;
-  build = { active: false, key: null as string | null, dir: 0, reverse: false, deconstruct: false, tx: 0, ty: 0, anchor: null as [number, number] | null, dragging: false };
+  build = { active: false, key: null as string | null, dir: 0, reverse: false, deconstruct: false, tx: 0, ty: 0, anchor: null as [number, number] | null, dragging: false, locked: false };
   hotbar: HotSlot[] = [
     { type: 'tool', key: 'drill' }, { type: 'tool', key: 'scanner' }, { type: 'item', key: 'explosivo' }, { type: 'item', key: 'sinalizador' },
     { type: 'item', key: 'kit_reparo' }, { type: 'build', key: 'esteira' }, { type: 'build', key: 'elevador_grao' }, { type: 'build', key: 'armazem' },
@@ -130,32 +131,18 @@ export class Game {
     this.wireEvents();
   }
 
-  /** Base inicial: cápsula, gerador e terminal orbital na clareira de pouso. */
-  /** Cápsula (Centro de Comando) e terminal no poço de pouso da camada atual. */
+  /** A Nave acompanha o jogador à próxima camada; a fábrica é montada pelo jogador. */
   setupBase() {
-    // camada nova (depois de descer): a Nave acompanha; a linha é remontada pelo jogador com o reembolso
-    this.setupStart(false);
+    this.setupStart();
   }
 
-
-  /** Jogo novo: mapa vazio. O jogador monta a Plataforma Orbital e a cápsula desce sobre ela. */
-  /**
-   * Jogo novo: a Nave chega em órbita e larga no chão uma LINHA DE EXTRAÇÃO pronta
-   * (soprador → tubo → esteira → Ímã/Ressonador → Incinerador). O jogador começa cavando, não montando.
-   */
-  setupStart(withLine = true) {
+  /** Jogo novo: a Nave fica em órbita e o terreno começa sem construções. */
+  setupStart() {
     const L = this.world.gen.landing;
     const tx = Math.floor((L.x * CELL) / TILE), gy = Math.floor((SURFACE_Y * CELL) / TILE);
     this.flags.awaitCapsule = false;
     this.blueprint.layout();
     this.placeShip();
-    if (withLine) for (const it of this.blueprint.items) {
-      if (it.id === 'tuboNave' || it.id === 'ima2' || it.id === 'res2') continue;   // esses o jogador constrói (são as lições)
-      if (it.key === 'tubo') { for (const [x, y, d] of this.blueprint.tubePath(it)) this.machines.place('tubo', x, y, d); continue; }
-      if (it.tx2 !== undefined) { for (let x = Math.min(it.tx, it.tx2); x <= Math.max(it.tx, it.tx2); x++) this.machines.place(it.key, x, it.ty, it.dir); continue; }
-      const m = this.machines.place(it.key, it.tx, it.ty, it.dir);
-      if (m) this.fx.dust(...this.machines.centerPx(m), 10);
-    }
     this.player.x = (tx + 2.5) * TILE; this.player.y = gy * TILE;
     this.camera.x = this.player.x; this.camera.y = this.player.y;
     this.world.reveal(this.player.x, this.player.y, 26);
@@ -279,7 +266,7 @@ export class Game {
     this.measureLayer();
     this.markLayerStart();
     this.stock.add('ferronox', 270, false); this.stock.add('lumenita', 120, false);   // kit inicial: a primeira fábrica vertical inteira, com folga
-    this.pack.add('kit_soprador', 1);   // um soprador extra na mão (o outro já está na linha)
+    this.pack.add('kit_soprador', 1);   // primeiro soprador da fábrica
     this.stock.credits = 300;
     this.pack.add('sinalizador', 3); this.pack.add('kit_reparo', 1);
     this.world.reveal(this.player.x, this.player.y, 22);
@@ -375,14 +362,15 @@ export class Game {
         const ty = Math.floor((cam.top() + inp.placeY * dpr / cam.zoom) / TILE);
         // esteira: o toque inicial fixa o começo da linha; arrastar estende até o dedo
         if (line && inp.placeStart) b.anchor = [tx, ty];
-        b.tx = tx; b.ty = ty;
+        b.tx = tx; b.ty = ty; b.locked = true;
         if (!line) this.snapBuild();
         this.lockGuide();
         inp.placeDirty = false; inp.placeStart = false;
       } else if (!inp.touch && !inp.uiCapture) {
-        if (line && inp.clickPrimary()) { b.anchor = [Math.floor(inp.worldX / TILE), Math.floor(inp.worldY / TILE)]; b.dragging = true; }
-        if (b.dragging && !inp.primary) b.dragging = false;
-        if (inp.mouseMoved && (!line || !b.anchor || b.dragging)) { b.tx = Math.floor(inp.worldX / TILE); b.ty = Math.floor(inp.worldY / TILE); if (!line) this.snapBuild(); }
+        if (line && inp.clickPrimary()) { b.anchor = [Math.floor(inp.worldX / TILE), Math.floor(inp.worldY / TILE)]; b.dragging = true; b.locked = false; }
+        if (inp.mouseMoved && (b.dragging || !b.locked)) { b.tx = Math.floor(inp.worldX / TILE); b.ty = Math.floor(inp.worldY / TILE); if (!line) this.snapBuild(); }
+        if (b.dragging && !inp.primary) { b.tx = Math.floor(inp.worldX / TILE); b.ty = Math.floor(inp.worldY / TILE); b.dragging = false; b.locked = true; }
+        if (!line && inp.clickPrimary()) { b.tx = Math.floor(inp.worldX / TILE); b.ty = Math.floor(inp.worldY / TILE); this.snapBuild(); b.locked = true; }
       }
     }
     if (inp.wheel && !inp.uiCapture && !inp.down('Control')) { cam.targetZoom = Math.max(0.25 * dpr, Math.min(4 * dpr, cam.targetZoom - inp.wheel * 0.25 * dpr)); this.flags.userZoom = true; }
@@ -539,7 +527,7 @@ export class Game {
     const it = this.guide()?.item, b = this.build;
     if (!it || !b.active || b.key !== it.key || this.ui.tutorial.currentBp()) return;
     const d = MACHINE[it.key];
-    b.tx = it.tx + Math.floor((d.w - 1) / 2); b.ty = it.ty + Math.floor((d.h - 1) / 2);
+    b.tx = it.tx + Math.floor((d.w - 1) / 2); b.ty = it.ty + Math.floor((d.h - 1) / 2); b.locked = true;
   }
   private snapBuild() {
     const b = this.build, def = b.key ? MACHINE[b.key] : null;
@@ -562,7 +550,7 @@ export class Game {
   canBuildKey(k: string) { const d = MACHINE[k]; return !!d && (!d.research || this.research.has(d.research)) && d.behavior !== 'command' && d.behavior !== 'ship'; }
   startBuild(k: string) {
     const [tx, ty] = this.freeSpotFor(k);
-    this.build = { active: true, key: k, dir: this.build.dir, reverse: false, deconstruct: false, tx, ty, anchor: null, dragging: false };
+    this.build = { active: true, key: k, dir: this.build.dir, reverse: false, deconstruct: false, tx, ty, anchor: null, dragging: false, locked: false };
     this.input.placeMode = true;
     this.input.placeDirty = false;
     this.input.mouseMoved = false;
@@ -594,7 +582,7 @@ export class Game {
   exitBuild() {
     // volta para o perfurador: senão o slot de construção continua ativo e nada minera
     if (this.hotbar[this.selected]?.type === 'build') this.selected = 0;
-    this.build.active = false; this.build.deconstruct = false; this.build.key = null; this.build.anchor = null; this.build.dragging = false; this.input.placeMode = false; }
+    this.build.active = false; this.build.deconstruct = false; this.build.key = null; this.build.anchor = null; this.build.dragging = false; this.build.locked = false; this.input.placeMode = false; }
   rotateBuild() {
     const def = MACHINE[this.build.key ?? ''];
     this.build.dir = nextDir(def, this.build.dir);
@@ -668,9 +656,18 @@ export class Game {
 
   confirmBuild() {
     if (!this.build.active || this.build.deconstruct || this.ui.modalOpen()) return;
+    if (!this.build.locked && !this.input.touch) { this.toast(this.isLineBuild() ? 'Arraste a linha no terreno antes de confirmar' : 'Clique no terreno para fixar a peça antes de confirmar', '#ffd04a'); return; }
     // projeto guiado: não deixa confirmar girado errado
-    const bp = this.ui.tutorial.currentBp() ?? this.guide()?.item ?? null;
+    const guided = this.ui.tutorial.currentBp();
+    const bp = guided ?? this.guide()?.item ?? null;
     const def = this.build.key ? MACHINE[this.build.key] : null;
+    if (guided && def && guided.key === def.key) {
+      const b = this.build;
+      const onTarget = this.isLineBuild()
+        ? !!b.anchor && b.anchor[0] === guided.tx && b.anchor[1] === guided.ty && b.tx === (guided.tx2 ?? guided.tx) && b.ty === (guided.ty2 ?? guided.ty)
+        : b.tx - Math.floor((def.w - 1) / 2) === guided.tx && b.ty - Math.floor((def.h - 1) / 2) === guided.ty;
+      if (!onTarget) { this.toast('Posicione a peça sobre a marcação verde antes de confirmar', '#ffd04a'); this.audio.error(); return; }
+    }
     if (bp && def && bp.key === def.key && def.rotatable && def.behavior !== 'belt' && def.behavior !== 'tube' && this.build.dir !== bp.dir) {
       this.toast(`Gire primeiro: a seta tem que apontar para ${['a DIREITA', 'BAIXO', 'a ESQUERDA', 'CIMA'][bp.dir]} (botão GIRAR)`, '#ffd04a'); this.audio.error(); return;
     }
@@ -898,13 +895,18 @@ export class Game {
     const p = this.player;
     a.grainFall(this.world.motionNear(p.x, p.y));
     let near = 0;
-    for (const m of this.machines.list) if (m.working && Math.abs(nearestX(m.tx * TILE, p.x) - p.x) < 300 && Math.abs(m.ty * TILE - p.y) < 300) near++;
+    for (const m of this.machines.list) {
+      if (!m.working || m.broken || !NOISY_BEHAVIORS.has(m.def.behavior)) continue;
+      const [mx, my] = this.machines.centerPx(m);
+      const distance = Math.hypot(nearestX(mx, p.x) - p.x, my - p.y);
+      const range = Math.max(125, Math.max(m.def.w, m.def.h) * TILE + 85);
+      if (distance < range) near += (1 - distance / range) ** 2;
+    }
     a.machinesHum(near);
     const s = this.world.sectorAtPx(p.x, p.y) || this.lastSectorMusic;
     this.lastSectorMusic = s;
-    const nearBase = this.machines.list.some(m => m.def.behavior === 'command' && Math.hypot(nearestX((m.tx + 1.5) * TILE, p.x) - p.x, (m.ty + 1.5) * TILE - p.y) < 200);
     const danger = Object.keys(this.hazards.excess).length > 0;
-    const mood = this.flags.finalSeq ? 'nucleo' : danger ? 'tenso' : near > 8 || nearBase ? 'industrial' : SECTORS[s - 1].music;
+    const mood = this.flags.finalSeq ? 'nucleo' : danger ? 'tenso' : near > 1.5 ? 'industrial' : SECTORS[s - 1].music;
     a.updateMusic(dt, mood, !!this.ui?.discoveryOpen());
   }
 

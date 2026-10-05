@@ -124,9 +124,9 @@ export class Audio {
   /** Estalo e sopro curto quando um grão cruza o tubo perto do jogador. */
   tubePass(distance: number) {
     const c = this.ctx;
-    if (!c || c.state !== 'running' || distance > 280 || c.currentTime - this.lastTube < 0.11) return;
+    if (!c || c.state !== 'running' || distance > 140 || c.currentTime - this.lastTube < 0.11) return;
     this.lastTube = c.currentTime;
-    const v = (1 - distance / 280) * 0.06;
+    const v = (1 - distance / 140) * 0.06;
     this.noise(0.055, 'bandpass', 1100 + Math.random() * 500, 1.8, v);
     this.tone(390 + Math.random() * 170, 0.08, 'sine', v * 0.5);
   }
@@ -179,7 +179,7 @@ export class Audio {
     this.musicT = dur * 0.95;
     for (const semi of ch) {
       const f = root[mood] * Math.pow(2, semi / 12);
-      const o = c.createOscillator(); o.type = mood === 'nucleo' ? 'sawtooth' : 'triangle';
+      const o = c.createOscillator(); o.type = 'triangle';
       o.frequency.value = f; o.detune.value = (Math.random() - 0.5) * 12;
       const fl = c.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = mood === 'nucleo' ? 300 : 900;
       const g = c.createGain();
@@ -190,12 +190,9 @@ export class Audio {
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur * 1.1);
       o.start(t); o.stop(t + dur * 1.2);
     }
-    // sinos esparsos / pulso industrial
+    // A trilha não simula motor: o ruído das máquinas é controlado pela distância no jogo.
     if (mood === 'misterio' || mood === 'calmo') {
       for (let i = 0; i < 3; i++) if (Math.random() < 0.5) this.tone(root[mood] * 4 * Math.pow(2, ch[i % ch.length] / 12), 2.5, 'sine', 0.025, Math.random() * dur, this.music);
-    }
-    if (mood === 'industrial' || mood === 'tenso') {
-      for (let i = 0; i < dur * 2; i++) this.tone(root[mood] / 2, 0.15, 'square', 0.03, i * 0.5, this.music);
     }
     // Motivo espaçado sobre os acordes, audível como trilha mesmo em áreas sem máquinas.
     if (mood !== 'tenso' && mood !== 'nucleo') {
