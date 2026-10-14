@@ -1087,3 +1087,8 @@ body:not(.touch) .hud .quick-build { left: 124px !important; top: 307px !importa
   body:not(.touch) .hud .hotbar { top: 338px; max-height: calc(100vh - 450px); }
   body:not(.touch) .hud .quick-build { top: 282px !important; height: calc(100vh - 295px) !important; }
 }
+
+/* correção de cor + vinheta por cima do jogo: camada estática (antes era refeita no canvas a cada quadro) */
+#grade { position: fixed; inset: 0; pointer-events: none; z-index: 1;
+  background: radial-gradient(ellipse at 50% 50%, transparent 52%, rgba(0,0,0,0.26) 100%), linear-gradient(180deg, rgba(255,214,160,0.08), transparent 45%, rgba(60,90,140,0.08)); }
+body:not([data-layer="1"]) #grade { background: radial-gradient(ellipse at 50% 50%, transparent 52%, rgba(0,0,0,0.3) 100%), linear-gradient(180deg, rgba(255,170,110,0.05), transparent 45%, rgba(60,90,140,0.08)); }

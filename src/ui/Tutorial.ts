@@ -80,7 +80,7 @@ function rotHint(g: Game, id: string): string {
 const ARROW = ['▶', '▼', '◀', '▲'];
 // A primeira indústria é construída peça por peça antes da extração.
 const STEPS: Step[] = [
-  { title: 'Andar e voar', text: t => t ? '<b>Joystick esquerdo</b> anda.<br>Toque <b>JATO</b>: voo livre (toque de novo para pousar).' : '<b>A / D</b> anda. <b>W</b> ou <b>Espaço</b> voa.',
+  { title: 'Andar e voar', text: t => t ? '<b>Joystick esquerdo</b> anda.<br>Toque <b>JATO</b>: voo livre (toque de novo para pousar).' : '<b>A / D</b> anda, <b>W</b> sobe. <b>Espaço</b> liga o voo livre (WASD voa; Espaço de novo pousa). <b>Q</b> ou botão direito sopra.',
     target: (g, t) => t ? (g.flags.tutMoved0 ? '#mobile [data-b="jet"]' : '#mobile .stick.left .base') : null, done: g => !!g.flags.tutMoved },
   { title: 'Monte a esteira', bp: 'esteira', text: t => `<b>CONSTRUIR → Logística → Esteira</b>. A linha verde marca o lugar.<br>${t ? 'Toque no ponto 1 e arraste até o 2' : 'Clique no ponto 1 e arraste até o 2'}; a seta deve apontar ◀. Use <b>GIRAR</b> só se estiver ao contrário e então <b>CONFIRMAR</b>.`,
     target: g => bpTarget(g, 'logistica', 'esteira'), done: g => g.blueprint.placed('esteira') },

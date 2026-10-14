@@ -181,6 +181,7 @@ export class Panels {
     save: () => { this.g.save(); this.g.toast('Contrato salvo', '#9cff8a'); },
     resume: () => this.ui.toggleMenu(),
     settings: () => { this.id = 'settings'; this.render(); },
+    quality: (q: string) => { this.g.renderer.setQuality(q as 'auto' | 'alta' | 'leve'); this.g.toast(q === 'leve' ? 'Gráficos: Leve' : q === 'alta' ? 'Gráficos: Alta' : 'Gráficos: Automático', '#8ae8ff'); this.render(); },
     help: () => { this.id = 'help'; this.render(); },
     briefing: () => { this.close(); if (this.ui.menuOpen) this.ui.toggleMenu(); this.ui.mini.briefing(() => {}); },
     tutorial: () => { this.ui.tutorial.restart(); this.close(); if (this.ui.menuOpen) { this.ui.menuOpen = false; this.g.paused = false; } },
@@ -721,6 +722,7 @@ export class Panels {
   r_settings() {
     const v = this.g.audio.volume;
     return `<div class="menu"><h3>ÁUDIO</h3>${(['master', 'sfx', 'music'] as const).map(k => `<div class="kv"><span>${k === 'master' ? 'Geral' : k === 'sfx' ? 'Efeitos' : 'Música'}</span><input type="range" min="0" max="100" value="${Math.round(v[k] * 100)}" data-set="vol_${k}"></div>`).join('')}
+      <h3>GRÁFICOS</h3><div class="row">${(['auto', 'alta', 'leve'] as const).map(q => `<button class="btn ${this.g.renderer.qualityMode === q ? '' : 'ghost'}" data-act="quality" data-arg="${q}">${q === 'auto' ? 'Automático' : q === 'alta' ? 'Alta (Retina)' : 'Leve (gravar / PC fraco)'}</button>`).join('')}</div><p class="muted">Automático baixa a resolução sozinho quando o jogo fica lento. Leve trava a resolução baixa: ideal para gravar a tela.</p>
       <h3>CÂMERA</h3><div class="row"><button class="btn ghost" data-act="zoom" data-arg="0.25">◉ Planeta</button>${[1.5, 2, 2.5, 3].map(z => `<button class="btn ghost" data-act="zoom" data-arg="${z}">${z}×</button>`).join('')}</div>
       <h3>INTERFACE</h3><button class="btn ghost" data-act="collapse">Recolher/expandir HUD</button><button class="btn" data-act="resume">VOLTAR</button></div>`;
   }
@@ -729,7 +731,7 @@ export class Panels {
       <h3>OBJETIVO</h3><p><b>Destruir o planeta</b>, camada por camada até o núcleo. Uma camada esvazia com o que <b>sai do planeta</b>: a terra <b>queimada no Incinerador</b> e os minérios <b>entregues na Nave</b> em órbita.</p>
       <h3>COMO</h3><p><b>Cave</b> com o laser perto de um <b>Soprador</b>: ele aspira a terra solta e manda por <b>Tubo de Vácuo</b> para uma <b>esteira</b>. Por cima da esteira, o <b>Ímã</b> puxa o metal e o <b>Ressonador</b> puxa os cristais (vão para o seu saldo, ou por tubo até a Nave). No fim da esteira, o <b>Incinerador</b> queima o resto.</p>
       <h3>CONTROLES (CELULAR)</h3><p>Joystick esquerdo: andar. Joystick direito: cavar (toque rápido: usar o que está perto). <b>JATO</b>: liga/desliga o voo livre. <b>SOPRAR</b>: joga o que está no aspirador. <b>CONSTRUIR</b>: canto esquerdo. <b>MENU</b>: melhorias e mapa.</p>
-      <h3>CONTROLES (PC)</h3><p>WASD anda · W/Espaço voa · mouse mira e cava · botão direito sopra · B constrói · R gira · X desmonta · M mapa · Esc menu.</p></div>`;
+      <h3>CONTROLES (PC)</h3><p>WASD anda · W sobe · <b>Espaço</b> liga/desliga o voo livre · mouse mira e cava · <b>Q</b>, botão direito ou Ctrl+clique sopra · B constrói · R gira · X desmonta · M mapa · Esc menu.</p></div>`;
   }
 
 

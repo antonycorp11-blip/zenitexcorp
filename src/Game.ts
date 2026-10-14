@@ -398,7 +398,7 @@ export class Game {
     this.world.ensureAroundPx(p.x, p.y, 700);
     // no celular o joystick direito SEMPRE minera; a barra rápida só dispara ações
     const mining = !this.flags.intro && !this.ui.modalOpen() && !this.input.uiCapture && this.input.primary && (this.input.touch || this.hotbar[this.selected]?.key === 'drill') && !this.build.active;
-    const blowing = !this.flags.intro && !this.ui.modalOpen() && !this.build.active && (this.input.touch ? !!this.flags.blowMode && this.input.primary : this.input.secondary && !this.input.uiCapture);
+    const blowing = !this.flags.intro && !this.ui.modalOpen() && !this.build.active && (this.input.touch ? !!this.flags.blowMode && this.input.primary : (this.input.secondary || this.input.down('q')) && !this.input.uiCapture);
     this.mining.updatePlayer(dt, mining && !blowing, this.input.worldX, this.input.worldY);
     this.mining.blow(dt, blowing, this.input.worldX, this.input.worldY);
     this.world.updateFlyers(dt);
@@ -455,6 +455,8 @@ export class Game {
     if (inp.pressed('x')) this.startDismantle();
     if (inp.pressed('r')) this.rotateBuild();
     if (inp.pressed('q') && this.build.active) this.exitBuild();
+    // PC: Espaço liga/desliga o VOO LIVRE (igual ao botão JATO do celular)
+    if (inp.pressed(' ') && !inp.touch && !this.ui.modalOpen() && !this.flags.intro) { inp.jetHeld = !inp.jetHeld; this.toast(inp.jetHeld ? 'Voo livre LIGADO · WASD voa · Espaço pousa' : 'Voo livre desligado', '#8ae8ff'); }
     if (inp.pressed(' ')) this.dialogue.skip();
 
     // construção

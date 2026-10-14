@@ -12,7 +12,7 @@ export class Input {
   touch = false;
   moveX = 0; moveY = 0;
   aimActive = false; aimX = 0; aimY = 0;
-  jetHeld = false;                 // botão JATO (celular)
+  jetHeld = false;                 // voo livre ligado (botão JATO no celular, Espaço no PC)
   uiCapture = false;               // mouse sobre UI
   placeMode = false;
   placeX = 0; placeY = 0; placeDirty = false; placeStart = false;
@@ -30,10 +30,12 @@ export class Input {
     canvas.addEventListener('mousemove', e => { this.mouseX = e.clientX; this.mouseY = e.clientY; this.mouseMoved = true; });
     canvas.addEventListener('mousedown', e => {
       this.mouseX = e.clientX; this.mouseY = e.clientY; this.mouseMoved = true;
+      // Ctrl+clique (trackpad do Mac) vale como botão direito: soprar
+      if (e.button === 0 && e.ctrlKey) { this.secondary = true; this.secondaryPressed = true; return; }
       if (e.button === 0) { this.primary = true; this.primaryPressed = true; }
       if (e.button === 2) { this.secondary = true; this.secondaryPressed = true; }
     });
-    window.addEventListener('mouseup', e => { if (e.button === 0) this.primary = false; if (e.button === 2) this.secondary = false; });
+    window.addEventListener('mouseup', e => { if (e.button === 0) { this.primary = false; if (e.ctrlKey || this.secondary) this.secondary = false; } if (e.button === 2) this.secondary = false; });
     canvas.addEventListener('contextmenu', e => e.preventDefault());
     canvas.addEventListener('wheel', e => { this.wheel += Math.sign(e.deltaY); e.preventDefault(); }, { passive: false });
   }

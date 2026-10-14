@@ -12,6 +12,9 @@ export class Lighting {
   private grad = new Map<string, HTMLCanvasElement>();
   scale = 0.5;
   lights: Light[] = [];
+  /** área útil do último render (coords do canvas de luz): o resto é transparente e não precisa ser composto */
+  darkTop = 0;
+  glowBox: [number, number, number, number] | null = null;
   private texs: { hole: HTMLCanvasElement; glow: HTMLCanvasElement; x: number; y: number; w: number; h: number; a: number }[] = [];
   static readonly TEX_SCALE = 0.5;
   static readonly TEX_PAD = 48;
@@ -80,6 +83,9 @@ export class Lighting {
     const gr = d.createLinearGradient(0, sy, 0, sy + 260 * s);
     const c = `${ambient[0]},${ambient[1]},${ambient[2]}`;
     gr.addColorStop(0, `rgba(${c},${top})`); gr.addColorStop(1, `rgba(${c},${darkness})`);
+    this.darkTop = top <= 0.004 ? Math.max(0, Math.min(this.dark.height, Math.floor(sy))) : 0;
+    let gx0 = Infinity, gy0 = Infinity, gx1 = -Infinity, gy1 = -Infinity;
+    const grow = (x: number, y: number, w2: number, h2: number) => { if (x < gx0) gx0 = x; if (y < gy0) gy0 = y; if (x + w2 > gx1) gx1 = x + w2; if (y + h2 > gy1) gy1 = y + h2; };
     d.fillStyle = gr;
     d.fillRect(0, 0, this.dark.width, this.dark.height);
     d.globalCompositeOperation = 'destination-out';
@@ -89,6 +95,7 @@ export class Lighting {
       const x = (T.x - camX) * s, y = (T.y - camY) * s, w2 = T.w * s, h2 = T.h * s;
       d.globalAlpha = T.a; d.drawImage(T.hole, x, y, w2, h2);
       g.globalAlpha = T.a; g.drawImage(T.glow, x, y, w2, h2);
+      grow(x, y, w2, h2);
     }
     this.texs.length = 0;
     const white = this.gradient([255, 255, 255], true);
@@ -99,8 +106,12 @@ export class Lighting {
       d.drawImage(white, x - r, y - r, r * 2, r * 2);
       g.globalAlpha = L.a * 0.2;
       g.drawImage(this.gradient(L.c), x - r * 0.8, y - r * 0.8, r * 1.6, r * 1.6);
+      grow(x - r * 0.8, y - r * 0.8, r * 1.6, r * 1.6);
     }
     d.globalAlpha = 1; g.globalAlpha = 1;
+    const GW = this.glow.width, GH = this.glow.height;
+    gx0 = Math.max(0, Math.floor(gx0)); gy0 = Math.max(0, Math.floor(gy0)); gx1 = Math.min(GW, Math.ceil(gx1)); gy1 = Math.min(GH, Math.ceil(gy1));
+    this.glowBox = gx1 > gx0 && gy1 > gy0 ? [gx0, gy0, gx1 - gx0, gy1 - gy0] : null;
     d.globalCompositeOperation = 'source-over';
     this.lights.length = 0;
     void h;

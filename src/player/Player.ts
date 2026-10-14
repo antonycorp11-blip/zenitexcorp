@@ -1,7 +1,7 @@
 import { CELL, TILE, WORLD_PX_W, wrapX } from '../core/constants';
 import { DRILLS, ENERGY_LEVELS, HEALTH_LEVELS, SUIT_MODULES } from '../data/equipment';
 import type { HazardKey } from '../data/sectors';
-import { MAT, IS_BLOCKING } from '../data/materials';
+import { MAT, IS_BLOCKING, IS_LOOSE } from '../data/materials';
 import type { Game } from '../Game';
 
 export class Player {
@@ -47,8 +47,8 @@ export class Player {
     // jetpack: para cima no joystick / W / espaço
     // celular: botão JATO; teclado: W/↑/Espaço
     // celular: JATO liga o VOO LIVRE (joystick move em qualquer direção, sem gastar energia); teclado: segurar W/Espaço
-    const flying = g.input.touch && g.input.jetHeld;
-    const jetting = flying || (!g.input.touch && (my < -0.35 || g.input.down(' ')));
+    const flying = g.input.jetHeld;
+    const jetting = flying || (!g.input.touch && my < -0.35);
     const thrust = flying && Math.hypot(ax, my) > 0.2 ? Math.hypot(ax, my) : 0;
     this.jetDX = thrust ? -ax / thrust : 0;
     this.jetDY = thrust ? -my / thrust : 1;
@@ -102,12 +102,19 @@ export class Player {
     g.world.reveal(this.x, this.y, 9 + g.player.scannerLevel);
   }
 
-  /** o corpo colide nesta posição? (terreno, grãos) */
-  private hits(px: number, py: number): boolean {
+  /**
+   * o corpo colide nesta posição? loose: como tratar grãos soltos —
+   * 'all' (bloqueiam), 'feet' (só a fileira dos pés, para pousar em pilhas) ou 'none' (atravessa)
+   */
+  private hits(px: number, py: number, loose: 'all' | 'feet' | 'none' = 'all'): boolean {
     const w = this.g.world;
     const x0 = Math.floor((px - this.hw) / CELL), x1 = Math.floor((px + this.hw - 0.01) / CELL);
     const y0 = Math.floor((py - this.hh) / CELL), y1 = Math.floor((py - 0.01) / CELL);
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (IS_BLOCKING[w.get(x, y)]) return true;
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const m = w.get(x, y);
+      if (!IS_BLOCKING[m]) continue;
+      if (!IS_LOOSE[m] || loose === 'all' || (loose === 'feet' && y === y1)) return true;
+    }
     return false;
   }
   /** topo de máquina sob os pés (plataforma de mão única) */
@@ -135,7 +142,7 @@ export class Player {
         else if (nx >= WORLD_PX_W) this.g.camera.x -= WORLD_PX_W;
         continue;
       }
-      // degrau: sobe até 3 células (pilhas de areia, bordas)
+      // degrau: sobe até 5 células (montinhos de terra, bordas)
       let climbed = false;
       for (let up = CELL; up <= 10; up += CELL) {
         if (!this.hits(nx, this.y - up) && !this.hits(this.x, this.y - up)) {
@@ -144,6 +151,13 @@ export class Player {
           else if (nx >= WORLD_PX_W) this.g.camera.x -= WORLD_PX_W;
           this.y -= up; climbed = true; break;
         }
+      }
+      // pilha alta ou terra caindo (só grãos soltos no caminho): o corpo atravessa em vez de travar
+      if (!climbed && !this.hits(nx, this.y, 'none')) {
+        this.x = wrapX(nx, WORLD_PX_W);
+        if (nx < 0) this.g.camera.x += WORLD_PX_W;
+        else if (nx >= WORLD_PX_W) this.g.camera.x -= WORLD_PX_W;
+        continue;
       }
       if (!climbed) { this.vx = 0; return; }
     }
@@ -159,7 +173,8 @@ export class Player {
         const top = this.onMachineTop(this.x, this.y, ny);
         if (top !== null) { this.y = top; this.vy = 0; this.grounded = true; return; }
       }
-      if (!this.hits(this.x, ny)) { this.y = ny; continue; }
+      // subindo atravessa grãos soltos; descendo, pousa em cima deles (fileira dos pés)
+      if (!this.hits(this.x, ny, sy < 0 ? 'none' : 'feet')) { this.y = ny; continue; }
       if (sy > 0) this.grounded = true;
       this.vy = 0;
       return;

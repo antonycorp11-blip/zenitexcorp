@@ -37,39 +37,60 @@ export class Renderer {
     this.ctx = canvas.getContext('2d', { alpha: false })!;
     this.fog = document.createElement('canvas');
     this.fctx = this.fog.getContext('2d')!;
+    try { const q = localStorage.getItem('zx_quality'); if (q === 'alta' || q === 'leve') this.qualityMode = q; } catch { /* sem storage */ }
     const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
-    if ((memory && memory <= 4) || navigator.hardwareConcurrency <= 4) this.resolutionScale = window.devicePixelRatio > 1 ? 0.85 : 1;
+    if ((memory && memory <= 4) || navigator.hardwareConcurrency <= 4) this.qi = 1;
+    if (this.qualityMode === 'leve') this.qi = 3;
+    if (this.qualityMode === 'alta') this.qi = 0;
+    this.resolutionScale = Renderer.LEVELS[this.qi];
+  }
+
+  /** degraus de resolução (multiplicam a densidade de pixels); o automático desce quando o quadro demora */
+  static readonly LEVELS = [1, 0.85, 0.72, 0.6, 0.5];
+  private qi = 0;
+  qualityMode: 'auto' | 'alta' | 'leve' = 'auto';
+  setQuality(mode: 'auto' | 'alta' | 'leve') {
+    this.qualityMode = mode;
+    try { localStorage.setItem('zx_quality', mode); } catch { /* sem storage */ }
+    this.qi = mode === 'leve' ? 3 : mode === 'alta' ? 0 : Math.min(this.qi, 2);
+    this.resolutionScale = Renderer.LEVELS[this.qi];
+    this.qualityTime = this.qualityGap = this.qualityBusy = this.qualityFrames = 0;
+    this.resize();
   }
 
   resize() {
-    const dpr = Math.min(2, window.devicePixelRatio || 1) * this.resolutionScale;
+    // Retina 2× custa 4× os pixels de 1×: no PC começa em 1,5× (nítido e bem mais leve); "alta" libera 2×
+    const cap = this.qualityMode === 'alta' || this.g.input?.touch ? 2 : 1.5;
+    const dpr = Math.min(cap, window.devicePixelRatio || 1) * this.resolutionScale;
     const oldDpr = this.actualDpr;
     this.actualDpr = dpr;
     const w = window.innerWidth, h = window.innerHeight;
     this.canvas.width = Math.floor(w * dpr); this.canvas.height = Math.floor(h * dpr);
     this.canvas.style.width = w + 'px'; this.canvas.style.height = h + 'px';
     this.g.camera.w = this.canvas.width; this.g.camera.h = this.canvas.height;
-    this.g.lighting.scale = this.resolutionScale < 0.85 ? 0.4 : this.resolutionScale < 1 ? 0.45 : 0.5;
+    this.g.lighting.scale = this.qi >= 3 ? 0.34 : this.qi >= 1 ? 0.42 : 0.5;
+    this.skyScale = this.qi >= 3 ? 0.38 : 0.5;
     this.g.lighting.resize(this.canvas.width, this.canvas.height);
     const z = Math.max(1.8, Math.min(3, h / 200)) * dpr;   // vista lateral: perto o bastante para ver os grãos
     if (!this.g.flags.userZoom) { this.g.camera.targetZoom = z; this.g.camera.zoom = z; }
     else if (oldDpr && oldDpr !== dpr) { this.g.camera.zoom *= dpr / oldDpr; this.g.camera.targetZoom *= dpr / oldDpr; }
   }
 
-  /** Reduz pixels processados só após lentidão persistente; recupera nitidez quando sobra tempo. */
+  /** Automático: desce um degrau após ~2 s abaixo de ~40 fps; sobe só após ~8 s folgado (sem ficar oscilando). */
   recordFrame(gap: number, busyMs: number) {
-    if (document.hidden || gap <= 0 || gap > 5) return;
+    if (document.hidden || gap <= 0 || gap > 2 || this.qualityMode !== 'auto') return;
     const frameGap = Math.min(gap, 0.25);
     this.qualityTime += frameGap;
     this.qualityGap += frameGap;
     this.qualityBusy += busyMs;
     this.qualityFrames++;
-    if (this.qualityTime < (this.resolutionScale < 1 ? 6 : 3)) return;
+    if (this.qualityTime < 2) return;
     const avgGap = this.qualityGap / this.qualityFrames, avgBusy = this.qualityBusy / this.qualityFrames;
+    const slow = avgGap > 0.025 || avgBusy > 16, fast = avgGap < 0.0185 && avgBusy < 9;
+    if (!slow && !(fast && this.qualityTime >= 8)) { if (!fast) this.qualityTime = this.qualityGap = this.qualityBusy = this.qualityFrames = 0; return; }
     this.qualityTime = this.qualityGap = this.qualityBusy = this.qualityFrames = 0;
-    const next = avgGap > 0.038 || avgBusy > 24 ? (this.resolutionScale === 1 ? 0.85 : 0.7)
-      : avgGap < 0.021 && avgBusy < 12 ? (this.resolutionScale === 0.7 ? 0.85 : 1) : this.resolutionScale;
-    if (next !== this.resolutionScale) { this.resolutionScale = next; this.resize(); }
+    const next = slow ? Math.min(Renderer.LEVELS.length - 1, this.qi + 1) : Math.max(0, this.qi - 1);
+    if (next !== this.qi) { this.qi = next; this.resolutionScale = Renderer.LEVELS[next]; this.resize(); }
   }
 
   draw(dt: number) {
@@ -82,7 +103,7 @@ export class Renderer {
     const L = Math.round(cam.left() * z) / z, T = Math.round(cam.top() * z) / z;
     const R = L + W / z, B = T + H / z;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.drawSky(L, T, z, W, H);
+    this.drawSkyCached(L, T, z, W, H);
     ctx.imageSmoothingEnabled = true;
     ctx.setTransform(z, 0, 0, z, -L * z, -T * z);
 
@@ -355,9 +376,12 @@ export class Renderer {
     const surfPx = g.world.gen.landing.y * CELL;
     g.lighting.render(L, T, z, W, H, sd.ambient, Math.min(0.92, 0.4 + sd.darkness + storm + finalDark), surfPx, g.planet.layer === 1 ? storm + finalDark : Math.min(0.8, 0.3 + sd.darkness));
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(g.lighting.dark, 0, 0, W, H);
+    // compõe só a área útil: acima do chão (de dia) a escuridão é transparente, e o brilho só existe perto das luzes
+    const Lg = g.lighting, ks = W / Lg.dark.width, dTop = Lg.darkTop;
+    if (dTop < Lg.dark.height) ctx.drawImage(Lg.dark, 0, dTop, Lg.dark.width, Lg.dark.height - dTop, 0, dTop * ks, W, (Lg.dark.height - dTop) * ks);
     ctx.globalCompositeOperation = 'lighter';
-    ctx.drawImage(g.lighting.glow, 0, 0, W, H);
+    const gb = Lg.glowBox;
+    if (gb && this.qi < 2) ctx.drawImage(Lg.glow, gb[0], gb[1], gb[2], gb[3], gb[0] * ks, gb[1] * ks, gb[2] * ks, gb[3] * ks);
     ctx.setTransform(z, 0, 0, z, -L * z, -T * z);
     g.fx.drawGlow(ctx);
     ctx.globalCompositeOperation = 'source-over';
@@ -458,6 +482,33 @@ export class Renderer {
     ctx.fillStyle = '#3a4450'; ctx.fillRect(x + 1.8, y + 15.2, 3, 0.8); ctx.fillRect(x + 11.2, y + 15.2, 3, 0.8);
     if (m.state.startsWith('Travada') && Math.floor(this.time * 2) % 2) { ctx.fillStyle = 'rgba(255,60,40,0.45)'; ctx.fillRect(x, y, 16, 8); }
   }
+
+  /**
+   * O céu (degradê, sol, planeta, nuvens, montanhas, árvores e raios de sol) é a parte mais cara do quadro e quase
+   * não muda: desenha num canvas em MEIA resolução e só redesenha quando a paralaxe anda 1 px ou a cada 1/4 s.
+   */
+  private skyC: HTMLCanvasElement | null = null;
+  private skyX: CanvasRenderingContext2D | null = null;
+  private skyKey = ''; private skyAt = -1;
+  private drawSkyCached(L: number, T: number, z: number, W: number, H: number) {
+    const k = this.skyScale, sw = Math.max(1, Math.ceil(W * k)), sh = Math.max(1, Math.ceil(H * k)), zs = z * k;
+    if (!this.skyC) { this.skyC = document.createElement('canvas'); this.skyX = this.skyC.getContext('2d', { alpha: false })!; }
+    if (this.skyC.width !== sw || this.skyC.height !== sh) { this.skyC.width = sw; this.skyC.height = sh; this.skyKey = ''; }
+    const key = `${Math.round(L * zs * 0.5)}|${Math.round(T * zs)}|${zs.toFixed(4)}|${this.g.planet.layer}`;
+    if (key !== this.skyKey || this.time - this.skyAt > 0.25) {
+      this.skyKey = key; this.skyAt = this.time;
+      const main = this.ctx;
+      this.ctx = this.skyX!;
+      this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+      this.drawSky(L, T, zs, sw, sh);
+      this.drawRays(sw, (this.g.world.gen.landing.y * CELL - T) * zs, sh);
+      this.ctx = main;
+    }
+    const ctx = this.ctx;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(this.skyC, 0, 0, sw, sh, 0, 0, W, H);
+  }
+  skyScale = 0.5;
 
   /** Céu atmosférico (superfície) ou caverna gigante com neblina (camadas de baixo), com paralaxe suave. */
   private drawSky(L: number, T: number, z: number, W: number, H: number) {
@@ -672,7 +723,7 @@ export class Renderer {
       ctx.fillStyle = mist; ctx.fillRect(0, base - 15 * z, W, 22 * z);
     }
     // Árvores de fundo são geradas a partir de coordenadas do planeta e se movem em paralaxe.
-    if (surface > -10 * z && this.resolutionScale >= 0.85) {
+    if (surface > -10 * z) {
       const par = 0.5, gap = 24;
       const first = Math.floor((L * par - gap) / gap);
       const last = Math.ceil((L * par + W / z + gap) / gap);
@@ -722,35 +773,29 @@ export class Renderer {
   }
 
   /** pós-processamento: raios de sol, vinheta e correção de cor */
-  private post(W: number, H: number, surfScreenY: number, layer: number) {
+  /** raios de sol (desenhados junto com o céu em cache): somem conforme a câmera sobe para o espaço */
+  private drawRays(W: number, surfScreenY: number, H: number) {
     const ctx = this.ctx;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    // raios de sol só perto do chão: somem conforme a câmera sobe para o espaço
     const rayK = Math.max(0, Math.min(1, 1 - (surfScreenY - H) / (H * 1.2)));
-    if (layer === 1 && surfScreenY > -40 && rayK > 0.02) {
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = rayK;
-      for (let i = 0; i < 4; i++) {
-        const x = W * (0.45 + i * 0.13) + Math.sin(this.time * 0.2 + i) * 20;
-        const gr = ctx.createLinearGradient(x, 0, x - 120, surfScreenY);
-        gr.addColorStop(0, 'rgba(255,236,190,0.04)'); gr.addColorStop(1, 'rgba(255,236,190,0)');
-        ctx.fillStyle = gr;
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + 40, 0); ctx.lineTo(x - 80, surfScreenY); ctx.lineTo(x - 160, surfScreenY); ctx.closePath(); ctx.fill();
-      }
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 1;
+    if (this.g.planet.layer !== 1 || surfScreenY <= -40 || rayK <= 0.02) return;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = rayK;
+    const k = W / 1000;
+    for (let i = 0; i < 4; i++) {
+      const x = W * (0.45 + i * 0.13) + Math.sin(this.time * 0.2 + i) * 20 * k;
+      const gr = ctx.createLinearGradient(x, 0, x - 120 * k, surfScreenY);
+      gr.addColorStop(0, 'rgba(255,236,190,0.06)'); gr.addColorStop(1, 'rgba(255,236,190,0)');
+      ctx.fillStyle = gr;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + 40 * k, 0); ctx.lineTo(x - 80 * k, surfScreenY); ctx.lineTo(x - 160 * k, surfScreenY); ctx.closePath(); ctx.fill();
     }
-    // correção de cor: quente em cima, fria embaixo
-    ctx.globalCompositeOperation = 'soft-light';
-    const cg = ctx.createLinearGradient(0, 0, 0, H);
-    cg.addColorStop(0, layer === 1 ? 'rgba(255,214,160,0.25)' : 'rgba(255,170,110,0.15)'); cg.addColorStop(1, 'rgba(80,110,150,0.18)');
-    ctx.fillStyle = cg; ctx.fillRect(0, 0, W, H);
     ctx.globalCompositeOperation = 'source-over';
-    // vinheta
-    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
-    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.3)');
-    ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
   }
+  /** correção de cor e vinheta agora são uma camada CSS fixa (#grade): custo zero por quadro */
+  private post(_W: number, _H: number, _surfScreenY: number, layer: number) {
+    if (this.gradeLayer !== layer) { this.gradeLayer = layer; document.body.dataset.layer = String(layer); }
+  }
+  private gradeLayer = -1;
 
   /** Tubo pneumático: liga vizinhos, mostra a sucção e os grãos transportados. */
   private drawTube(m: Machine) {
